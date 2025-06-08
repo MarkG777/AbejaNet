@@ -50,7 +50,7 @@ CREATE TABLE lecturas_ambientales (
   temperatura       DECIMAL(5,2) NULL, 
   lluvia            BOOLEAN NULL,      
   calidad_aire      DECIMAL(6,2) NULL, 
-  presion           DECIMAL(7,2) NULL, 
+  presion           DECIMAL(7,2) NULL,
   FOREIGN KEY (sensor_id) REFERENCES sensores(id) ON DELETE CASCADE
 );
 --peso, temperatura, humendad y lluevia y la humedad es entere, temperatura es decimal / el protocolo que pidio la maestra maribel es gsm
