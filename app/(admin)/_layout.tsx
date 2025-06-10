@@ -67,27 +67,26 @@ export default function AdminLayout() {
       />
       {/* Las siguientes pantallas son marcadores de posición para que coincidan con tu diseño. */}
       {/* Descoméntalas cuando crees los archivos correspondientes (ej. app/(admin)/colmenas.tsx) */}
-      {/*
       <Drawer.Screen
-        name="colmenas"
+        name="colmenas" // Asumiendo que el archivo es app/(admin)/colmenas.tsx
         options={{
           title: 'Colmenas',
           drawerIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="beehive-outline" size={size} color={color} />
+            <Ionicons name="leaf-outline" size={size} color={color} />
           ),
         }}
       />
       <Drawer.Screen
-        name="sensores"
+        name="sensores" // Asumiendo que el archivo es app/(admin)/sensores.tsx
         options={{
           title: 'Sensores',
           drawerIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="access-point" size={size} color={color} />
+            <Ionicons name="speedometer-outline" size={size} color={color} />
           ),
         }}
       />
       <Drawer.Screen
-        name="usuarios"
+        name="usuarios" // Asumiendo que el archivo es app/(admin)/usuarios.tsx
         options={{
           title: 'Usuarios',
           drawerIcon: ({ color, size }) => (
@@ -95,7 +94,6 @@ export default function AdminLayout() {
           ),
         }}
       />
-      */}
     </Drawer>
   );
 }
