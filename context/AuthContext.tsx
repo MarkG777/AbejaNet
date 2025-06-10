@@ -7,9 +7,9 @@ interface AuthContextData {
   authState: { 
     accessToken: string | null;
     authenticated: boolean | null; // null mientras se verifica, luego true o false
-    userRole: 'administrador' | 'user' | null; // Roles que manejes
+    userRole: 'administrador' | 'usuario' | null; // Roles que manejes
   };
-  login: (token: string, role: 'administrador' | 'user') => Promise<void>;
+  login: (token: string, role: 'administrador' | 'usuario') => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -30,7 +30,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         console.log('AuthContext: Attempting to load auth state...');
         const token = await AsyncStorage.getItem('accessToken');
-        const role = await AsyncStorage.getItem('userRole') as 'administrador' | 'user' | null;
+        const role = await AsyncStorage.getItem('userRole') as 'administrador' | 'usuario' | null;
         console.log('AuthContext: Loaded from AsyncStorage - Token:', token, 'Role:', role);
         if (token && role) {
           setAuthState({
@@ -60,7 +60,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   // Función para manejar el inicio de sesión
-  const login = async (token: string, role: 'administrador' | 'user') => {
+  const login = async (token: string, role: 'administrador' | 'usuario') => {
     try {
       await AsyncStorage.setItem('accessToken', token);
       await AsyncStorage.setItem('userRole', role);

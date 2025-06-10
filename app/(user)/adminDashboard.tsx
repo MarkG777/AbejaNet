@@ -7,12 +7,13 @@ import { getApiUrl } from '../../utils/ip_config';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, StyleSheet } from 'react-native'; // Import StyleSheet
 
+
 interface AdminProfile {
   id: number;
   rol: string;
 }
 
-export default function WelcomeScreen() {
+export default function AdminDashboardScreen() { // Renamed component for clarity
   const { email } = useLocalSearchParams<{ email: string }>();
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [profileData, setProfileData] = useState<AdminProfile | null>(null);
@@ -20,7 +21,7 @@ export default function WelcomeScreen() {
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    const 초기화 = async () => {
+    const initializeScreen = async () => { // Renamed function for clarity
       try {
         const baseUrl = await getApiUrl();
         setApiBaseUrl(baseUrl);
@@ -29,7 +30,7 @@ export default function WelcomeScreen() {
         setLoadingProfile(true);
         setProfileError(null);
         const token = await AsyncStorage.getItem('accessToken');
-        console.log('AdminProfile Fetch: Using token:', token);
+        console.log('AdminDashboardScreen Fetch: Using token:', token);
 
         if (!token) {
           setProfileError('No se encontró token. Inicie sesión.');
@@ -61,14 +62,14 @@ export default function WelcomeScreen() {
           setProfileError(data.message || 'Respuesta inesperada del servidor.');
         }
       } catch (e: any) {
-        console.error('Error en WelcomeScreen:', e);
+        console.error('Error en AdminDashboardScreen:', e);
         setProfileError(`Error de conexión: ${e.message}`);
       } finally {
         setLoadingProfile(false);
       }
     };
 
-    초기화();
+    initializeScreen();
   }, []);
 
   return (
@@ -101,65 +102,49 @@ export default function WelcomeScreen() {
           <ThemedText>Rol: {profileData.rol}</ThemedText>
         </ThemedView>
       )}
-
-      <ThemedText style={styles.instructions}>
-        Utiliza el menú lateral para navegar por las opciones de administración.
-      </ThemedText>
     </ThemedView>
   );
 }
 
-// Add StyleSheet for better organization
+// Add basic styles if they are not imported from elsewhere or define them here
 const styles = StyleSheet.create({
   container: {
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    padding: 20, 
-    backgroundColor: '#f0f4f8' // Softer background color
+    flex: 1,
+    padding: 16,
+    backgroundColor: '#f0f0f0', // Example background color
   },
   title: {
-    fontSize: 28, 
-    fontWeight: 'bold', 
-    color: '#1976d2', 
-    marginBottom: 10
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 18, 
-    marginBottom: 5, 
-    color: '#333'
+    fontSize: 18,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   apiInfo: {
-    fontSize: 12, 
-    color: '#777', 
-    marginBottom: 20
-  },
-  infoBoxSuccess: {
-    marginVertical: 15,
-    padding: 15,
-    backgroundColor: '#E8F5E9', // Light green background
-    borderRadius: 8,
-    width: '90%',
-    alignItems: 'center',
-    borderLeftWidth: 5,
-    borderLeftColor: '#4CAF50'
+    fontSize: 14,
+    marginBottom: 20,
+    textAlign: 'center',
+    color: 'grey',
   },
   infoBoxError: {
-    marginVertical: 15,
-    padding: 15,
-    backgroundColor: '#FFEBEE', // Light red background
-    borderRadius: 8,
-    width: '90%',
-    alignItems: 'center',
-    borderLeftWidth: 5,
-    borderLeftColor: '#F44336'
+    backgroundColor: '#FFEBEE', // Light red
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#D32F2F', // Darker red
   },
-  instructions: {
-    fontSize: 16, 
-    textAlign: 'center', 
-    color: '#555',
-    marginTop: 20
-  }
+  infoBoxSuccess: {
+    backgroundColor: '#E8F5E9', // Light green
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#388E3C', // Darker green
+  },
+  // Add other styles used by ThemedText/ThemedView if necessary
 });
-
-

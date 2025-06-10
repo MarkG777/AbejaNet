@@ -61,30 +61,53 @@ function AppLayout() {
     // Diagnostic logs for current effect cycle
     console.log(`_layout.tsx: EFFECT CYCLE CHECK - Authenticated: ${authState.authenticated}, Role: ${authState.userRole}, InAuthGroup: ${inAuthGroup}`);
 
-    // Lógica para admin autenticado
-    if (authState.authenticated && authState.userRole === 'administrador') {
-      console.log('_layout.tsx: Admin specific logic: Authenticated IS true AND Role IS administrador.');
-      if (inAuthGroup) {
-        console.log('_layout.tsx: Admin specific logic: ALSO inAuthGroup IS true. ATTEMPTING REDIRECT to /(admin).');
-        router.replace('/(admin)');
-        return; // Importante: salir después de redirigir
+    if (!authState.authenticated) { // Usuario NO está autenticado
+      // Explicitly type segments.length to see if it helps TypeScript's inference
+      console.log(`_layout.tsx: User NOT authenticated. InAuthGroup: ${inAuthGroup}, Segments: ${JSON.stringify(segments)}`);
+      if (!inAuthGroup) { // If not already in an auth screen (e.g. login, register)
+        console.log('_layout.tsx: Unauthenticated user NOT in auth group. Redirecting to /(auth)/login.');
+        router.replace('/(auth)/login');
+        return; // Importante después de redirigir
       } else {
-        console.log('_layout.tsx: Admin specific logic: NOT inAuthGroup. No redirection to admin panel by this rule (e.g., already in admin).');
+        // User is not authenticated, but IS in the auth group. Let them stay.
+        console.log('_layout.tsx: Unauthenticated user IS in auth group. No redirect needed by this rule.');
       }
-    } 
-    // Lógica para no autenticado
-    else if (!authState.authenticated && !inAuthGroup && segments.length > 0) {
-      console.log('_layout.tsx: User not authenticated AND not in auth group. Redirecting to /(auth)/login');
-      router.replace('/(auth)/login');
-      return; // Importante
-    } 
-    // Lógica para no autenticado pero ya en grupo auth (o segmentos vacíos)
-    else if (!authState.authenticated && (inAuthGroup || segments.length === 0)) {
-      console.log('_layout.tsx: User not authenticated but already in auth group, or segments empty. No redirection to login needed by this rule.');
-    } else {
-      console.log('_layout.tsx: Fallback or other condition met. No specific redirection rule triggered here.');
+    } else { // Usuario SÍ está autenticado
+      console.log(`_layout.tsx: User IS authenticated. Role: ${authState.userRole}, Segments: ${JSON.stringify(segments)}, InAuthGroup: ${inAuthGroup}`);
+
+      if (authState.userRole === 'administrador') {
+        console.log('_layout.tsx: Authenticated user is Administrador.');
+        // Si el admin está en el grupo (auth) (acaba de iniciar sesión) O si no está aún en su ruta del panel de admin
+        if (inAuthGroup || segments[0] !== '(admin)') {
+          console.log(`_layout.tsx: Admin (segments[0]=${segments[0]}, inAuthGroup=${inAuthGroup}). Redirecting to /(admin)/adminDashboard.`);
+          router.replace('/(admin)/adminDashboard');
+          return; // Importante
+        } else {
+          // Admin ya está en su grupo '(admin)' y no en '(auth)'.
+          console.log(`_layout.tsx: Admin (segments[0]=${segments[0]}, inAuthGroup=${inAuthGroup}). No redirect needed by this rule.`);
+        }
+      } else if (authState.userRole === 'usuario') {
+        console.log('_layout.tsx: Authenticated user is Usuario.');
+        // Redirigir al usuario a su pantalla principal si:
+        // 1. No está ya en su grupo de rutas '(user)'.
+        // OR 2. Está en el grupo '(auth)' (ej. justo después de login).
+        if (segments[0] !== '(user)' || inAuthGroup) {
+          console.log(`_layout.tsx: Usuario (segments[0]=${segments[0]}, inAuthGroup=${inAuthGroup}). Redirecting to /(user)/dashboard.`);
+          router.replace('/(user)/dashboard'); // Redirige al dashboard del grupo (user)
+          return; // Importante
+        } else {
+          // Usuario ya está en su grupo '(user)' y no en '(auth)'.
+          console.log(`_layout.tsx: Usuario (segments[0]=${segments[0]}, inAuthGroup=${inAuthGroup}). No redirect needed by this rule.`);
+        }
+      } else {
+        // Usuario autenticado pero con un rol no manejado o nulo.
+        console.log(`_layout.tsx: Authenticated user with unhandled role: ${authState.userRole}. No specific redirection rule triggered here.`);
+        // Aquí podrías considerar un fallback, como redirigir a una pantalla de error,
+        // a la pantalla de login, o ejecutar logout() si es un estado inválido.
+        // Por ahora, solo se registra en consola.
+      }
     }
-    // Nota: Si tienes roles de 'user', aquí añadirías lógica para redirigir a '/(user)' o similar.
+    console.log('_layout.tsx: End of redirection logic for this cycle.');
   }, [loaded, authState.authenticated, authState.userRole, segments, router]);
 
   if (!loaded || authState.authenticated === null) {
