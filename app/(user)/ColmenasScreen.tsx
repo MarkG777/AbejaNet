@@ -1,15 +1,15 @@
 import React from 'react';
-
-import { View, Text, StyleSheet, FlatList, SafeAreaView, StatusBar, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, SafeAreaView, StatusBar, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LineChart } from 'react-native-chart-kit';
 
 // Define la estructura de un objeto Colmena
 interface Colmena {
-  id: string; 
+  id: string;
   nombre_identificativo: string;
   ubicacion_descripcion: string;
-  fecha_establecimiento: string; 
-  tipo_colmena: string; 
+  fecha_establecimiento: string;
+  tipo_colmena: string;
   estado_salud: 'saludable' | 'enferma' | 'debil' | 'desconocido';
   notas_adicionales?: string;
 }
@@ -53,6 +53,8 @@ const colmenasData: Colmena[] = [
   },
 ];
 
+const screenWidth = Dimensions.get('window').width;
+
 const ColmenaCard: React.FC<{ item: Colmena; onPress: () => void }> = ({ item, onPress }) => {
   const getStatusColor = (status: Colmena['estado_salud']) => {
     switch (status) {
@@ -61,6 +63,41 @@ const ColmenaCard: React.FC<{ item: Colmena; onPress: () => void }> = ({ item, o
       case 'enferma': return '#F44336'; // Rojo
       default: return '#9E9E9E'; // Gris
     }
+  };
+
+  // Datos estáticos para la gráfica de temperatura
+  const chartData = {
+    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
+    datasets: [
+      {
+        data: [
+          Math.random() * 10 + 15, // Temp entre 15 y 25
+          Math.random() * 10 + 15,
+          Math.random() * 10 + 15,
+          Math.random() * 10 + 15,
+          Math.random() * 10 + 15,
+          Math.random() * 10 + 15,
+          Math.random() * 10 + 15,
+        ],
+      },
+    ],
+  };
+
+  const chartConfig = {
+    backgroundColor: '#ffffff',
+    backgroundGradientFrom: '#ffffff',
+    backgroundGradientTo: '#ffffff',
+    decimalPlaces: 1,
+    color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`, // Color azul para la línea y etiquetas
+    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Color negro para las etiquetas de los ejes
+    style: {
+      borderRadius: 8,
+    },
+    propsForDots: {
+      r: '4',
+      strokeWidth: '2',
+      stroke: '#007AFF',
+    },
   };
 
   return (
@@ -83,15 +120,25 @@ const ColmenaCard: React.FC<{ item: Colmena; onPress: () => void }> = ({ item, o
       {item.notas_adicionales && (
         <Text style={styles.cardText}><Text style={styles.bold}>Notas:</Text> {item.notas_adicionales}</Text>
       )}
+
+      <View style={styles.chartContainer}>
+        <Text style={styles.chartTitle}>Temperatura Semanal (°C)</Text>
+        <LineChart
+          data={chartData}
+          width={screenWidth - 64} // Ancho de la pantalla menos paddings (16*2 del container + 16*2 de la card)
+          height={220}
+          chartConfig={chartConfig}
+          bezier
+          style={styles.chartStyle}
+        />
+      </View>
     </TouchableOpacity>
   );
 };
 
 const ColmenasScreen: React.FC = () => {
   const handleCardPress = (colmena: Colmena) => {
-    // Aquí puedes navegar a una pantalla de detalle de la colmena o mostrar un modal
     console.log('Colmena seleccionada:', colmena.nombre_identificativo);
-    // Ejemplo: router.push(`/(user)/colmena/${colmena.id}`);
   };
 
   return (
@@ -114,7 +161,7 @@ const ColmenasScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f4f6f8', 
+    backgroundColor: '#f4f6f8',
   },
   container: {
     flex: 1,
@@ -124,7 +171,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: '#2c3e50', 
+    color: '#2c3e50',
     marginBottom: 24,
     textAlign: 'center',
   },
@@ -169,6 +216,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
+    marginBottom: 10, // Espacio antes de la gráfica
   },
   statusBadge: {
     width: 10,
@@ -180,6 +228,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  chartContainer: {
+    marginTop: 15,
+    alignItems: 'center', // Centra la gráfica si es más pequeña que el contenedor
+  },
+  chartTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#34495e',
+    marginBottom: 8,
+  },
+  chartStyle: {
+    borderRadius: 8,
+  },
 });
 
 export default ColmenasScreen;
+
