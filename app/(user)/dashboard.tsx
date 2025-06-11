@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, StatusBar, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Platform, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext'; // Ajusta la ruta si es necesario
 
 const UserDashboardScreen = () => {
@@ -90,10 +90,10 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   profileButton: {
-    backgroundColor: '#3498db', // Azul
+    backgroundColor: '#1976d2', // Azul del header
   },
   colmenasButton: {
-    backgroundColor: '#2ecc71', // Verde
+    backgroundColor: '#F59E0B', // anaranjado
   },
   optionButtonText: {
     color: '#ffffff',

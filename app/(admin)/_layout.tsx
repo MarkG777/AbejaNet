@@ -1,10 +1,10 @@
-import React from 'react';
-import { Drawer } from 'expo-router/drawer';
-import { useAuth } from '../../context/AuthContext';
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { Drawer } from 'expo-router/drawer';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../../context/AuthContext';
 
 // Custom Drawer Content with Logo
 function CustomDrawerContent(props: any) {
@@ -35,7 +35,7 @@ function CustomDrawerContent(props: any) {
   );
 }
 
-// Admin Layout using Drawer
+// Admin Layout using Drawer 
 export default function AdminLayout() {
   return (
     <Drawer

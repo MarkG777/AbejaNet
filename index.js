@@ -38,7 +38,7 @@ const verificarToken = (req, res, next) => {
 // });
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || '192.168.1.93',
+  host: process.env.DB_HOST || '192.168.100.45',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASS || '',
   database: process.env.DB_NAME || 'abeja_net_esp_v5',
