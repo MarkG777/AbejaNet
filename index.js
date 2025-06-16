@@ -41,7 +41,7 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST || '172.31.112.2',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'abeja_net_esp_v5',
+    database: process.env.DB_NAME || 'abeja_net_v2',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0
@@ -139,6 +139,61 @@ app.post('/login', async (req, res) => {
     res.status(500).json({ success: false, message: 'Error interno del servidor', error: err.message });
   }
 });
+
+// =================================================================
+// ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
+// =================================================================
+// Esta ruta no está protegida por token, ya que el ESP32 se autentica
+// por su MAC address única registrada en nuestra base de datos.
+app.post('/api/lecturas', async (req, res) => {
+  // 1. Extraer los datos que el ESP32 envía en el cuerpo de la petición
+    const { mac_address, temperatura, humedad, peso, lluvia, sonido } = req.body;
+
+  // 2. Validar que la MAC address fue enviada. Es nuestro identificador clave.
+  if (!mac_address) {
+    return res.status(400).json({ success: false, message: 'Falta mac_address del dispositivo.' });
+  }
+
+  try {
+    // 3. Buscar el sensor en la base de datos usando la MAC address para obtener su ID.
+    //    Solo aceptamos datos de sensores que estén registrados y 'activos'.
+    const [sensores] = await pool.execute(
+      'SELECT id FROM sensores WHERE mac_address = ? AND estado = \'activo\'',
+      [mac_address]
+    );
+
+    if (sensores.length === 0) {
+      // Si no se encuentra el sensor o no está activo, se rechaza la petición.
+      console.warn(`Recepción de datos de MAC no registrada o inactiva: ${mac_address}`);
+      return res.status(404).json({ success: false, message: 'Sensor no encontrado o no está activo.' });
+    }
+
+    const sensorId = sensores[0].id;
+
+    // 4. Insertar la nueva lectura en la tabla 'lecturas_ambientales'.
+    const [insertResult] = await pool.execute(
+      `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, fecha_registro) 
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [sensorId, temperatura, humedad, peso, sonido, lluvia]
+    );
+    
+    // 5. (Opcional pero recomendado) Actualizar la fecha de la última lectura en la tabla de sensores.
+    await pool.execute(
+        'UPDATE sensores SET ultima_lectura_en = NOW() WHERE id = ?',
+        [sensorId]
+    );
+
+    console.log(`Lectura registrada del sensor ID: ${sensorId} (MAC: ${mac_address}).`);
+    
+    // 6. Enviar una respuesta de éxito al ESP32.
+    res.status(201).json({ success: true, message: 'Lectura registrada con éxito.' });
+
+  } catch (err) {
+    console.error(`Error procesando lectura de MAC ${mac_address}:`, err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor.', error: err.message });
+  }
+});
+
 
 // Escucha en todas las interfaces para que sea accesible vía IP local
 const PORT = process.env.PORT || 3000;

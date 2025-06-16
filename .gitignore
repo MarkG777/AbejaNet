@@ -39,3 +39,16 @@ yarn-error.*
 app-example
 #Archivos de configuración
 .env
+
+# IntelliJ / Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+build/ # También puede ser útil para builds de Android
+
+# Android local properties
+local.properties
+*.local.properties
+local.properties.*
