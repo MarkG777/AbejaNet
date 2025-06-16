@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#F5F5F5"
       },
       "edgeToEdgeEnabled": true,
       "useCleartextTraffic": true,
@@ -28,7 +28,7 @@
     "splash": {
       "image": "./assets/images/abejanet.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#F5F5F5"
     },
     "plugins": [
       "expo-router",
@@ -37,7 +37,7 @@
         {
           "image": "./assets/images/abejanet.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#F5F5F5"
         }
       ]
     ],
