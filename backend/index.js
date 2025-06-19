@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import jwt from 'jsonwebtoken'; //importación de jwt aquí
 import mysql from 'mysql2/promise';
+import bcrypt from 'bcryptjs';
 
 
 // Carga variables de entorno desde .env en la raíz
@@ -38,7 +39,7 @@ const verificarToken = (req, res, next) => {
 // });
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || '172.31.112.2',
+  host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASS || '',
     database: process.env.DB_NAME || 'abeja_net_v2',
@@ -80,60 +81,107 @@ app.get('/api/admin/perfil', verificarToken, (req, res) => {
 });
 
 
+// Endpoint para registrar un nuevo usuario
+app.post('/api/register', async (req, res) => {
+  const { correo_electronico, contrasena } = req.body;
+
+  if (!correo_electronico || !contrasena) {
+    return res.status(400).json({ success: false, message: 'Correo electrónico y contraseña son requeridos.' });
+  }
+
+  try {
+    // Verificar si el correo ya existe
+    const [usuariosExistentes] = await pool.execute(
+      'SELECT id FROM usuarios WHERE correo_electronico = ?',
+      [correo_electronico]
+    );
+
+    if (usuariosExistentes.length > 0) {
+      return res.status(409).json({ success: false, message: 'El correo electrónico ya está registrado.' });
+    }
+
+    // Hashear la contraseña
+    const saltRounds = 10;
+    const contrasenaHasheada = await bcrypt.hash(contrasena, saltRounds);
+
+    // Asumimos que rol_id = 2 es para 'usuario'
+    const rolIdUsuario = 2;
+
+    // Insertar el nuevo usuario
+    const [resultado] = await pool.execute(
+      'INSERT INTO usuarios (correo_electronico, contrasena, rol_id) VALUES (?, ?, ?)',
+      [correo_electronico, contrasenaHasheada, rolIdUsuario]
+    );
+
+    res.status(201).json({ success: true, message: 'Usuario registrado con éxito.', userId: resultado.insertId });
+
+  } catch (error) {
+    console.error('Error en el registro de usuario:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor al registrar el usuario.' });
+  }
+});
+
+
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
+    // 1. Buscar al usuario solo por correo electrónico
     const [rows] = await pool.execute(
       `SELECT 
          u.id, 
-         u.correo_electronico, 
-         r.nombre AS rol
+         u.correo_electronico,
+         u.contrasena,
+         r.nombre AS rol,
+         u.esta_activo
        FROM usuarios u
        JOIN roles r ON u.rol_id = r.id
-       WHERE u.correo_electronico = ? AND u.contrasena = ? AND u.esta_activo = TRUE`,
-      [email, password]
+       WHERE u.correo_electronico = ?`,
+      [email]
     );
 
-    if (rows.length > 0) {
-      const user = rows[0];
-
-      // Generación de Token JWT Real
-      // Usa el JWT_SECRET de tus variables de entorno.
-      // Si JWT_SECRET no está definido, usa un secreto por defecto (NO RECOMENDADO PARA PRODUCCIÓN)
-      const secretKey = process.env.JWT_SECRET;
-      if (!secretKey) {
-        console.error('¡ADVERTENCIA! JWT_SECRET no está definido. Usando un secreto por defecto NO SEGURO.');
-        // Podrías incluso lanzar un error aquí o negarte a iniciar si el secreto no está.
-        return res.status(500).json({ success: false, message: 'Error de configuración del servidor.' });
-      }
-      
-      const token = jwt.sign(
-        { userId: user.id, rol: user.rol }, // Payload del token. user.rol aquí ya debería ser "administrador" si la BD está correcta
-        secretKey, // Clave secreta
-        { expiresIn: '1h' } // Opciones del token (ej. expira en 1 hora)
-      );
-
-      res.json({
-        success: true,
-        message: 'Login exitoso',
-        token: token, // El token JWT real
-        user: {
-          id: user.id,
-          correo_electronico: user.correo_electronico,
-          rol: user.rol // Esto enviará "administrador" al frontend si la BD es correcta
-        }
-      });
-    } else {
-      const [userExists] = await pool.execute(
-        'SELECT esta_activo FROM usuarios WHERE correo_electronico = ?',
-        [email]
-      );
-      if (userExists.length > 0 && !userExists[0].esta_activo) {
-        res.status(403).json({ success: false, message: 'Usuario inactivo. Contacte al administrador.' });
-      } else {
-        res.status(401).json({ success: false, message: 'Credenciales incorrectas o usuario no encontrado.' });
-      }
+    // Si no se encuentra el usuario
+    if (rows.length === 0) {
+      return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
     }
+
+    const user = rows[0];
+
+    // 2. Verificar si la cuenta está activa
+    if (!user.esta_activo) {
+      return res.status(403).json({ success: false, message: 'Usuario inactivo. Contacte al administrador.' });
+    }
+
+    // 3. Comparar la contraseña proporcionada con la hasheada en la BD
+    const contrasenaValida = await bcrypt.compare(password, user.contrasena);
+
+    if (!contrasenaValida) {
+      return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
+    }
+
+    // 4. Si la contraseña es válida, generar el token
+    const secretKey = process.env.JWT_SECRET;
+    if (!secretKey) {
+      console.error('¡ADVERTENCIA! JWT_SECRET no está definido.');
+      return res.status(500).json({ success: false, message: 'Error de configuración del servidor.' });
+    }
+    
+    const token = jwt.sign(
+      { userId: user.id, rol: user.rol },
+      secretKey,
+      { expiresIn: '1h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Login exitoso',
+      token: token,
+      user: {
+        id: user.id,
+        correo_electronico: user.correo_electronico,
+        rol: user.rol
+      }
+    });
+
   } catch (err) {
     console.error('Error en /login:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor', error: err.message });
