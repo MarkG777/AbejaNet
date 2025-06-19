@@ -52,3 +52,6 @@ build/ # También puede ser útil para builds de Android
 local.properties
 *.local.properties
 local.properties.*
+
+# Carpetas de documentación y memorias técnicas
+memorytecnic/
