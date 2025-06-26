@@ -2,7 +2,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Valor por defecto (puedes cambiarlo si lo necesitas)
-const DEFAULT_API_BASE_URL = "http://192.168.100.45:3000";
+// La IP del servidor Debian donde ahora corre el backend
+const DEFAULT_API_BASE_URL = "http://172.31.112.10:3000"; // IP del servidor escuela
+//const DEFAULT_API_BASE_URL = "http://172.31.112.10:3000"; // IP del servidor (maquina virtual)
 
 export async function setApiUrl(url) {
   await AsyncStorage.setItem('API_BASE_URL', url);
