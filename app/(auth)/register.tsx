@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, TextInput, StyleSheet, Pressable, Alert, Text } from 'react-native';
 import { Image } from 'expo-image';
 import { Link, router } from 'expo-router';
 
@@ -7,10 +8,30 @@ import { ThemedView } from '@/components/ThemedView';
 import { ThemedText } from '@/components/ThemedText';
 import { getApiUrl } from '../../utils/ip_config';
 
+// --- Componente para mostrar un requisito de la contraseña ---
+const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
+  <View style={styles.requirementContainer}>
+    <Ionicons name={met ? 'checkmark-circle' : 'close-circle-outline'} size={20} color={met ? '#22C55E' : '#EF4444'} />
+    <Text style={[styles.requirementText, { color: met ? '#22C55E' : '#6B7280' }]}>{text}</Text>
+  </View>
+);
+
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Estados para la visibilidad de la contraseña (press-and-hold)
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Estados para los requisitos de la contraseña
+  const [hasLength, setHasLength] = useState(false);
+  const [hasNumber, setHasNumber] = useState(false);
+  const [hasLowerCase, setHasLowerCase] = useState(false);
+  const [hasUpperCase, setHasUpperCase] = useState(false);
+  const [hasSpecialChar, setHasSpecialChar] = useState(false);
+  
   const [api, setApi] = useState('');
 
   useEffect(() => {
@@ -21,6 +42,18 @@ export default function RegisterScreen() {
     fetchApiUrl();
   }, []);
 
+  // Función para validar la contraseña y actualizar los estados de los requisitos
+  const handlePasswordChange = (text: string) => {
+    setPassword(text);
+    setHasLength(text.length >= 8);
+    setHasNumber(/\d/.test(text));
+    setHasLowerCase(/[a-z]/.test(text));
+    setHasUpperCase(/[A-Z]/.test(text));
+    setHasSpecialChar(/[!@#$%^&*(),.?":{}|<>]/.test(text));
+  };
+
+  const isPasswordSecure = hasLength && hasNumber && hasLowerCase && hasUpperCase && hasSpecialChar;
+
   const handleRegister = async () => {
     if (!email || !password || !confirmPassword) {
       Alert.alert('Error', 'Todos los campos son obligatorios.');
@@ -28,6 +61,14 @@ export default function RegisterScreen() {
     }
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Las contraseñas no coinciden.');
+      return;
+    }
+    // Validación de contraseña segura
+    if (!isPasswordSecure) {
+      Alert.alert(
+        'Contraseña Insegura',
+        'Por favor, cumple con todos los requisitos de la contraseña para continuar.'
+      );
       return;
     }
     if (!api) {
@@ -81,24 +122,58 @@ export default function RegisterScreen() {
         autoCapitalize="none"
         style={styles.input}
       />
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
-      />
-      <TextInput
-        placeholder="Confirmar Contraseña"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-        style={styles.input}
-      />
-      <TouchableOpacity style={styles.button} onPress={handleRegister}>
+      
+      {/* Campo de Contraseña con ícono y checklist */}
+      <View style={styles.passwordContainer}>
+        <TextInput
+          placeholder="Contraseña"
+          value={password}
+          onChangeText={handlePasswordChange}
+          secureTextEntry={!showPassword}
+          style={styles.passwordInput}
+        />
+        <Pressable 
+          onPressIn={() => setShowPassword(true)} 
+          onPressOut={() => setShowPassword(false)} 
+          style={styles.eyeIconContainer}
+        >
+          <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={24} color="#888" />
+        </Pressable>
+      </View>
+
+      {/* Checklist de requisitos */}
+      {password.length > 0 && (
+          <View style={styles.requirementsList}>
+            <PasswordRequirement met={hasLength} text="Al menos 8 caracteres" />
+            <PasswordRequirement met={hasLowerCase} text="Al menos una letra minúscula" />
+            <PasswordRequirement met={hasUpperCase} text="Al menos una letra mayúscula" />
+            <PasswordRequirement met={hasNumber} text="Al menos un número" />
+            <PasswordRequirement met={hasSpecialChar} text="Al menos un carácter especial" />
+         </View>
+      )}
+
+      {/* Campo de Confirmar Contraseña con ícono */}
+      <View style={styles.passwordContainer}>
+        <TextInput
+          placeholder="Confirmar Contraseña"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry={!showConfirmPassword}
+          style={styles.passwordInput}
+        />
+        <Pressable 
+          onPressIn={() => setShowConfirmPassword(true)} 
+          onPressOut={() => setShowConfirmPassword(false)} 
+          style={styles.eyeIconContainer}
+        >
+          <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={24} color="#888" />
+        </Pressable>
+      </View>
+
+      <Pressable style={styles.button} onPress={handleRegister}>
         <ThemedText type="defaultSemiBold" style={styles.buttonText}>Crear cuenta</ThemedText>
-      </TouchableOpacity>
-      <Link href="/login" style={styles.link}>
+      </Pressable>
+      <Link href="/login" style={styles.loginLink}>
         <ThemedText type="link">¿Ya tienes una cuenta? Inicia sesión</ThemedText>
       </Link>
     </ThemedView>
@@ -108,41 +183,71 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    gap: 15,
     justifyContent: 'center',
+    padding: 20,
     backgroundColor: '#fff',
   },
   logo: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
     marginBottom: 20,
-    borderWidth: 4,
-    borderColor: '#fff',
   },
   input: {
-    borderWidth: 1,
+    height: 50,
     borderColor: '#ccc',
+    borderWidth: 1,
     borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
+    paddingHorizontal: 15,
+    marginBottom: 15,
     fontSize: 16,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    // Quitamos el margen de abajo para que la lista de requisitos quede más pegada
+  },
+  passwordInput: {
+    flex: 1,
+    height: 50,
+    paddingHorizontal: 15,
+    fontSize: 16,
+  },
+  eyeIconContainer: {
+    padding: 12,
+  },
+  // Checklist
+  requirementsList: {
+    marginVertical: 10,
+    paddingLeft: 10,
+    gap: 5,
+  },
+  requirementContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  requirementText: {
+    fontSize: 14,
   },
   button: {
     backgroundColor: '#F59E0B',
-    paddingVertical: 14,
+    padding: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 10, // Added margin top for spacing
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: 'bold',
+    fontSize: 16,
   },
-  link: {
-      marginTop: 15,
-      textAlign: 'center',
-  }
+  loginLink: {
+    marginTop: 20,
+    alignSelf: 'center',
+  },
 });
