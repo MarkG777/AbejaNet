@@ -23,7 +23,7 @@ export default function LoginScreen() {
 
     try {
       const api = await getApiUrl();
-      const res = await fetch(`${api}/login`, {
+      const res = await fetch(`${api}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
