@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     backgroundColor: '#fff',
-    // Quitamos el margen de abajo para que la lista de requisitos quede más pegada
+    marginBottom: 15, // Restauramos el margen inferior para un espaciado consistente
   },
   passwordInput: {
     flex: 1,
@@ -222,7 +222,8 @@ const styles = StyleSheet.create({
   },
   // Checklist
   requirementsList: {
-    marginVertical: 10,
+    marginTop: -5, // Reducimos el margen superior para acercarlo al campo de contraseña
+    marginBottom: 15, // Aseguramos que haya espacio antes del siguiente campo
     paddingLeft: 10,
     gap: 5,
   },
