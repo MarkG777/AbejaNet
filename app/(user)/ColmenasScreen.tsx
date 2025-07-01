@@ -43,6 +43,7 @@ const ApiarioCard: React.FC<{ item: Apiario }> = ({ item }) => {
 
 // Pantalla principal que muestra la lista de Apiarios
 export default function ColmenasScreen() {
+  const handleBack = () => router.back();
   const { authState } = useAuth(); // Usar el contexto para obtener el estado de autenticación
   const [apiarios, setApiarios] = useState<Apiario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,13 +128,16 @@ export default function ColmenasScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.headerContainer}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={28} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.header}>Mis Apiarios</Text>
+      </View>
       <FlatList
         data={apiarios}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => <ApiarioCard item={item} />}
-        ListHeaderComponent={() => (
-          <Text style={styles.header}>Mis Apiarios</Text>
-        )}
         ListEmptyComponent={() => (
           <View style={styles.centeredContainer}>
             <Ionicons name="information-circle-outline" size={48} color="#888" />
@@ -171,6 +175,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 20,
   },
+  button: {
+    marginTop: 15,
+    backgroundColor: '#F59E0B',
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    borderRadius: 8,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   emptyText: {
     marginTop: 10,
     fontSize: 18,
@@ -183,13 +199,21 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
   },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  backButton: {
+    paddingRight: 15,
+    zIndex: 1,
+  },
   header: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#333',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
   },
   card: {
     flexDirection: 'row',
@@ -222,19 +246,5 @@ const styles = StyleSheet.create({
   cardDescription: {
     fontSize: 14,
     color: '#666',
-    marginTop: 2,
   },
-  button: {
-      backgroundColor: '#F59E0B',
-      paddingVertical: 12,
-      paddingHorizontal: 30,
-      borderRadius: 25,
-      marginTop: 20,
-  },
-  buttonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: 'bold',
-  }
 });
-

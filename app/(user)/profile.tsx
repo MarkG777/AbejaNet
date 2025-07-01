@@ -1,41 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  Button,
-  Alert,
-  ActivityIndicator,
-  SafeAreaView,
-  ScrollView
+  View, Text, StyleSheet, TextInput, Button, Alert, ActivityIndicator,
+  SafeAreaView, ScrollView, TouchableOpacity
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { getApiUrl } from '../../utils/ip_config';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 const ProfileScreen = () => {
   const { authState, updateUser } = useAuth();
   const user = authState.user;
 
+  const [isEditing, setIsEditing] = useState(false);
   const [nombre, setNombre] = useState('');
   const [apellidoPaterno, setApellidoPaterno] = useState('');
   const [apellidoMaterno, setApellidoMaterno] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
   useEffect(() => {
-    if (user) {
+    // Al entrar en modo edición, carga los datos actuales del usuario en el formulario.
+    // Esto asegura que el formulario siempre empiece con la información más reciente.
+    if (isEditing && user) {
       setNombre(user.nombre || '');
       setApellidoPaterno(user.apellido_paterno || '');
       setApellidoMaterno(user.apellido_materno || '');
     }
-  }, [user]);
+  }, [isEditing, user]);
 
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = () => {
+    Alert.alert(
+      "Confirmar Cambios",
+      "¿Estás seguro de que quieres modificar tus datos?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Confirmar", onPress: () => executeUpdate() }
+      ]
+    );
+  };
+
+  const executeUpdate = async () => {
     if (!nombre.trim()) {
       Alert.alert('Campo requerido', 'El nombre no puede estar vacío.');
       return;
     }
-
     setIsLoading(true);
     try {
       const apiUrl = await getApiUrl();
@@ -51,9 +58,7 @@ const ProfileScreen = () => {
           apellido_materno: apellidoMaterno.trim(),
         }),
       });
-
       const data = await response.json();
-
       if (response.ok && data.success) {
         await updateUser({
           nombre: nombre.trim(),
@@ -61,6 +66,7 @@ const ProfileScreen = () => {
           apellido_materno: apellidoMaterno.trim(),
         });
         Alert.alert('Éxito', 'Tu perfil ha sido actualizado.');
+        setIsEditing(false); // <-- Vuelve al modo de visualización
       } else {
         Alert.alert('Error', data.message || 'No se pudo actualizar el perfil.');
       }
@@ -72,6 +78,14 @@ const ProfileScreen = () => {
     }
   };
 
+  const handleCancel = () => {
+    // Restaura los valores originales y sale del modo de edición
+    setNombre(user?.nombre || '');
+    setApellidoPaterno(user?.apellido_paterno || '');
+    setApellidoMaterno(user?.apellido_materno || '');
+    setIsEditing(false);
+  };
+
   if (!user) {
     return (
       <SafeAreaView style={styles.containerCentered}>
@@ -81,50 +95,51 @@ const ProfileScreen = () => {
     );
   }
 
+      const isChanged = user && isEditing ? 
+    (nombre.trim() !== (user.nombre || '')) ||
+    (apellidoPaterno.trim() !== (user.apellido_paterno || '')) ||
+    (apellidoMaterno.trim() !== (user.apellido_materno || ''))
+    : false;
+
+  const fullName = [user.nombre, user.apellido_paterno, user.apellido_materno].filter(Boolean).join(' ');
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.card}>
-        <Text style={styles.title}>Editar Perfil</Text>
-
-        <Text style={styles.label}>Correo Electrónico</Text>
-        <TextInput
-          style={[styles.input, styles.inputDisabled]}
-          value={user.correo_electronico}
-          editable={false}
-        />
-
-        <Text style={styles.label}>Nombre</Text>
-        <TextInput
-          style={styles.input}
-          value={nombre}
-          onChangeText={setNombre}
-          placeholder="Tu nombre"
-          autoCapitalize="words"
-        />
-
-        <Text style={styles.label}>Apellido Paterno</Text>
-        <TextInput
-          style={styles.input}
-          value={apellidoPaterno}
-          onChangeText={setApellidoPaterno}
-          placeholder="(Opcional)"
-          autoCapitalize="words"
-        />
-
-        <Text style={styles.label}>Apellido Materno</Text>
-        <TextInput
-          style={styles.input}
-          value={apellidoMaterno}
-          onChangeText={setApellidoMaterno}
-          placeholder="(Opcional)"
-          autoCapitalize="words"
-        />
-
-        {isLoading ? (
-          <ActivityIndicator size="large" color="#3498db" style={{ marginTop: 20 }} />
+      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <Ionicons name="arrow-back" size={28} color="#333" />
+      </TouchableOpacity>
+      
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {isEditing ? (
+          // --- MODO EDICIÓN ---
+          <View style={styles.formContainer}>
+            <Text style={styles.title}>Editar Perfil</Text>
+            <Text style={styles.label}>Nombre</Text>
+            <TextInput style={styles.input} value={nombre} onChangeText={setNombre} placeholder="Tu nombre" autoCapitalize="words" />
+            <Text style={styles.label}>Apellido Paterno</Text>
+            <TextInput style={styles.input} value={apellidoPaterno} onChangeText={setApellidoPaterno} placeholder="(Opcional)" autoCapitalize="words" />
+            <Text style={styles.label}>Apellido Materno</Text>
+            <TextInput style={styles.input} value={apellidoMaterno} onChangeText={setApellidoMaterno} placeholder="(Opcional)" autoCapitalize="words" />
+            {isLoading ? (
+              <ActivityIndicator size="large" color="#3498db" style={{ marginVertical: 20 }} />
+            ) : (
+              <View style={styles.buttonGroup}>
+                <Button title="Cancelar" onPress={handleCancel} color="#888" />
+                <Button title="Guardar Cambios" onPress={handleSaveChanges} color="#3498db" disabled={!isChanged || isLoading} />
+              </View>
+            )}
+          </View>
         ) : (
-          <View style={styles.buttonContainer}>
-            <Button title="Guardar Cambios" onPress={handleSaveChanges} color="#3498db" />
+          // --- MODO VISUALIZACIÓN ---
+          <View style={styles.card}>
+            <Ionicons name="person-circle-outline" size={100} color="#3498db" style={{ marginBottom: 15 }} />
+            <Text style={styles.cardFullName}>{fullName || 'Completa tu perfil'}</Text>
+            <Text style={styles.cardEmail}>{user.correo_electronico}</Text>
+            <View style={styles.divider} />
+            <TouchableOpacity style={styles.editButton} onPress={() => setIsEditing(true)}>
+              <Ionicons name="pencil" size={18} color="#fff" />
+              <Text style={styles.editButtonText}>Editar Perfil</Text>
+            </TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -133,53 +148,41 @@ const ProfileScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f4f7',
-  },
-  containerCentered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f4f7',
-  },
+  container: { flex: 1, backgroundColor: '#f0f4f7' },
+  containerCentered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f4f7' },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
+  backButton: { position: 'absolute', top: 50, left: 20, zIndex: 10, padding: 5 },
+  // Estilos de la Tarjeta de Visualización
   card: {
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 25,
-    textAlign: 'center',
-    color: '#333',
-  },
-  label: {
-    fontSize: 16,
-    color: '#555',
-    marginBottom: 8,
-    alignSelf: 'flex-start',
-  },
-  input: {
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 10,
     width: '100%',
-    backgroundColor: 'white',
-    paddingHorizontal: 15,
+  },
+  cardFullName: { fontSize: 24, fontWeight: 'bold', color: '#333', textAlign: 'center' },
+  cardEmail: { fontSize: 16, color: '#666', marginTop: 5, marginBottom: 20 },
+  divider: { width: '100%', height: 1, backgroundColor: '#eee', marginVertical: 20 },
+  editButton: {
+    flexDirection: 'row',
+    backgroundColor: '#3498db',
     paddingVertical: 12,
-    borderRadius: 8,
-    fontSize: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    paddingHorizontal: 30,
+    borderRadius: 30,
+    alignItems: 'center',
   },
-  inputDisabled: {
-    backgroundColor: '#e9ecef',
-    color: '#6c757d',
-  },
-  buttonContainer: {
-    marginTop: 10,
-    width: '100%',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
+  editButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginLeft: 10 },
+  // Estilos del Formulario de Edición
+  formContainer: { width: '100%' },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 25, textAlign: 'center', color: '#333' },
+  label: { fontSize: 16, color: '#555', marginBottom: 8, alignSelf: 'flex-start' },
+  input: { width: '100%', backgroundColor: 'white', paddingHorizontal: 15, paddingVertical: 12, borderRadius: 8, fontSize: 16, marginBottom: 20, borderWidth: 1, borderColor: '#ddd' },
+  buttonGroup: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 20 },
 });
 
 export default ProfileScreen;
