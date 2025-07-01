@@ -6,8 +6,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Definimos la forma de los datos del usuario
 interface User {
   id: number;
-  nombre: string;
-  // Agrega aquí otros campos del usuario que necesites
+  nombre: string | null;
+  apellido_paterno: string | null;
+  apellido_materno: string | null;
+  correo_electronico: string;
 }
 
 // Definimos la forma del estado de autenticación y las funciones que proveerá el contexto
@@ -20,6 +22,7 @@ interface AuthContextData {
   };
   login: (token: string, role: 'administrador' | 'usuario', user: User) => Promise<void>;
   logout: () => Promise<void>;
+  updateUser: (newUserData: Partial<User>) => Promise<void>; // NUEVO: Para actualizar el perfil
 }
 
 // Creamos el contexto con un valor inicial undefined, ya que se proveerá más adelante
@@ -121,12 +124,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // NUEVO: Función para actualizar los datos del usuario en el estado y AsyncStorage
+  const updateUser = async (newUserData: Partial<User>) => {
+    if (!authState.user) {
+      console.error("AuthContext: No se puede actualizar, no hay un usuario logueado.");
+      return;
+    }
+    try {
+      const updatedUser = { ...authState.user, ...newUserData };
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      setAuthState(prevState => ({
+        ...prevState,
+        user: updatedUser as User,
+      }));
+      console.log('AuthContext: Datos del usuario actualizados correctamente.');
+    } catch (e) {
+      console.error('AuthContext: Falló al actualizar los datos del usuario', e);
+    }
+  };
+
   // El valor que provee el contexto a sus hijos
   const value = {
     authState,
     login,
     logout,
+    updateUser, // Exponemos la nueva función
   };
+
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -83,8 +83,9 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
+    // MODIFICADO: Se seleccionan los nuevos campos del perfil
     const [rows] = await pool.execute(
-      `SELECT u.id, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
+      `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
        FROM usuarios u JOIN roles r ON u.rol_id = r.id
        WHERE u.correo_electronico = ?`,
       [email]
@@ -104,13 +105,22 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
     }
 
+    // El token no necesita los datos del perfil, solo el id y el rol.
     const secretKey = process.env.JWT_SECRET;
     const token = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '8h' });
 
+    // MODIFICADO: Se devuelven los datos del perfil en el objeto 'user'
     res.json({
       success: true,
       token,
-      user: { id: user.id, correo_electronico: user.correo_electronico, rol: user.rol }
+      user: {
+        id: user.id,
+        nombre: user.nombre,
+        apellido_paterno: user.apellido_paterno,
+        apellido_materno: user.apellido_materno,
+        correo_electronico: user.correo_electronico,
+        rol: user.rol
+      }
     });
   } catch (err) {
     console.error('Error en /api/login:', err);
@@ -151,9 +161,40 @@ app.get('/api/apiarios', verificarToken, async (req, res) => {
 });
 
 
+// NUEVO: Endpoint para que el usuario actualice su perfil
+app.put('/api/profile', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  // Se extraen los valores del body. Si no vienen, se usan strings vacíos por defecto para evitar errores.
+  const { nombre = '', apellido_paterno = '', apellido_materno = '' } = req.body;
+
+  // La única validación estricta es que el nombre no puede estar vacío.
+  if (typeof nombre !== 'string' || nombre.trim() === '') {
+    return res.status(400).json({ success: false, message: 'El campo nombre es requerido.' });
+  }
+
+  try {
+    // Se usan los valores con trim para limpiar espacios en blanco.
+    const [result] = await pool.execute(
+      'UPDATE usuarios SET nombre = ?, apellido_paterno = ?, apellido_materno = ? WHERE id = ?',
+      [nombre.trim(), apellido_paterno.trim(), apellido_materno.trim(), userId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
+    }
+
+    res.json({ success: true, message: 'Perfil actualizado correctamente.' });
+  } catch (error) {
+    console.error('Error al actualizar el perfil en la base de datos:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor al actualizar el perfil.' });
+  }
+});
+
+
 // =================================================================
 // ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
 // =================================================================
+
 
 app.post('/api/lecturas', async (req, res) => {
   // NOTA: El ESP32 debe enviar 'macAddress' en camelCase.
