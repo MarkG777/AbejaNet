@@ -9,22 +9,30 @@ import { useAuth } from '../../context/AuthContext';
 // Contenido personalizado para el menú desplegable del usuario
 function CustomDrawerContent(props: any) {
   const { logout } = useAuth();
-  const router = useRouter();
 
   const handleLogout = async () => {
+    // Log de diagnóstico para confirmar si esta función se llama por error
+    console.log(`--- LOGOUT TRIGGERED AT ${new Date().toISOString()} ---`);
     await logout();
-    router.replace('/(auth)/login');
   };
 
   return (
-    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
+    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1, flexDirection: 'column' }}>
+      {/* Contenedor del Logo */}
       <View style={styles.logoContainer}>
         <Image
           source={require('../../assets/images/abejanet.png')}
           style={styles.logo}
         />
       </View>
+      
+      {/* Items del Menú */}
       <DrawerItemList {...props} />
+
+      {/* Este es el truco: un View vacío que ocupa todo el espacio restante empuja el logout al fondo */}
+      <View style={{ flex: 1 }} />
+
+      {/* Contenedor del Botón de Logout */}
       <View style={styles.logoutContainer}>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Ionicons name="log-out-outline" size={22} color="#d32f2f" />
@@ -82,6 +90,13 @@ export default function UserLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="ApiarioDetailScreen"
+        options={{
+          title: 'Detalle del Apiario',
+          drawerItemStyle: { display: 'none' }, // Oculta esta pantalla del menú lateral
+        }}
+      />
     </Drawer>
   );
 }
@@ -101,15 +116,17 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   logoutContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    paddingBottom: 20,
+    paddingVertical: 10,
+    paddingBottom: 20, // Un poco más de espacio abajo
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 15,
     paddingHorizontal: 20,
+    zIndex: 1, // Evita la superposición del área de touch
   },
   logoutText: {
     marginLeft: 15,

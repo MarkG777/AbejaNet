@@ -1,9 +1,9 @@
+import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import mysql from 'mysql2/promise';
-import bcrypt from 'bcryptjs';
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -119,8 +119,42 @@ app.post('/api/login', async (req, res) => {
 });
 
 // =================================================================
+// RUTAS DE GESTIÓN (APIARIOS, COLMENAS)
+// =================================================================
+
+// Obtener los apiarios asignados al usuario autenticado
+app.get('/api/apiarios', verificarToken, async (req, res) => {
+  try {
+    // El ID del usuario se obtiene del token JWT verificado por el middleware
+    const userId = req.usuario.userId;
+
+    const [apiarios] = await pool.execute(
+      `SELECT 
+         a.id, 
+         a.nombre, 
+         a.descripcion_general, 
+         a.direccion_o_coordenadas,
+         a.fecha_creacion
+       FROM apiarios a
+       JOIN usuarios_apiarios ua ON a.id = ua.apiario_id
+       WHERE ua.usuario_id = ?
+       ORDER BY a.nombre ASC`,
+      [userId]
+    );
+
+    res.json({ success: true, apiarios });
+
+  } catch (err) {
+    console.error('Error en GET /api/apiarios:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor al obtener apiarios.' });
+  }
+});
+
+
+// =================================================================
 // ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
 // =================================================================
+
 app.post('/api/lecturas', async (req, res) => {
   // NOTA: El ESP32 debe enviar 'macAddress' en camelCase.
   const { macAddress, temperatura, humedad, peso, lluvia, sonido } = req.body;

@@ -1,247 +1,240 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, SafeAreaView, StatusBar, TouchableOpacity, Platform, Dimensions } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, FlatList, SafeAreaView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart } from 'react-native-chart-kit';
+import { router, useFocusEffect } from 'expo-router';
+import { useAuth } from '../../context/AuthContext'; // Importar el hook de autenticación
 
-// Define la estructura de un objeto Colmena
-interface Colmena {
-  id: string;
-  nombre_identificativo: string;
-  ubicacion_descripcion: string;
-  fecha_establecimiento: string;
-  tipo_colmena: string;
-  estado_salud: 'saludable' | 'enferma' | 'debil' | 'desconocido';
-  notas_adicionales?: string;
+import { getApiUrl } from '../../utils/ip_config';
+
+// Define la estructura de un objeto Apiario (debe coincidir con lo que envía el backend)
+interface Apiario {
+  id: number;
+  nombre: string;
+  descripcion_general: string;
+  direccion_o_coordenadas: string;
+  fecha_creacion: string;
 }
 
-// Datos estáticos de ejemplo (simulando lo que vendría de la API)
-const colmenasData: Colmena[] = [
-  {
-    id: 'COL001',
-    nombre_identificativo: 'Alfa-01',
-    ubicacion_descripcion: 'Sector Norte, Fila 3, Árbol de Manzano',
-    fecha_establecimiento: '2023-04-15',
-    tipo_colmena: 'Langstroth',
-    estado_salud: 'saludable',
-    notas_adicionales: 'Reina marcada en azul (2023). Producción alta el último ciclo.',
-  },
-  {
-    id: 'COL002',
-    nombre_identificativo: 'Beta-07',
-    ubicacion_descripcion: 'Sector Este, Cerca del Arroyo',
-    fecha_establecimiento: '2022-07-20',
-    tipo_colmena: 'Dadant',
-    estado_salud: 'debil',
-    notas_adicionales: 'Población baja, revisar alimentación y posible enfermedad.',
-  },
-  {
-    id: 'COL003',
-    nombre_identificativo: 'Gamma-03',
-    ubicacion_descripcion: 'Sector Oeste, Junto al Girasolero',
-    fecha_establecimiento: '2024-01-10',
-    tipo_colmena: 'Langstroth',
-    estado_salud: 'saludable',
-  },
-  {
-    id: 'COL004',
-    nombre_identificativo: 'Delta-05',
-    ubicacion_descripcion: 'Sector Sur, Protegida del Viento',
-    fecha_establecimiento: '2023-09-01',
-    tipo_colmena: 'Top Bar',
-    estado_salud: 'enferma',
-    notas_adicionales: 'Detectada Varroa, tratamiento aplicado el 2024-05-20.',
-  },
-];
-
-const screenWidth = Dimensions.get('window').width;
-
-const ColmenaCard: React.FC<{ item: Colmena; onPress: () => void }> = ({ item, onPress }) => {
-  const getStatusColor = (status: Colmena['estado_salud']) => {
-    switch (status) {
-      case 'saludable': return '#4CAF50'; // Verde
-      case 'debil': return '#FFC107'; // Ámbar
-      case 'enferma': return '#F44336'; // Rojo
-      default: return '#9E9E9E'; // Gris
-    }
-  };
-
-  // Datos estáticos para la gráfica de temperatura
-  const chartData = {
-    labels: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'],
-    datasets: [
-      {
-        data: [
-          Math.random() * 10 + 15, // Temp entre 15 y 25
-          Math.random() * 10 + 15,
-          Math.random() * 10 + 15,
-          Math.random() * 10 + 15,
-          Math.random() * 10 + 15,
-          Math.random() * 10 + 15,
-          Math.random() * 10 + 15,
-        ],
-      },
-    ],
-  };
-
-  const chartConfig = {
-    backgroundColor: '#ffffff',
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(0, 122, 255, ${opacity})`, // Color azul para la línea y etiquetas
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Color negro para las etiquetas de los ejes
-    style: {
-      borderRadius: 8,
-    },
-    propsForDots: {
-      r: '4',
-      strokeWidth: '2',
-      stroke: '#007AFF',
-    },
+// Componente para renderizar cada tarjeta de Apiario
+const ApiarioCard: React.FC<{ item: Apiario }> = ({ item }) => {
+  // Función para manejar el clic en una tarjeta
+  const handlePress = () => {
+    // Navegamos a una futura pantalla de detalles del apiario
+    // pasando el id y el nombre como parámetros.
+    router.push({ 
+      pathname: `/(user)/ApiarioDetailScreen`, 
+      params: { apiarioId: item.id, apiarioNombre: item.nombre }
+    });
   };
 
   return (
-    <TouchableOpacity onPress={onPress} style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Ionicons name="archive-outline" size={24} color="#3F51B5" />
-        <Text style={styles.cardTitle}>{item.nombre_identificativo}</Text>
+    <TouchableOpacity style={styles.card} onPress={handlePress}>
+      <View style={styles.cardIconContainer}>
+        <Ionicons name="business-outline" size={32} color="#8A652D" />
       </View>
-      <Text style={styles.cardText}><Text style={styles.bold}>ID:</Text> {item.id}</Text>
-      <Text style={styles.cardText}><Text style={styles.bold}>Ubicación:</Text> {item.ubicacion_descripcion}</Text>
-      <Text style={styles.cardText}><Text style={styles.bold}>Establecida:</Text> {item.fecha_establecimiento}</Text>
-      <Text style={styles.cardText}><Text style={styles.bold}>Tipo:</Text> {item.tipo_colmena}</Text>
-      <View style={styles.statusContainer}>
-        <Text style={styles.bold}>Salud:</Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.estado_salud) }]} />
-        <Text style={[styles.statusText, { color: getStatusColor(item.estado_salud) }]}>
-          {item.estado_salud.charAt(0).toUpperCase() + item.estado_salud.slice(1)}
-        </Text>
+      <View style={styles.cardTextContainer}>
+        <Text style={styles.cardTitle}>{item.nombre}</Text>
+        <Text style={styles.cardDescription} numberOfLines={2}>{item.descripcion_general}</Text>
       </View>
-      {item.notas_adicionales && (
-        <Text style={styles.cardText}><Text style={styles.bold}>Notas:</Text> {item.notas_adicionales}</Text>
-      )}
-
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Temperatura Semanal (°C)</Text>
-        <LineChart
-          data={chartData}
-          width={screenWidth - 64} // Ancho de la pantalla menos paddings (16*2 del container + 16*2 de la card)
-          height={220}
-          chartConfig={chartConfig}
-          bezier
-          style={styles.chartStyle}
-        />
-      </View>
+      <Ionicons name="chevron-forward-outline" size={24} color="#C7C7CC" />
     </TouchableOpacity>
   );
 };
 
-const ColmenasScreen: React.FC = () => {
-  const handleCardPress = (colmena: Colmena) => {
-    console.log('Colmena seleccionada:', colmena.nombre_identificativo);
+// Pantalla principal que muestra la lista de Apiarios
+export default function ColmenasScreen() {
+  const { authState } = useAuth(); // Usar el contexto para obtener el estado de autenticación
+  const [apiarios, setApiarios] = useState<Apiario[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchApiarios = async () => {
+    // Obtenemos el token directamente del AuthContext, la única fuente de verdad
+    const token = authState.accessToken;
+
+    try {
+      const apiUrl = await getApiUrl();
+
+      if (!token) {
+        // Aunque el layout principal debería manejar esto, es una buena doble verificación.
+        router.replace('/(auth)/login');
+        throw new Error('No se encontró el token de autenticación. Por favor, inicie sesión de nuevo.');
+      }
+
+      const response = await fetch(`${apiUrl}/api/apiarios`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if(response.status === 401 || response.status === 403) {
+            router.replace('/(auth)/login');
+        }
+        throw new Error(data.message || 'Error al obtener los apiarios.');
+      }
+
+      setApiarios(data.apiarios);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message);
+      console.error("Error fetching apiarios:", e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={styles.safeArea.backgroundColor} />
-      <View style={styles.container}>
-        <Text style={styles.title}>Mis Colmenas</Text>
-        <FlatList
-          data={colmenasData}
-          renderItem={({ item }) => <ColmenaCard item={item} onPress={() => handleCardPress(item)} />}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContentContainer}
-          showsVerticalScrollIndicator={false}
-        />
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchApiarios();
+    }, [])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchApiarios();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.centeredContainer}>
+        <ActivityIndicator size="large" color="#F59E0B" />
+        <Text style={styles.loadingText}>Cargando tus apiarios...</Text>
       </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centeredContainer}>
+            <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+            <Text style={styles.errorText}>Error: {error}</Text>
+            <TouchableOpacity style={styles.button} onPress={onRefresh}>
+                <Text style={styles.buttonText}>Reintentar</Text>
+            </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={apiarios}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => <ApiarioCard item={item} />}
+        ListHeaderComponent={() => (
+          <Text style={styles.header}>Mis Apiarios</Text>
+        )}
+        ListEmptyComponent={() => (
+          <View style={styles.centeredContainer}>
+            <Ionicons name="information-circle-outline" size={48} color="#888" />
+            <Text style={styles.emptyText}>No tienes apiarios asignados.</Text>
+            <Text style={styles.emptySubText}>Contacta a un administrador para obtener acceso.</Text>
+          </View>
+        )}
+        contentContainerStyle={{ flexGrow: 1 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#F59E0B"]} />}
+      />
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#f4f6f8',
-  },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 20,
+    backgroundColor: '#F4F4F4',
   },
-  title: {
-    fontSize: 26,
+  centeredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#EF4444',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  emptyText: {
+    marginTop: 10,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 24,
+    color: '#555',
+  },
+  emptySubText: {
+    marginTop: 5,
+    fontSize: 14,
+    color: '#888',
     textAlign: 'center',
   },
-  listContentContainer: {
-    paddingBottom: 20,
+  header: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 15,
+    marginHorizontal: 20,
+    marginVertical: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  cardIconContainer: {
+    backgroundColor: '#F5EEDC',
+    borderRadius: 50,
+    padding: 12,
+    marginRight: 15,
+  },
+  cardTextContainer: {
+    flex: 1,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#34495e',
-    marginLeft: 10,
+    color: '#333',
   },
-  cardText: {
+  cardDescription: {
     fontSize: 14,
-    color: '#555555',
-    marginBottom: 5,
-    lineHeight: 20,
+    color: '#666',
+    marginTop: 2,
   },
-  bold: {
-    fontWeight: 'bold',
-    color: '#333333',
+  button: {
+      backgroundColor: '#F59E0B',
+      paddingVertical: 12,
+      paddingHorizontal: 30,
+      borderRadius: 25,
+      marginTop: 20,
   },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 10, // Espacio antes de la gráfica
-  },
-  statusBadge: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginHorizontal: 6,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  chartContainer: {
-    marginTop: 15,
-    alignItems: 'center', // Centra la gráfica si es más pequeña que el contenedor
-  },
-  chartTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#34495e',
-    marginBottom: 8,
-  },
-  chartStyle: {
-    borderRadius: 8,
-  },
+  buttonText: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      fontWeight: 'bold',
+  }
 });
-
-export default ColmenasScreen;
 

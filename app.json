@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "abejanet",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -16,8 +15,6 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#F5F5F5"
       },
-      "edgeToEdgeEnabled": true,
-      "useCleartextTraffic": true,
       "package": "com.marcoexpo123.AbejaNet"
     },
     "web": {
@@ -39,7 +36,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#F5F5F5"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

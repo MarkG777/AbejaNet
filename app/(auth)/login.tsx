@@ -32,7 +32,7 @@ export default function LoginScreen() {
       const data = await res.json();
 
       if (res.ok && data.success && data.token && data.user && data.user.rol) {
-        await login(data.token, data.user.rol);
+        await login(data.token, data.user.rol, data.user);
       } else if (res.ok && data.success && (!data.token || !data.user || !data.user.rol)){
         Alert.alert('Error de Inicio de Sesión', 'Respuesta inesperada del servidor. Falta token o rol.');
       } else {
