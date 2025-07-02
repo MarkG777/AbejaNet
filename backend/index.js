@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import mysql from 'mysql2/promise';
+import axios from 'axios'; // ÚNICA importación de axios
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -83,7 +84,6 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    // MODIFICADO: Se seleccionan los nuevos campos del perfil
     const [rows] = await pool.execute(
       `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
        FROM usuarios u JOIN roles r ON u.rol_id = r.id
@@ -105,11 +105,9 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Credenciales incorrectas.' });
     }
 
-    // El token no necesita los datos del perfil, solo el id y el rol.
     const secretKey = process.env.JWT_SECRET;
     const token = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '8h' });
 
-    // MODIFICADO: Se devuelven los datos del perfil en el objeto 'user'
     res.json({
       success: true,
       token,
@@ -132,48 +130,33 @@ app.post('/api/login', async (req, res) => {
 // RUTAS DE GESTIÓN (APIARIOS, COLMENAS)
 // =================================================================
 
-// Obtener los apiarios asignados al usuario autenticado
 app.get('/api/apiarios', verificarToken, async (req, res) => {
   try {
-    // El ID del usuario se obtiene del token JWT verificado por el middleware
     const userId = req.usuario.userId;
-
     const [apiarios] = await pool.execute(
-      `SELECT 
-         a.id, 
-         a.nombre, 
-         a.descripcion_general, 
-         a.direccion_o_coordenadas,
-         a.fecha_creacion
+      `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas, a.fecha_creacion
        FROM apiarios a
        JOIN usuarios_apiarios ua ON a.id = ua.apiario_id
        WHERE ua.usuario_id = ?
        ORDER BY a.nombre ASC`,
       [userId]
     );
-
     res.json({ success: true, apiarios });
-
   } catch (err) {
     console.error('Error en GET /api/apiarios:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor al obtener apiarios.' });
   }
 });
 
-
-// NUEVO: Endpoint para que el usuario actualice su perfil
 app.put('/api/profile', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
-  // Se extraen los valores del body. Si no vienen, se usan strings vacíos por defecto para evitar errores.
   const { nombre = '', apellido_paterno = '', apellido_materno = '' } = req.body;
 
-  // La única validación estricta es que el nombre no puede estar vacío.
   if (typeof nombre !== 'string' || nombre.trim() === '') {
     return res.status(400).json({ success: false, message: 'El campo nombre es requerido.' });
   }
 
   try {
-    // Se usan los valores con trim para limpiar espacios en blanco.
     const [result] = await pool.execute(
       'UPDATE usuarios SET nombre = ?, apellido_paterno = ?, apellido_materno = ? WHERE id = ?',
       [nombre.trim(), apellido_paterno.trim(), apellido_materno.trim(), userId]
@@ -190,14 +173,11 @@ app.put('/api/profile', verificarToken, async (req, res) => {
   }
 });
 
-
 // =================================================================
 // ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
 // =================================================================
 
-
 app.post('/api/lecturas', async (req, res) => {
-  // NOTA: El ESP32 debe enviar 'macAddress' en camelCase.
   const { macAddress, temperatura, humedad, peso, lluvia, sonido } = req.body;
 
   if (!macAddress) {
@@ -206,26 +186,21 @@ app.post('/api/lecturas', async (req, res) => {
 
   let connection;
   try {
-    // Usamos una transacción para asegurar la integridad de los datos.
-    // O todo se ejecuta con éxito, o nada se guarda.
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
     let sensorId;
     let isNewSensor = false;
 
-    // 1. Buscar si el sensor ya existe.
     const [sensores] = await connection.execute('SELECT id, estado FROM sensores WHERE mac_address = ?', [macAddress]);
 
     if (sensores.length > 0) {
-      // SENSOR EXISTENTE: Verificar que esté activo.
       const sensor = sensores[0];
       if (sensor.estado !== 'activo') {
         throw new Error(`El sensor con MAC ${macAddress} no está activo (estado: ${sensor.estado}).`);
       }
       sensorId = sensor.id;
     } else {
-      // SENSOR NUEVO: Auto-registrarlo con estado 'no_asignado'.
       isNewSensor = true;
       console.log(`AUTO-REGISTRO: Nuevo sensor detectado con MAC: ${macAddress}`);
       const [result] = await connection.execute(
@@ -235,16 +210,13 @@ app.post('/api/lecturas', async (req, res) => {
       sensorId = result.insertId;
     }
 
-    // 2. Insertar la nueva lectura ambiental.
     await connection.execute(
       `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia) VALUES (?, ?, ?, ?, ?, ?)`,
       [sensorId, temperatura, humedad, peso, sonido, lluvia]
     );
 
-    // 3. Actualizar la fecha de la última lectura en la tabla de sensores.
     await connection.execute('UPDATE sensores SET ultima_lectura_en = NOW() WHERE id = ?', [sensorId]);
 
-    // 4. Si todo fue bien, confirmar la transacción.
     await connection.commit();
 
     const message = isNewSensor
@@ -254,22 +226,54 @@ app.post('/api/lecturas', async (req, res) => {
     res.status(201).json({ success: true, message, sensorId });
 
   } catch (err) {
-    // Si algo falla, revertir todos los cambios de la transacción.
     if (connection) await connection.rollback();
     console.error(`Error procesando lectura de MAC ${macAddress}:`, err.message);
-    // Enviamos un error 403 (Prohibido) si el sensor no está activo, o 500 para otros errores.
     const statusCode = err.message.includes('no está activo') ? 403 : 500;
     res.status(statusCode).json({ success: false, message: err.message });
   } finally {
-    // Pase lo que pase, siempre liberar la conexión al pool.
     if (connection) connection.release();
   }
 });
 
+// =================================================================
+// ENDPOINT DE NOTICIAS
+// =================================================================
+
+app.get('/api/noticias', verificarToken, async (req, res) => {
+  try {
+    const apiKey = process.env.NEWS_API_KEY;
+    if (!apiKey) {
+      console.error('La clave de API para noticias (NEWS_API_KEY) no está configurada en el archivo .env');
+      return res.status(500).json({ message: 'Error de configuración del servidor: falta la clave de API de noticias.' });
+    }
+
+    const query = 'abejas OR apicultura OR colmenas OR polinización';
+    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=es&sortBy=publishedAt&apiKey=${apiKey}`;
+
+    const response = await axios.get(url);
+
+    const articles = response.data.articles
+      .filter(article => article.title && article.title !== "[Removed]")
+      .slice(0, 10);
+
+    res.json({ articles });
+
+  } catch (error) {
+    if (error.response) {
+      console.error('Error al obtener noticias desde la API:', error.response.data);
+      res.status(error.response.status).json({ message: `Error del servicio de noticias: ${error.response.data.message}` });
+    } else if (error.request) {
+      console.error('No se recibió respuesta del servicio de noticias:', error.request);
+      res.status(503).json({ message: 'El servicio de noticias no responde.' });
+    } else {
+      console.error('Error al configurar la solicitud de noticias:', error.message);
+      res.status(500).json({ message: 'Error interno al procesar la solicitud de noticias.' });
+    }
+  }
+});
 
 // --- Arranque del Servidor ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`API de AbejaNet escuchando en http://0.0.0.0:${PORT}`);
 });
-
