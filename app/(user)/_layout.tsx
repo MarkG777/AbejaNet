@@ -45,6 +45,8 @@ function CustomDrawerContent(props: any) {
 
 // Layout principal del usuario usando Drawer
 export default function UserLayout() {
+  const router = useRouter();
+
   return (
     <Drawer
       drawerContent={(props) => <CustomDrawerContent {...props} />}
@@ -95,6 +97,18 @@ export default function UserLayout() {
         options={{
           title: 'Detalle del Apiario',
           drawerItemStyle: { display: 'none' }, // Oculta esta pantalla del menú lateral
+        }}
+      />
+      <Drawer.Screen
+        name="ColmenaDetailScreen"
+        options={{
+          title: 'Detalle de la Colmena',
+          drawerItemStyle: { display: 'none' }, // Oculta del menú
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: 15 }}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+          ),
         }}
       />
     </Drawer>

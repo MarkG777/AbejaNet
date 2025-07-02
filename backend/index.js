@@ -148,6 +148,37 @@ app.get('/api/apiarios', verificarToken, async (req, res) => {
   }
 });
 
+// Obtener las colmenas de un apiario específico
+app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  const { apiarioId } = req.params;
+
+  try {
+    // 1. Verificación de seguridad: ¿Tiene el usuario acceso a este apiario?
+    const [permisos] = await pool.execute(
+      'SELECT * FROM usuarios_apiarios WHERE usuario_id = ? AND apiario_id = ?',
+      [userId, apiarioId]
+    );
+
+    if (permisos.length === 0) {
+      // Si no hay un registro que vincule al usuario con el apiario, no tiene permiso.
+      return res.status(403).json({ success: false, message: 'Acceso denegado a este apiario.' });
+    }
+
+    // 2. Si tiene permiso, obtener las colmenas de ese apiario.
+    const [colmenas] = await pool.execute(
+      'SELECT id, nombre, descripcion_especifica, fecha_creacion FROM colmenas WHERE apiario_id = ? ORDER BY nombre ASC',
+      [apiarioId]
+    );
+
+    res.json({ success: true, colmenas });
+
+  } catch (err) {
+    console.error(`Error en GET /api/apiarios/${apiarioId}/colmenas:`, err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor al obtener las colmenas.' });
+  }
+});
+
 app.put('/api/profile', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   const { nombre = '', apellido_paterno = '', apellido_materno = '' } = req.body;

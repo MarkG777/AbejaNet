@@ -1,22 +1,117 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  SafeAreaView, StyleSheet, Text, View, FlatList, ActivityIndicator, 
+  TouchableOpacity, Image, Linking
+} from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { getApiUrl } from '../../utils/ip_config';
+
+// Interfaz para un artículo de noticia
+interface NewsArticle {
+  title: string;
+  url: string;
+  urlToImage: string | null;
+  source: {
+    name: string;
+  };
+}
+
+// Componente para mostrar una tarjeta de noticia individual
+const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
+  const handlePress = () => {
+    // Abre el enlace de la noticia en el navegador del dispositivo
+    Linking.openURL(article.url).catch(err => console.error("Couldn't load page", err));
+  };
+
+  return (
+    <TouchableOpacity style={styles.newsCard} onPress={handlePress}>
+      <Image 
+        source={{ uri: article.urlToImage || 'https://via.placeholder.com/150?text=No+Image' }} 
+        style={styles.newsImage} 
+      />
+      <View style={styles.newsTextContainer}>
+        <Text style={styles.newsTitle} numberOfLines={3}>{article.title}</Text>
+        <Text style={styles.newsSource}>{article.source.name}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
 
 const UserDashboardScreen = () => {
   const { authState } = useAuth();
+  const [news, setNews] = useState<NewsArticle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchNews = async () => {
+      try {
+        const apiUrl = await getApiUrl();
+        const token = authState.accessToken;
+
+        if (!token) {
+          throw new Error('Token no disponible');
+        }
+
+        const response = await fetch(`${apiUrl}/api/noticias`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Error al cargar noticias');
+        }
+
+        const data = await response.json();
+        setNews(data.articles);
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNews();
+  }, [authState.accessToken]);
+
+  const renderNewsSection = () => {
+    if (loading) {
+      return <ActivityIndicator size="large" color="#F59E0B" style={{ marginTop: 20 }} />;
+    }
+
+    if (error) {
+      return <Text style={styles.errorText}>Error al cargar noticias: {error}</Text>;
+    }
+
+    return (
+      <FlatList
+        data={news}
+        renderItem={({ item }) => <NewsCard article={item} />}
+        keyExtractor={(item) => item.url}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 10 }}
+      />
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Ionicons name="sunny-outline" size={80} color="#FFC107" />
+        <Ionicons name="sunny-outline" size={60} color="#FFC107" />
         <Text style={styles.title}>¡Bienvenido a AbejaNet!</Text>
         <Text style={styles.subtitle}>
           Hola, {authState.user?.nombre || 'apicultor'}. Estamos contentos de verte.
         </Text>
-        <Text style={styles.instructions}>
-          Usa el menú lateral para navegar por tus apiarios y revisar tus colmenas.
-        </Text>
+      </View>
+
+      <View style={styles.newsSection}>
+        <Text style={styles.sectionTitle}>Noticias del mundo apícola</Text>
+        {renderNewsSection()}
       </View>
     </SafeAreaView>
   );
@@ -25,32 +120,73 @@ const UserDashboardScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#F4F4F4',
   },
   content: {
     alignItems: 'center',
-    paddingHorizontal: 20,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#333',
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 15,
   },
   subtitle: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#666',
-    marginBottom: 30,
+    marginTop: 5,
     textAlign: 'center',
   },
-  instructions: {
-    fontSize: 16,
-    color: '#777',
+  newsSection: {
+    paddingVertical: 20,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginLeft: 20,
+    marginBottom: 15,
+  },
+  errorText: {
     textAlign: 'center',
-    lineHeight: 24,
+    color: 'red',
+    marginTop: 20,
+  },
+  newsCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    width: 280,
+    height: 280,
+    marginHorizontal: 10,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    overflow: 'hidden',
+  },
+  newsImage: {
+    width: '100%',
+    height: 150,
+  },
+  newsTextContainer: {
+    padding: 15,
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  newsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  newsSource: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 8,
+    alignSelf: 'flex-end',
   },
 });
 
