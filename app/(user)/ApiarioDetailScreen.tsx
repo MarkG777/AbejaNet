@@ -53,9 +53,14 @@ export default function ApiarioDetailScreen() {
   }, [apiarioId]);
 
   const handleColmenaPress = (colmena: Colmena) => {
-    router.push({ 
-      pathname: '/(user)/ColmenaDetailScreen', 
-      params: { colmenaId: colmena.id, colmenaNombre: colmena.nombre } 
+    router.push({
+      pathname: '/(user)/ColmenaDetailScreen',
+      params: {
+        colmenaId: colmena.id,
+        colmenaNombre: colmena.nombre,
+        apiarioId: apiarioId, // Pasamos el ID del apiario actual
+        apiarioNombre: apiarioNombre, // Pasamos el nombre del apiario actual
+      },
     });
   };
 

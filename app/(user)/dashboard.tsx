@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView, StyleSheet, Text, View, FlatList, ActivityIndicator, 
-  TouchableOpacity, Image, Linking
+  Pressable, Image, Linking
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { getApiUrl } from '../../utils/ip_config';
@@ -25,16 +25,25 @@ const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.newsCard} onPress={handlePress}>
+    <Pressable 
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.newsCard,
+        {
+          transform: [{ scale: pressed ? 0.98 : 1 }],
+          opacity: pressed ? 0.95 : 1,
+        }
+      ]}
+    >
       <Image 
         source={{ uri: article.urlToImage || 'https://via.placeholder.com/150?text=No+Image' }} 
         style={styles.newsImage} 
       />
       <View style={styles.newsTextContainer}>
-        <Text style={styles.newsTitle} numberOfLines={3}>{article.title}</Text>
+        <Text style={styles.newsTitle} numberOfLines={4}>{article.title}</Text>
         <Text style={styles.newsSource}>{article.source.name}</Text>
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -92,9 +101,8 @@ const UserDashboardScreen = () => {
         data={news}
         renderItem={({ item }) => <NewsCard article={item} />}
         keyExtractor={(item) => item.url}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 10 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 5 }}
       />
     );
   };
@@ -157,10 +165,8 @@ const styles = StyleSheet.create({
   },
   newsCard: {
     backgroundColor: 'white',
-    borderRadius: 12,
-    width: 280,
-    height: 280,
-    marginHorizontal: 10,
+    borderRadius: 16,
+    marginBottom: 20,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -170,11 +176,11 @@ const styles = StyleSheet.create({
   },
   newsImage: {
     width: '100%',
-    height: 150,
+    height: 180,
   },
   newsTextContainer: {
     padding: 15,
-    flex: 1,
+    height: 130, // Fixed height to ensure consistency
     justifyContent: 'space-between',
   },
   newsTitle: {

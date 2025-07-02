@@ -101,15 +101,29 @@ export default function UserLayout() {
       />
       <Drawer.Screen
         name="ColmenaDetailScreen"
-        options={{
+        options={({ route }) => ({
           title: 'Detalle de la Colmena',
-          drawerItemStyle: { display: 'none' }, // Oculta del menú
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: 15 }}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-          ),
-        }}
+          drawerItemStyle: { display: 'none' },
+          headerLeft: () => {
+            const params = route.params as { apiarioId: string; apiarioNombre: string };
+            return (
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/(user)/ApiarioDetailScreen',
+                    params: {
+                      apiarioId: params.apiarioId,
+                      apiarioNombre: params.apiarioNombre,
+                    },
+                  })
+                }
+                style={{ paddingHorizontal: 15 }}
+              >
+                <Ionicons name="arrow-back" size={24} color="#fff" />
+              </TouchableOpacity>
+            );
+          },
+        })}
       />
     </Drawer>
   );
