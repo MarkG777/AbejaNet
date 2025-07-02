@@ -247,8 +247,9 @@ app.get('/api/noticias', verificarToken, async (req, res) => {
       return res.status(500).json({ message: 'Error de configuración del servidor: falta la clave de API de noticias.' });
     }
 
-    const query = 'abejas OR apicultura OR colmenas OR polinización';
-    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=es&sortBy=publishedAt&apiKey=${apiKey}`;
+    // Búsqueda más precisa: solo en títulos y con términos más específicos.
+    const query = 'apicultura OR abejas OR colmenas OR "producción de miel" OR apicultor OR polinización';
+    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=es&sortBy=publishedAt&apiKey=${apiKey}`;
 
     const response = await axios.get(url);
 
