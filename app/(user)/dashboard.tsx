@@ -12,10 +12,17 @@ interface NewsArticle {
   title: string;
   url: string;
   urlToImage: string | null;
+  publishedAt: string; // Añadido para la fecha
   source: {
     name: string;
   };
 }
+
+// Función para formatear la fecha de manera legible
+const formatDate = (dateString: string) => {
+  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+  return new Date(dateString).toLocaleDateString('es-ES', options);
+};
 
 // Componente para mostrar una tarjeta de noticia individual
 const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
@@ -40,8 +47,11 @@ const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
         style={styles.newsImage} 
       />
       <View style={styles.newsTextContainer}>
-        <Text style={styles.newsTitle} numberOfLines={4}>{article.title}</Text>
-        <Text style={styles.newsSource}>{article.source.name}</Text>
+        <Text style={styles.newsTitle} numberOfLines={3}>{article.title}</Text>
+        <View style={styles.newsFooter}>
+          <Text style={styles.newsSource}>{article.source.name}</Text>
+          <Text style={styles.newsDate}>{formatDate(article.publishedAt)}</Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -188,11 +198,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  newsFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
   newsSource: {
     fontSize: 12,
     color: '#888',
-    marginTop: 8,
-    alignSelf: 'flex-end',
+    fontWeight: '500',
+  },
+  newsDate: {
+    fontSize: 12,
+    color: '#888',
   },
 });
 

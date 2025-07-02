@@ -279,7 +279,8 @@ app.get('/api/noticias', verificarToken, async (req, res) => {
     }
 
     // Búsqueda más precisa: solo en títulos y con términos más específicos.
-    const query = 'apicultura OR abejas OR colmenas OR "producción de miel" OR apicultor OR polinización';
+    // Búsqueda más precisa, excluyendo términos que generan ruido (política, social, etc.)
+    const query = '(apicultura OR abejas OR colmenas OR "producción de miel" OR apicultor OR polinización) NOT (Acteal OR política OR fábula OR izquierda OR corrupción)';
     const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=es&sortBy=publishedAt&apiKey=${apiKey}`;
 
     const response = await axios.get(url);
