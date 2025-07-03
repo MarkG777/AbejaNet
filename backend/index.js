@@ -131,14 +131,13 @@ app.post('/api/login', async (req, res) => {
 // =================================================================
 
 app.get('/api/apiarios', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
   try {
-    const userId = req.usuario.userId;
     const [apiarios] = await pool.execute(
-      `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas, a.fecha_creacion
+      `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas 
        FROM apiarios a
        JOIN usuarios_apiarios ua ON a.id = ua.apiario_id
-       WHERE ua.usuario_id = ?
-       ORDER BY a.nombre ASC`,
+       WHERE ua.usuario_id = ?`,
       [userId]
     );
     res.json({ success: true, apiarios });
@@ -156,26 +155,81 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
   try {
     // 1. Verificación de seguridad: ¿Tiene el usuario acceso a este apiario?
     const [permisos] = await pool.execute(
-      'SELECT * FROM usuarios_apiarios WHERE usuario_id = ? AND apiario_id = ?',
+      'SELECT usuario_id FROM usuarios_apiarios WHERE usuario_id = ? AND apiario_id = ?',
       [userId, apiarioId]
     );
 
     if (permisos.length === 0) {
-      // Si no hay un registro que vincule al usuario con el apiario, no tiene permiso.
-      return res.status(403).json({ success: false, message: 'Acceso denegado a este apiario.' });
+      return res.status(403).json({ success: false, message: 'Acceso no autorizado a este apiario.' });
     }
 
-    // 2. Si tiene permiso, obtener las colmenas de ese apiario.
+    // 2. Si tiene acceso, obtener las colmenas
     const [colmenas] = await pool.execute(
-      'SELECT id, nombre, descripcion_especifica, fecha_creacion FROM colmenas WHERE apiario_id = ? ORDER BY nombre ASC',
+      'SELECT id, nombre, descripcion_especifica FROM colmenas WHERE apiario_id = ?',
       [apiarioId]
     );
-
     res.json({ success: true, colmenas });
 
   } catch (err) {
     console.error(`Error en GET /api/apiarios/${apiarioId}/colmenas:`, err);
     res.status(500).json({ success: false, message: 'Error interno del servidor al obtener las colmenas.' });
+  }
+});
+
+// Obtener todas las lecturas de una colmena específica
+app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) => {
+  const { colmenaId } = req.params;
+  const { range = 'day' } = req.query; // Default to 'day'
+  const userId = req.usuario.userId;
+
+  try {
+    // 1. Verificación de seguridad: ¿Tiene el usuario acceso a la colmena a través de su apiario?
+    const [permisos] = await pool.execute(
+      `SELECT ua.usuario_id FROM usuarios_apiarios ua JOIN colmenas c ON ua.apiario_id = c.apiario_id WHERE ua.usuario_id = ? AND c.id = ?`,
+      [userId, colmenaId]
+    );
+    if (permisos.length === 0) {
+      return res.status(403).json({ success: false, message: 'Acceso no autorizado a esta colmena.' });
+    }
+
+    // 2. Si la seguridad pasa, obtener las lecturas según el rango
+    let query;
+    const params = [colmenaId];
+
+    if (range === 'day') {
+      query = `SELECT l.temperatura, l.humedad, l.peso, l.sonido, l.lluvia, l.fecha_registro 
+               FROM lecturas_ambientales l
+               JOIN sensores s ON l.sensor_id = s.id
+               WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 DAY
+               ORDER BY l.fecha_registro ASC`;
+    } else {
+      // Para semana y mes, agregamos los datos por día para mejorar el rendimiento
+      query = `SELECT
+                 DATE(l.fecha_registro) as fecha_registro,
+                 AVG(l.temperatura) as temperatura,
+                 AVG(l.humedad) as humedad,
+                 AVG(l.peso) as peso,
+                 AVG(l.sonido) as sonido
+               FROM lecturas_ambientales l
+               JOIN sensores s ON l.sensor_id = s.id
+               WHERE s.colmena_id = ?`;
+      
+      if (range === 'week') {
+        query += ' AND l.fecha_registro >= NOW() - INTERVAL 1 WEEK';
+      } else { // 'month'
+        query += ' AND l.fecha_registro >= NOW() - INTERVAL 1 MONTH';
+      }
+      
+      query += ` GROUP BY DATE(l.fecha_registro)
+                 ORDER BY fecha_registro ASC`;
+    }
+
+    const [lecturas] = await pool.execute(query, params);
+    res.json({ success: true, lecturas });
+
+  } catch (err) {
+    console.error(`Error en GET /api/colmenas/${colmenaId}/lecturas:`, err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor al obtener las lecturas.' });
   }
 });
 
