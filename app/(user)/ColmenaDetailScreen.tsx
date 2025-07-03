@@ -30,7 +30,7 @@ interface SensorChartProps {
 }
 
 // Componente de Gráfica Reutilizable
-const SensorChart = ({ title, data, dataKey, color, unit }: SensorChartProps) => {
+const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorChartProps & { timeRange: TimeRange }) => {
   if (!data || data.length === 0) {
     return (
       <View style={styles.chartContainer}>
@@ -43,13 +43,16 @@ const SensorChart = ({ title, data, dataKey, color, unit }: SensorChartProps) =>
   }
 
   const chartData = {
-    labels: data.map((_, index) => {
-      // Muestra menos etiquetas para que no se solapen
-      if (data.length <= 10) return format(parseISO(data[index].fecha_registro), 'HH:mm');
-      if (index % Math.floor(data.length / 5) === 0) {
-        return format(parseISO(data[index].fecha_registro), 'dd/MM');
+    labels: data.map(d => {
+      const date = parseISO(d.fecha_registro);
+      if (timeRange === 'day') {
+        // Con 12 puntos de datos (promedio cada 2h), podemos mostrar todas las etiquetas.
+        return format(date, 'HH:mm');
       }
-      return '';
+      if (timeRange === 'week') {
+        return format(date, 'eee', { locale: es });
+      }
+      return format(date, 'dd/MM');
     }),
     datasets: [
       {
@@ -65,11 +68,16 @@ const SensorChart = ({ title, data, dataKey, color, unit }: SensorChartProps) =>
     <View style={styles.chartContainer}>
       <LineChart
         data={chartData}
-        width={Dimensions.get('window').width - 40}
+        width={Dimensions.get('window').width - 32}
         height={220}
+        yAxisLabel=""
+        yAxisSuffix={` ${unit}`}
         chartConfig={chartConfig}
         bezier
         style={styles.chartStyle}
+        // Rota las etiquetas del eje Y y mantiene horizontales las del eje X
+        verticalLabelRotation={30}
+        horizontalLabelRotation={0}
       />
     </View>
   );
@@ -174,10 +182,10 @@ export default function ColmenaDetailScreen() {
       </View>
 
       {/* Gráficas */}
-      <SensorChart title="Temperatura" data={filteredLecturas} dataKey="temperatura" color="rgba(255, 99, 132, 1)" unit="°C" />
-      <SensorChart title="Humedad" data={filteredLecturas} dataKey="humedad" color="rgba(54, 162, 235, 1)" unit="%" />
-      <SensorChart title="Peso" data={filteredLecturas} dataKey="peso" color="rgba(75, 192, 192, 1)" unit="kg" />
-      <SensorChart title="Sonido" data={filteredLecturas} dataKey="sonido" color="rgba(153, 102, 255, 1)" unit="dB" />
+      <SensorChart title="Temperatura" data={filteredLecturas} dataKey="temperatura" color="rgba(255, 99, 132, 1)" unit="°C" timeRange={timeRange} />
+      <SensorChart title="Humedad" data={filteredLecturas} dataKey="humedad" color="rgba(54, 162, 235, 1)" unit="%" timeRange={timeRange} />
+      <SensorChart title="Peso" data={filteredLecturas} dataKey="peso" color="rgba(75, 192, 192, 1)" unit="kg" timeRange={timeRange} />
+      <SensorChart title="Sonido" data={filteredLecturas} dataKey="sonido" color="rgba(153, 102, 255, 1)" unit="dB" timeRange={timeRange} />
 
     </ScrollView>
   );

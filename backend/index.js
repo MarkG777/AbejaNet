@@ -183,7 +183,7 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
   const userId = req.usuario.userId;
 
   try {
-    // 1. Verificación de seguridad: ¿Tiene el usuario acceso a la colmena a través de su apiario?
+    // 1. Verificación de seguridad
     const [permisos] = await pool.execute(
       `SELECT ua.usuario_id FROM usuarios_apiarios ua JOIN colmenas c ON ua.apiario_id = c.apiario_id WHERE ua.usuario_id = ? AND c.id = ?`,
       [userId, colmenaId]
@@ -192,36 +192,55 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
       return res.status(403).json({ success: false, message: 'Acceso no autorizado a esta colmena.' });
     }
 
-    // 2. Si la seguridad pasa, obtener las lecturas según el rango
+    // 2. Construcción de la consulta según el rango
     let query;
     const params = [colmenaId];
 
-    if (range === 'day') {
-      query = `SELECT l.temperatura, l.humedad, l.peso, l.sonido, l.lluvia, l.fecha_registro 
-               FROM lecturas_ambientales l
-               JOIN sensores s ON l.sensor_id = s.id
-               WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 DAY
-               ORDER BY l.fecha_registro ASC`;
-    } else {
-      // Para semana y mes, agregamos los datos por día para mejorar el rendimiento
-      query = `SELECT
-                 DATE(l.fecha_registro) as fecha_registro,
-                 AVG(l.temperatura) as temperatura,
-                 AVG(l.humedad) as humedad,
-                 AVG(l.peso) as peso,
-                 AVG(l.sonido) as sonido
-               FROM lecturas_ambientales l
-               JOIN sensores s ON l.sensor_id = s.id
-               WHERE s.colmena_id = ?`;
-      
-      if (range === 'week') {
-        query += ' AND l.fecha_registro >= NOW() - INTERVAL 1 WEEK';
-      } else { // 'month'
-        query += ' AND l.fecha_registro >= NOW() - INTERVAL 1 MONTH';
-      }
-      
-      query += ` GROUP BY DATE(l.fecha_registro)
+    switch (range) {
+      case 'month':
+        // Para el mes, agrupa por semana y calcula el promedio semanal
+        query = `SELECT 
+                   STR_TO_DATE(CONCAT(YEARWEEK(l.fecha_registro, 1), ' Monday'), '%x%v %W') as fecha_registro,
+                   AVG(l.temperatura) as temperatura,
+                   AVG(l.humedad) as humedad,
+                   AVG(l.peso) as peso,
+                   AVG(l.sonido) as sonido
+                 FROM lecturas_ambientales l
+                 JOIN sensores s ON l.sensor_id = s.id
+                 WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 MONTH
+                 GROUP BY YEARWEEK(l.fecha_registro, 1)
                  ORDER BY fecha_registro ASC`;
+        break;
+      case 'week':
+        // Para la semana, agrupa por día y calcula el promedio diario
+        query = `SELECT 
+                   DATE(l.fecha_registro) as fecha_registro,
+                   AVG(l.temperatura) as temperatura,
+                   AVG(l.humedad) as humedad,
+                   AVG(l.peso) as peso,
+                   AVG(l.sonido) as sonido
+                 FROM lecturas_ambientales l
+                 JOIN sensores s ON l.sensor_id = s.id
+                 WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 WEEK
+                 GROUP BY DATE(l.fecha_registro)
+                 ORDER BY fecha_registro ASC`;
+        break;
+      default: // 'day'
+        // Para el día, agrupa por bloques de 2 horas y calcula el promedio (versión corregida)
+        query = `SELECT 
+                   -- Construye una marca de tiempo representativa para el bloque de 2 horas
+                   CONCAT(DATE(l.fecha_registro), ' ', LPAD(FLOOR(HOUR(l.fecha_registro) / 2) * 2, 2, '0'), ':00:00') AS fecha_registro,
+                   AVG(l.temperatura) as temperatura,
+                   AVG(l.humedad) as humedad,
+                   AVG(l.peso) as peso,
+                   AVG(l.sonido) as sonido
+                 FROM lecturas_ambientales l
+                 JOIN sensores s ON l.sensor_id = s.id
+                 WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 DAY
+                 -- Agrupa por el día y el bloque de 2 horas para garantizar el correcto funcionamiento
+                 GROUP BY DATE(l.fecha_registro), FLOOR(HOUR(l.fecha_registro) / 2)
+                 ORDER BY fecha_registro ASC`;
+        break;
     }
 
     const [lecturas] = await pool.execute(query, params);
