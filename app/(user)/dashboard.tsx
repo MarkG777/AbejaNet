@@ -207,6 +207,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   newsSection: {
+    flex: 1,
     paddingVertical: 20,
   },
   sectionTitle: {
