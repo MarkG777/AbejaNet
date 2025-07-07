@@ -378,6 +378,51 @@ app.get('/api/noticias', verificarToken, async (req, res) => {
   }
 });
 
+// ==============================================
+// ENDPOINT PARA GESTIÓN DE ALERTAS
+// ==============================================
+
+// NOTA: Este endpoint es para que los sensores (ESP32) reporten eventos críticos.
+// En un futuro, debería tener su propio sistema de autenticación (ej. API Key por dispositivo)
+// en lugar de depender del token de usuario, pero para la fase inicial lo dejamos así.
+app.get('/api/alertas', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+
+  try {
+    const query = `
+      SELECT a.*, c.nombre AS nombre_colmena, ap.nombre AS nombre_apiario
+      FROM alertas a
+      JOIN colmenas c ON a.colmena_id = c.id
+      JOIN apiarios ap ON c.apiario_id = ap.id
+      JOIN usuarios_apiarios ua ON ap.id = ua.apiario_id
+      WHERE ua.usuario_id = ?
+      ORDER BY a.fecha_alerta DESC
+    `;
+    const [alertas] = await pool.execute(query, [userId]);
+    res.json(alertas);
+  } catch (error) {
+    console.error('Error al obtener las alertas:', error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener las alertas.' });
+  }
+});
+
+app.post('/api/alertas', async (req, res) => {
+  const { colmena_id, tipo_alerta, valor_registrado, mensaje } = req.body;
+
+  if (!colmena_id || !tipo_alerta || !mensaje) {
+    return res.status(400).json({ error: 'Faltan campos requeridos: colmena_id, tipo_alerta, mensaje.' });
+  }
+
+  try {
+    const query = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje) VALUES (?, ?, ?, ?)';
+    await pool.execute(query, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
+    res.status(201).json({ success: true, message: 'Alerta registrada correctamente.' });
+  } catch (error) {
+    console.error('Error al registrar la alerta:', error);
+    res.status(500).json({ error: 'Error interno del servidor al registrar la alerta.' });
+  }
+});
+
 // --- Arranque del Servidor ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {

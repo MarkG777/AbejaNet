@@ -93,6 +93,15 @@ export default function UserLayout() {
         }}
       />
       <Drawer.Screen
+        name="AlertsScreen"
+        options={{
+          title: 'Historial de Alertas',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="notifications-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="ApiarioDetailScreen"
         options={{
           title: 'Detalle del Apiario',

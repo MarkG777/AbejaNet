@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, TouchableOpacity, Modal } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
-import { format, subDays, subWeeks, subMonths, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { LineChartData } from 'react-native-chart-kit/dist/line-chart/LineChart';
+import { useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
-import { useAuth } from '../../context/AuthContext';
-import { getApiUrl } from '../../utils/ip_config';
+import { useAuth } from '@/context/AuthContext';
+import { getApiUrl } from '@/utils/ip_config';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 // Tipos de datos
 interface Lectura {
@@ -21,16 +22,44 @@ interface Lectura {
 type TimeRange = 'day' | 'week' | 'month';
 
 // Tipos para las props de la gráfica
+type SensorDataKey = keyof Omit<Lectura, 'fecha_registro' | 'lluvia'>;
+
 interface SensorChartProps {
   title: string;
   data: Lectura[];
-  dataKey: keyof Omit<Lectura, 'fecha_registro' | 'lluvia'>;
+  dataKey: SensorDataKey;
   color: string;
   unit: string;
+  timeRange: TimeRange;
 }
 
-// Componente de Gráfica Reutilizable
-const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorChartProps & { timeRange: TimeRange }) => {
+// --- CONSTANTES GLOBALES ---
+
+const chartConfig = {
+  backgroundGradientFrom: '#ffffff',
+  backgroundGradientTo: '#ffffff',
+  decimalPlaces: 1,
+  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+  style: {
+    borderRadius: 16,
+  },
+  propsForDots: {
+    r: '4',
+    strokeWidth: '2',
+  },
+};
+
+const allChartProps: Omit<SensorChartProps, 'data' | 'timeRange'>[] = [
+  { title: "Temperatura", dataKey: "temperatura", color: "rgba(255, 99, 132, 1)", unit: "°C" },
+  { title: "Humedad", dataKey: "humedad", color: "rgba(54, 162, 235, 1)", unit: "%" },
+  { title: "Peso", dataKey: "peso", color: "rgba(75, 192, 192, 1)", unit: "kg" },
+  { title: "Sonido", dataKey: "sonido", color: "rgba(153, 102, 255, 1)", unit: "dB" }
+];
+
+// --- COMPONENTES REUTILIZABLES ---
+
+const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorChartProps) => {
   if (!data || data.length === 0) {
     return (
       <View style={styles.chartContainer}>
@@ -83,227 +112,427 @@ const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorCha
   );
 };
 
-// Configuración visual de las gráficas
-const chartConfig = {
-  backgroundGradientFrom: '#ffffff',
-  backgroundGradientTo: '#ffffff',
-  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-  strokeWidth: 2,
-  barPercentage: 0.5,
-  useShadowColorFromDataset: false,
-  decimalPlaces: 1,
-};
+// Tipos para las props de la gráfica de comparación
+interface ComparisonChartProps {
+  lecturas: Lectura[];
+  timeRange: TimeRange;
+  selectedChart: Omit<SensorChartProps, 'data' | 'timeRange'>;
+  comparisonKey: SensorDataKey | null;
+}
+
+// Componente optimizado para la gráfica de comparación en el modal
+const MemoizedComparisonChart = React.memo(({ lecturas, timeRange, selectedChart, comparisonKey }: ComparisonChartProps) => {
+  const chartData = useMemo((): LineChartData => {
+    const labels = lecturas.map((l: Lectura) => {
+      const date = parseISO(l.fecha_registro);
+      if (timeRange === 'day') return format(date, 'HH:mm');
+      if (timeRange === 'week') return format(date, 'eee', { locale: es });
+      return format(date, 'dd/MM');
+    });
+
+    const calculatePercentageChange = (dataKey: SensorDataKey): number[] => {
+      const validData = lecturas.map(l => l[dataKey]).filter(v => v !== null) as number[];
+      if (validData.length < 2) {
+        return lecturas.map(() => 0);
+      }
+      const baseline = validData[0];
+      if (baseline === 0) {
+        return lecturas.map(() => 0); // Evitar división por cero
+      }
+
+      let lastValidValue = baseline;
+      return lecturas.map(l => {
+        const currentValue = l[dataKey];
+        if (currentValue === null || currentValue === undefined) {
+          // Para huecos en los datos, mantenemos el último cambio porcentual válido
+          return ((lastValidValue - baseline) / baseline) * 100;
+        }
+        lastValidValue = currentValue;
+        return ((currentValue - baseline) / baseline) * 100;
+      });
+    };
+
+    const datasets = [];
+    const legend = [];
+
+    // Dataset principal
+    datasets.push({
+      data: calculatePercentageChange(selectedChart.dataKey),
+      color: (opacity = 1) => selectedChart.color.replace(/1\)$/, `${opacity})`),
+      strokeWidth: 2,
+    });
+    legend.push(`${selectedChart.title} (% Var)`);
+
+    // Dataset de comparación
+    if (comparisonKey) {
+      const comparisonChart = allChartProps.find((p) => p.dataKey === comparisonKey);
+      if (comparisonChart) {
+        datasets.push({
+          data: calculatePercentageChange(comparisonKey),
+          color: (opacity = 1) => comparisonChart.color.replace(/1\)$/, `${opacity})`),
+          strokeWidth: 2,
+        });
+        legend.push(`${comparisonChart.title} (% Var)`);
+      }
+    }
+
+    return { labels, datasets, legend };
+  }, [lecturas, timeRange, selectedChart, comparisonKey]);
+
+  if (chartData.labels.length === 0) {
+    return <Text style={styles.infoText}>No hay datos para mostrar en este rango.</Text>;
+  }
+
+  return (
+    <LineChart
+      data={chartData}
+      width={Dimensions.get('window').width - 40}
+      height={250}
+      chartConfig={chartConfig}
+      bezier
+      style={styles.chartStyle}
+      yAxisSuffix=" %"
+      fromZero
+      horizontalLabelRotation={0}
+      verticalLabelRotation={30}
+    />
+  );
+});
 
 // Pantalla Principal
 export default function ColmenaDetailScreen() {
-  const { colmenaId, colmenaNombre } = useLocalSearchParams();
-  const { authState: { accessToken: token } } = useAuth();
-
+  const { colmenaId, nombre } = useLocalSearchParams<{ colmenaId: string; nombre: string }>();
+  const { authState } = useAuth();
   const [lecturas, setLecturas] = useState<Lectura[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('day');
 
+  // Estado para el modal
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedChart, setSelectedChart] = useState<Omit<SensorChartProps, 'data' | 'timeRange'> | null>(null);
+  const [comparisonKey, setComparisonKey] = useState<SensorDataKey | null>(null);
+
+  const handleChartPress = (chartProps: Omit<SensorChartProps, 'data' | 'timeRange'>) => {
+    setSelectedChart(chartProps);
+    setComparisonKey(null); // Reset comparison on new modal open
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setComparisonKey(null);
+  };
+
   useEffect(() => {
     const fetchLecturas = async () => {
-      if (!token || !colmenaId) return;
+      if (!authState.accessToken || !colmenaId) return;
       try {
         setLoading(true);
         const apiUrl = await getApiUrl();
         const response = await axios.get(`${apiUrl}/api/colmenas/${colmenaId}/lecturas`, {
           params: { range: timeRange },
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${authState.accessToken}` },
         });
         const rawLecturas = response.data.lecturas || [];
-        const processedLecturas = rawLecturas.map((l: Lectura) => ({
+        const processedLecturas = rawLecturas.map((l: any) => ({
           ...l,
-          // La librería de base de datos devuelve los decimales como strings. Los convertimos a números.
-          temperatura: l.temperatura !== null && l.temperatura !== undefined ? parseFloat(l.temperatura as unknown as string) : null,
-          humedad: l.humedad !== null && l.humedad !== undefined ? parseFloat(l.humedad as unknown as string) : null,
-          peso: l.peso !== null && l.peso !== undefined ? parseFloat(l.peso as unknown as string) : null,
-          sonido: l.sonido !== null && l.sonido !== undefined ? parseFloat(l.sonido as unknown as string) : null,
+          temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
+          humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
+          peso: l.peso !== null ? parseFloat(l.peso) : null,
+          sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
         }));
         setLecturas(processedLecturas);
-        setError(null);
-      } catch (e) {
-        console.error('Error al obtener lecturas:', e);
-        setError('No se pudieron cargar los datos de los sensores.');
+      } catch (err) {
+        setError('No se pudieron cargar los datos. Inténtalo de nuevo más tarde.');
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
+
     fetchLecturas();
-  }, [colmenaId, token, timeRange]);
+  }, [colmenaId, authState.accessToken, timeRange]);
 
-  // La lógica de filtrado ahora está en el backend, por lo que usamos las lecturas directamente.
-  const filteredLecturas = lecturas;
+  const filteredLecturas = useMemo(() => {
+    return lecturas;
+  }, [lecturas]);
 
-  const ultimaLectura = useMemo(() => lecturas[lecturas.length - 1], [lecturas]);
+  const ultimaLectura = useMemo(() => {
+    if (filteredLecturas.length === 0) return null;
+    return filteredLecturas[filteredLecturas.length - 1];
+  }, [filteredLecturas]);
 
   if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#FFC107" /></View>;
+    return <ActivityIndicator size="large" color="#0000ff" style={styles.centered} />;
   }
 
   if (error) {
-    return <View style={styles.centered}><Text style={styles.errorText}>{error}</Text></View>;
+    return <Text style={styles.errorText}>{error}</Text>;
   }
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>{String(colmenaNombre) || 'Detalle de Colmena'}</Text>
-      
-      {/* Resumen de Última Lectura */}
-      {ultimaLectura && (
-        <View style={styles.summaryContainer}>
-          <Text style={styles.summaryTitle}>Última Lectura</Text>
-          <Text style={styles.summaryDate}>({format(parseISO(ultimaLectura.fecha_registro), "dd MMM, HH:mm'h'", { locale: es })})</Text>
-          <View style={styles.summaryGrid}>
-            <Text style={styles.summaryItem}>🌡️ {ultimaLectura.temperatura?.toFixed(1) ?? 'N/A'} °C</Text>
-            <Text style={styles.summaryItem}>💧 {ultimaLectura.humedad?.toFixed(1) ?? 'N/A'} %</Text>
-            <Text style={styles.summaryItem}>⚖️ {ultimaLectura.peso?.toFixed(1) ?? 'N/A'} kg</Text>
-            <Text style={styles.summaryItem}>🔊 {ultimaLectura.sonido?.toFixed(1) ?? 'N/A'} dB</Text>
+      <Text style={styles.title}>Detalle de la Colmena</Text>
+      <Text style={styles.subtitle}>{nombre}</Text>
+
+      {ultimaLectura ? (
+        <View style={styles.latestReadingContainer}>
+          <Text style={styles.latestReadingTitle}>
+            Última Lectura ({format(parseISO(ultimaLectura.fecha_registro), 'dd MMM, HH:mm', { locale: es })}h)
+          </Text>
+          <View style={styles.latestReadingGrid}>
+            <Text style={styles.latestReadingItem}>🌡️ {ultimaLectura.temperatura?.toFixed(1)} °C</Text>
+            <Text style={styles.latestReadingItem}>💧 {ultimaLectura.humedad?.toFixed(1)} %</Text>
+            <Text style={styles.latestReadingItem}>⚖️ {ultimaLectura.peso?.toFixed(1)} kg</Text>
+            <Text style={styles.latestReadingItem}>🔊 {ultimaLectura.sonido?.toFixed(1)} dB</Text>
           </View>
         </View>
+      ) : (
+        <Text style={styles.infoText}>No hay lecturas recientes.</Text>
       )}
 
-      {/* Selector de Rango de Tiempo */}
-      <View style={styles.timeRangeSelector}>
-        {(['day', 'week', 'month'] as TimeRange[]).map(range => (
+      <View style={styles.timeRangeContainer}>
+        {(['day', 'week', 'month'] as TimeRange[]).map((range) => (
           <TouchableOpacity
             key={range}
-            style={[styles.timeRangeButton, timeRange === range && styles.timeRangeButtonActive]}
+            style={[styles.timeRangeButton, timeRange === range && styles.timeRangeButtonSelected]}
             onPress={() => setTimeRange(range)}
           >
-            <Text style={[styles.timeRangeText, timeRange === range && styles.timeRangeTextActive]}>
+            <Text style={[styles.timeRangeButtonText, timeRange === range && styles.timeRangeButtonTextSelected]}>
               {range === 'day' ? 'Día' : range === 'week' ? 'Semana' : 'Mes'}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Gráficas */}
-      <SensorChart title="Temperatura" data={filteredLecturas} dataKey="temperatura" color="rgba(255, 99, 132, 1)" unit="°C" timeRange={timeRange} />
-      <SensorChart title="Humedad" data={filteredLecturas} dataKey="humedad" color="rgba(54, 162, 235, 1)" unit="%" timeRange={timeRange} />
-      <SensorChart title="Peso" data={filteredLecturas} dataKey="peso" color="rgba(75, 192, 192, 1)" unit="kg" timeRange={timeRange} />
-      <SensorChart title="Sonido" data={filteredLecturas} dataKey="sonido" color="rgba(153, 102, 255, 1)" unit="dB" timeRange={timeRange} />
+      {allChartProps.map((props) => (
+        <TouchableOpacity key={props.title} onPress={() => handleChartPress(props)}>
+          <SensorChart {...props} data={filteredLecturas} timeRange={timeRange} />
+        </TouchableOpacity>
+      ))}
 
+      {/* Modal para la gráfica ampliada y comparación */}
+      {selectedChart && (
+        <Modal
+          animationType="slide"
+          transparent={false}
+          visible={modalVisible}
+          onRequestClose={handleCloseModal}
+        >
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>{comparisonKey ? `${selectedChart.title} vs. ${allChartProps.find(p => p.dataKey === comparisonKey)?.title}` : selectedChart.title}</Text>
+            
+            <MemoizedComparisonChart 
+              lecturas={filteredLecturas} 
+              timeRange={timeRange} 
+              selectedChart={selectedChart} 
+              comparisonKey={comparisonKey} 
+            />
+
+            <View style={styles.comparisonContainer}>
+              <Text style={styles.comparisonTitle}>Comparar con:</Text>
+              <View style={styles.comparisonButtons}>
+                {allChartProps
+                  .filter((p) => p.dataKey !== selectedChart.dataKey)
+                  .map((p) => (
+                    <TouchableOpacity
+                      key={p.dataKey}
+                      style={[styles.comparisonButton, comparisonKey === p.dataKey && styles.comparisonButtonSelected]}
+                      onPress={() => setComparisonKey(comparisonKey === p.dataKey ? null : p.dataKey)}
+                    >
+                      <Text style={styles.comparisonButtonText}>{p.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={handleCloseModal}
+            >
+              <Text style={styles.closeButtonText}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f0f4f8',
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#333',
+  },
+  closeButton: {
+    marginTop: 30,
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  comparisonContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  comparisonTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  comparisonButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  comparisonButton: {
+    backgroundColor: '#ddd',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    margin: 5,
+  },
+  comparisonButtonSelected: {
+    backgroundColor: '#2196F3',
+  },
+  comparisonButtonText: {
+    color: '#333',
+    fontWeight: '500',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F8F9FA',
+    paddingHorizontal: 16,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
-  },
-  errorText: {
-    color: 'red',
-    fontSize: 16,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#343A40',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  summaryContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 15,
-    marginHorizontal: 20,
     marginTop: 20,
-    marginBottom: 10,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 20,
+    color: '#6C757D',
+    marginBottom: 20,
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginTop: 20,
+  },
+  infoText: {
+    textAlign: 'center',
+    color: '#6C757D',
+    marginVertical: 20,
+  },
+  latestReadingContainer: {
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 20,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
   },
-  summaryTitle: {
-    fontSize: 18,
+  latestReadingTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
-    color: '#343A40',
-    textAlign: 'center',
+    marginBottom: 12,
+    color: '#495057',
   },
-  summaryDate: {
-    textAlign: 'center',
-    color: '#6C757D',
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  summaryGrid: {
+  latestReadingGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
   },
-  summaryItem: {
-    fontSize: 15,
-    color: '#495057',
-    width: '45%',
-    marginVertical: 5,
+  latestReadingItem: {
+    fontSize: 16,
+    width: '48%',
+    marginBottom: 8,
+    color: '#343A40',
   },
-  timeRangeSelector: {
+  timeRangeContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    marginBottom: 20,
     backgroundColor: '#E9ECEF',
-    borderRadius: 20,
-    marginHorizontal: 20,
-    marginVertical: 20,
+    borderRadius: 8,
     padding: 4,
   },
   timeRangeButton: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
   },
-  timeRangeButtonActive: {
-    backgroundColor: '#FFFFFF',
+  timeRangeButtonSelected: {
+    backgroundColor: 'white',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
   },
-  timeRangeText: {
+  timeRangeButtonText: {
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#6C757D',
   },
-  timeRangeTextActive: {
-    color: '#0D6EFD',
+  timeRangeButtonTextSelected: {
+    color: '#007BFF',
   },
   chartContainer: {
-    marginBottom: 15,
-    alignItems: 'center',
+    marginBottom: 20,
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
   },
   chartTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#444',
+    fontSize: 18,
+    fontWeight: 'bold',
     marginBottom: 10,
-  },
-  chartPlaceholder: {
-    height: 220,
-    width: Dimensions.get('window').width - 40,
-    backgroundColor: '#F0F0F0',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  chartPlaceholderText: {
-    color: '#888',
-    fontSize: 16,
+    textAlign: 'center',
   },
   chartStyle: {
+    marginVertical: 8,
     borderRadius: 16,
+  },
+  chartPlaceholder: {
+    height: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    borderRadius: 16,
+  },
+  chartPlaceholderText: {
+    color: '#6c757d',
+    fontSize: 14,
   },
 });

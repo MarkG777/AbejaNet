@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { getApiUrl } from '../../utils/ip_config';
+import { Link } from 'expo-router';
 
 // Interfaz para un artículo de noticia
 interface NewsArticle {
@@ -127,6 +128,23 @@ const UserDashboardScreen = () => {
         </Text>
       </View>
 
+      <View style={styles.actionsContainer}>
+                {/* @ts-ignore: Expo Router's typed routes can be slow to update */}
+        <Link href="/(user)/ColmenasScreen" asChild>
+          <Pressable style={styles.actionButton}>
+            <Ionicons name="cube-outline" size={22} color="white" />
+            <Text style={styles.actionButtonText}>Mis Colmenas</Text>
+          </Pressable>
+        </Link>
+                {/* @ts-ignore: Expo Router's typed routes can be slow to update */}
+        <Link href="/(user)/AlertsScreen" asChild>
+          <Pressable style={styles.actionButton}>
+            <Ionicons name="notifications-outline" size={22} color="white" />
+            <Text style={styles.actionButtonText}>Ver Alertas</Text>
+          </Pressable>
+        </Link>
+      </View>
+
       <View style={styles.newsSection}>
         <Text style={styles.sectionTitle}>Noticias del mundo apícola</Text>
         {renderNewsSection()}
@@ -157,6 +175,36 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 5,
     textAlign: 'center',
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    backgroundColor: '#F4F4F4',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginHorizontal: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  actionButtonText: {
+    color: 'white',
+    marginLeft: 10,
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   newsSection: {
     paddingVertical: 20,

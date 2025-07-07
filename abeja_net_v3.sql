@@ -128,3 +128,18 @@ INSERT INTO lecturas_ambientales (sensor_id, humedad, temperatura, peso, sonido,
   ((SELECT id FROM sensores WHERE mac_address = 'AA:BB:CC:11:22:33'), 65.5, 28.2, NULL, 55.4, false),
   ((SELECT id FROM sensores WHERE mac_address = 'AA:BB:CC:11:22:44'), NULL, NULL, 15.5, NULL, false),
   ((SELECT id FROM sensores WHERE mac_address = 'AA:BB:CC:11:22:55'), 70.1, 26.8, NULL, 62.1, false);
+
+-- ------------------------------------------------------
+-- TABLA DE ALERTAS
+-- ------------------------------------------------------
+
+CREATE TABLE alertas (
+  id                INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  colmena_id        INT UNSIGNED NOT NULL,
+  tipo_alerta       VARCHAR(50) NOT NULL, -- Ej: 'TEMPERATURA_ALTA', 'PESO_BAJO'
+  valor_registrado  VARCHAR(20) NULL,     -- Ej: '45.5 C', '10.2 Kg'
+  mensaje           VARCHAR(255) NOT NULL,
+  leida             BOOLEAN DEFAULT FALSE,
+  fecha_alerta      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (colmena_id) REFERENCES colmenas(id) ON DELETE CASCADE
+);
