@@ -13,9 +13,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#F5F5F5"
+        "backgroundColor": "#ffffff"
       },
-      "package": "com.marcoexpo123.AbejaNet"
+      "package": "com.markg777.AbejaNet",
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro",

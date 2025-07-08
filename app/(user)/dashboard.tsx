@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView, StyleSheet, Text, View, FlatList, ActivityIndicator, 
@@ -27,6 +27,8 @@ const formatDate = (dateString: string) => {
 
 // Componente para mostrar una tarjeta de noticia individual
 const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
+  const [imageError, setImageError] = useState(false);
+
   const handlePress = () => {
     // Abre el enlace de la noticia en el navegador del dispositivo
     Linking.openURL(article.url).catch(err => console.error("Couldn't load page", err));
@@ -43,10 +45,19 @@ const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
         }
       ]}
     >
-      <Image 
-        source={{ uri: article.urlToImage || 'https://via.placeholder.com/150?text=No+Image' }} 
-        style={styles.newsImage} 
-      />
+      {imageError || !article.urlToImage || !article.urlToImage.startsWith('http') ? (
+        <View style={styles.newsImage} >
+            <Ionicons name="image-outline" size={40} color="#B0BEC5" />
+            <Text style={styles.placeholderText}>Imagen no disponible</Text>
+        </View>
+      ) : (
+        <Image
+          source={{ uri: article.urlToImage }}
+          style={styles.newsImage}
+          resizeMode="cover"
+          onError={() => setImageError(true)}
+        />
+      )}
       <View style={styles.newsTextContainer}>
         <Text style={styles.newsTitle} numberOfLines={3}>{article.title}</Text>
         <View style={styles.newsFooter}>
@@ -236,6 +247,16 @@ const styles = StyleSheet.create({
   newsImage: {
     width: '100%',
     height: 180,
+    backgroundColor: '#F5F5F5', // Un fondo gris muy claro
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  placeholderText: {
+    marginTop: 8,
+    color: '#9E9E9E', // Un color de texto sutil pero legible
+    fontSize: 14,
+    fontWeight: '500',
   },
   newsTextContainer: {
     padding: 15,
