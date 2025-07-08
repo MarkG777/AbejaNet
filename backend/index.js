@@ -32,7 +32,14 @@ const verificarToken = (req, res, next) => {
   if (token == null) return res.sendStatus(401); // No autorizado
 
   jwt.verify(token, process.env.JWT_SECRET, (err, usuario) => {
-    if (err) return res.sendStatus(403); // Token inválido
+    if (err) {
+      if (err.name === 'TokenExpiredError') {
+        // Si el token ha expirado, enviamos 401 para que el cliente fuerce el re-login.
+        return res.status(401).json({ success: false, message: 'Token expirado. Por favor, inicie sesión de nuevo.' });
+      }
+      // Para cualquier otro error (token malformado, firma inválida), enviamos 403.
+      return res.status(403).json({ success: false, message: 'Token inválido o no autorizado.' });
+    }
     req.usuario = usuario;
     next();
   });
@@ -106,7 +113,7 @@ app.post('/api/login', async (req, res) => {
     }
 
     const secretKey = process.env.JWT_SECRET;
-    const token = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '8h' });
+    const token = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '1h' }); // Expiración de 1 hora para producción
 
     res.json({
       success: true,

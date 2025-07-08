@@ -1,6 +1,8 @@
 // c:/Proyectos/AbejaNet/context/AuthContext.tsx
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { jwtDecode } from 'jwt-decode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api, { setAuthToken, setupLogoutOnSessionExpired } from '../utils/api'; // IMPORTAMOS NUESTRO GUARDIÁN
 
 // Definimos la forma del estado de autenticación y las funciones que proveerá el contexto
 // Definimos la forma de los datos del usuario
@@ -30,12 +32,39 @@ const AuthContext = createContext<AuthContextData | undefined>(undefined);
 
 // Creamos el componente Proveedor del Contexto
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [authState, setAuthState] = useState<AuthContextData['authState']>({
     accessToken: null,
     authenticated: null, // Inicia como null hasta que se verifique desde AsyncStorage
     userRole: null,
     user: null,
   });
+
+  const scheduleAutoLogout = (token: string) => {
+    if (sessionTimeoutRef.current) {
+      clearTimeout(sessionTimeoutRef.current);
+    }
+
+    try {
+      const decodedToken = jwtDecode<{ exp: number }>(token);
+      const expirationTime = decodedToken.exp * 1000;
+      const currentTime = Date.now();
+      const timeoutDuration = expirationTime - currentTime;
+
+      if (timeoutDuration > 0) {
+        console.log(`AuthContext: Programando logout automático en ${(timeoutDuration / 1000).toFixed(0)} segundos.`);
+        sessionTimeoutRef.current = setTimeout(() => {
+          console.log('AuthContext: ¡Sesión expirada! Ejecutando logout automático proactivo.');
+          logout();
+        }, timeoutDuration);
+      } else {
+        console.log('AuthContext: El token cargado ya ha expirado. Deslogueando...');
+        logout(); // Llamada directa a logout si el token ya expiró
+      }
+    } catch (error) {
+      console.error('AuthContext: Error decodificando el token. No se puede programar el logout.', error);
+    }
+  };
 
   // useEffect para cargar el estado de autenticación desde AsyncStorage al iniciar la app
   useEffect(() => {
@@ -49,6 +78,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         console.log('AuthContext: Loaded from AsyncStorage - Token:', token, 'Role:', role);
         if (token && role && user) {
+          setAuthToken(token); // <-- AÑADIDO: Configuramos el token en axios
           setAuthState({
             accessToken: token,
             authenticated: true,
@@ -56,6 +86,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             user: user,
           });
           console.log('AuthContext: User is authenticated based on stored data.');
+          scheduleAutoLogout(token);
         } else {
           setAuthState({
             accessToken: null,
@@ -75,8 +106,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       }
     };
+
     loadAuthState();
-  }, []);
+
+    // Configuramos el interceptor una sola vez cuando el proveedor se monta
+    console.log('AuthContext: Setting up API interceptor...');
+    setupLogoutOnSessionExpired(logout); // Le pasamos la función logout de este contexto
+
+  }, []); // El array vacío asegura que esto se ejecute solo una vez
 
   // Función para manejar el inicio de sesión
   const login = async (token: string, role: 'administrador' | 'usuario', user: User) => {
@@ -84,12 +121,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await AsyncStorage.setItem('accessToken', token);
       await AsyncStorage.setItem('userRole', role);
       await AsyncStorage.setItem('user', JSON.stringify(user));
+      setAuthToken(token); // <-- AÑADIDO: Configuramos el token en axios
       setAuthState({
         accessToken: token,
         authenticated: true,
         userRole: role,
         user: user,
       });
+      scheduleAutoLogout(token);
     } catch (e) {
       console.error('Failed to save auth state to storage', e);
       // Aquí podrías manejar el error, quizás mostrando un mensaje al usuario
@@ -98,6 +137,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Función para manejar el cierre de sesión
   const logout = async () => {
+    if (sessionTimeoutRef.current) {
+      clearTimeout(sessionTimeoutRef.current);
+      sessionTimeoutRef.current = null;
+    }
     console.log('AuthContext: logout initiated');
     try {
       console.log('AuthContext: Attempting to remove accessToken...');
@@ -111,6 +154,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('AuthContext: Attempting to remove user...');
       await AsyncStorage.removeItem('user');
       console.log('AuthContext: user removed.');
+
+      setAuthToken(null); // <-- AÑADIDO: Limpiamos el token de axios
 
       setAuthState({
         accessToken: null,

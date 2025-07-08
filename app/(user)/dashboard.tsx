@@ -5,8 +5,9 @@ import {
   Pressable, Image, Linking
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { getApiUrl } from '../../utils/ip_config';
+import api from '../../utils/api'; // Importamos nuestro cliente Axios centralizado
 import { Link } from 'expo-router';
+import { isAxiosError } from 'axios'; // Importamos el type guard de axios
 
 // Interfaz para un artículo de noticia
 interface NewsArticle {
@@ -78,29 +79,22 @@ const UserDashboardScreen = () => {
 
   useEffect(() => {
     const fetchNews = async () => {
+      setLoading(true);
+      setError(null); // Limpiamos errores previos
       try {
-        const apiUrl = await getApiUrl();
-        const token = authState.accessToken;
-
-        if (!token) {
-          throw new Error('Token no disponible');
+        // Ya no necesitamos construir la URL ni añadir el token manualmente.
+        // Nuestro 'api' se encarga de todo.
+        const response = await api.get('/api/noticias');
+        setNews(response.data.articles || []);
+      } catch (error) {
+        // El interceptor ya se encarga del logout si es un error 401/403.
+        // Aquí solo manejamos el error para la UI de esta pantalla.
+        console.error('Error al obtener las noticias:', error);
+        if (isAxiosError(error) && error.response) {
+          setError(`Error: ${error.response.data.message || 'No se pudieron cargar las noticias.'}`);
+        } else {
+          setError('No se pudieron cargar las noticias. Revisa tu conexión.');
         }
-
-        const response = await fetch(`${apiUrl}/api/noticias`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Error al cargar noticias');
-        }
-
-        const data = await response.json();
-        setNews(data.articles);
-      } catch (e: any) {
-        setError(e.message);
       } finally {
         setLoading(false);
       }

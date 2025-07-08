@@ -4,7 +4,8 @@ import {
   SafeAreaView, ScrollView, TouchableOpacity
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { getApiUrl } from '../../utils/ip_config';
+import api from '../../utils/api';
+import { isAxiosError } from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
@@ -45,34 +46,32 @@ const ProfileScreen = () => {
     }
     setIsLoading(true);
     try {
-      const apiUrl = await getApiUrl();
-      const response = await fetch(`${apiUrl}/api/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authState.accessToken}`,
-        },
-        body: JSON.stringify({
-          nombre: nombre.trim(),
-          apellido_paterno: apellidoPaterno.trim(),
-          apellido_materno: apellidoMaterno.trim(),
-        }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        await updateUser({
-          nombre: nombre.trim(),
-          apellido_paterno: apellidoPaterno.trim(),
-          apellido_materno: apellidoMaterno.trim(),
-        });
+      const updatedData = {
+        nombre: nombre.trim(),
+        apellido_paterno: apellidoPaterno.trim(),
+        apellido_materno: apellidoMaterno.trim(),
+      };
+
+      // Usamos nuestro cliente 'api' centralizado que ya incluye el token
+      const response = await api.put('/api/profile', updatedData);
+
+      if (response.data.success) {
+        // Actualizamos el estado local en AuthContext para reflejar los cambios
+        await updateUser(updatedData);
         Alert.alert('Éxito', 'Tu perfil ha sido actualizado.');
-        setIsEditing(false); // <-- Vuelve al modo de visualización
+        setIsEditing(false);
       } else {
-        Alert.alert('Error', data.message || 'No se pudo actualizar el perfil.');
+        Alert.alert('Error', response.data.message || 'No se pudo actualizar el perfil.');
       }
-    } catch (error) {
-      console.error('Error al guardar el perfil:', error);
-      Alert.alert('Error de Red', 'No se pudo conectar con el servidor.');
+    } catch (err) {
+      console.error('Error al guardar el perfil:', err);
+      // El interceptor se encarga del logout en caso de 401/403.
+      // Aquí solo mostramos un mensaje amigable al usuario.
+      if (isAxiosError(err) && err.response) {
+        Alert.alert('Error', err.response.data.message || 'No se pudo actualizar el perfil.');
+      } else {
+        Alert.alert('Error de Red', 'No se pudo conectar con el servidor.');
+      }
     } finally {
       setIsLoading(false);
     }

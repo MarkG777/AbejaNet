@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '../../context/AuthContext'; // Importar el hook de autenticación
 
-import { getApiUrl } from '../../utils/ip_config';
+import api from '../../utils/api';
+import { isAxiosError } from 'axios';
 
 // Define la estructura de un objeto Apiario (debe coincidir con lo que envía el backend)
 interface Apiario {
@@ -51,40 +52,19 @@ export default function ColmenasScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchApiarios = async () => {
-    // Obtenemos el token directamente del AuthContext, la única fuente de verdad
-    const token = authState.accessToken;
-
+    setError(null); // Limpiamos errores previos
     try {
-      const apiUrl = await getApiUrl();
-
-      if (!token) {
-        // Aunque el layout principal debería manejar esto, es una buena doble verificación.
-        router.replace('/(auth)/login');
-        throw new Error('No se encontró el token de autenticación. Por favor, inicie sesión de nuevo.');
+      // Nuestro 'api' se encarga del token y la URL base.
+      const response = await api.get<{ apiarios: Apiario[] }>('/api/apiarios');
+      setApiarios(response.data.apiarios);
+    } catch (err) {
+      // El interceptor se encarga del logout. Aquí solo mostramos el error.
+      console.error("Error fetching apiarios:", err);
+      if (isAxiosError(err) && err.response) {
+        setError(err.response.data.message || 'No se pudieron cargar los apiarios.');
+      } else {
+        setError('Ocurrió un error inesperado. Revisa tu conexión.');
       }
-
-      const response = await fetch(`${apiUrl}/api/apiarios`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if(response.status === 401 || response.status === 403) {
-            router.replace('/(auth)/login');
-        }
-        throw new Error(data.message || 'Error al obtener los apiarios.');
-      }
-
-      setApiarios(data.apiarios);
-      setError(null);
-    } catch (e: any) {
-      setError(e.message);
-      console.error("Error fetching apiarios:", e);
     } finally {
       setLoading(false);
       setRefreshing(false);

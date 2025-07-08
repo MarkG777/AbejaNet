@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
-import { getApiUrl } from '@/utils/ip_config';
-import axios from 'axios';
+import api from '@/utils/api'; // Importamos nuestro guardián
+import { isAxiosError } from 'axios'; // Para el manejo de errores
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -24,6 +24,7 @@ const AlertsScreen = () => {
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null); // Estado para el error
   const { authState } = useAuth();
 
   const fetchAlertas = useCallback(async () => {
@@ -31,14 +32,17 @@ const AlertsScreen = () => {
       setLoading(false);
       return;
     }
+    setError(null); // Limpiamos errores previos
     try {
-      const apiUrl = await getApiUrl();
-      const response = await axios.get(`${apiUrl}/api/alertas`, {
-        headers: { Authorization: `Bearer ${authState.accessToken}` },
-      });
+      const response = await api.get<Alerta[]>('/api/alertas');
       setAlertas(response.data);
-    } catch (error) {
-      console.error('Error fetching alerts:', error);
+    } catch (err) {
+      console.error('Error fetching alerts:', err);
+      if (isAxiosError(err) && err.response) {
+        setError(`Error: ${err.response.data.message || 'No se pudieron cargar las alertas.'}`);
+      } else {
+        setError('No se pudieron cargar las alertas. Revisa tu conexión.');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -82,6 +86,19 @@ const AlertsScreen = () => {
 
   if (loading) {
     return <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />;
+  }
+
+  if (error) {
+    return (
+      <View style={styles.noAlertsContainer}>
+        <FontAwesome5 name="exclamation-triangle" size={60} color="#FF6347" />
+        <Text style={styles.noAlertsText}>Ocurrió un error</Text>
+        <Text style={styles.noAlertsSubText}>{error}</Text>
+        <TouchableOpacity onPress={fetchAlertas} style={styles.retryButton}>
+          <Text style={styles.retryButtonText}>Reintentar</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
@@ -184,6 +201,18 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 8,
     textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 25,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

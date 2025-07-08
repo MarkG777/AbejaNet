@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, Touc
 import { LineChart } from 'react-native-chart-kit';
 import { LineChartData } from 'react-native-chart-kit/dist/line-chart/LineChart';
 import { useLocalSearchParams } from 'expo-router';
-import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
-import { getApiUrl } from '@/utils/ip_config';
+import api from '@/utils/api';
+import { isAxiosError } from 'axios';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -226,24 +226,34 @@ export default function ColmenaDetailScreen() {
 
   useEffect(() => {
     const fetchLecturas = async () => {
-      if (!authState.accessToken || !colmenaId) return;
+      if (!colmenaId) return;
+      setLoading(true);
+      setError(null);
+
       try {
-        setLoading(true);
-        const apiUrl = await getApiUrl();
-        const response = await axios.get(`${apiUrl}/api/colmenas/${colmenaId}/lecturas`, {
+        // Usamos nuestro cliente 'api' que ya maneja la URL, el token y los parámetros.
+        const response = await api.get<{ lecturas: Lectura[] }>(`/api/colmenas/${colmenaId}/lecturas`, {
           params: { range: timeRange },
-          headers: { Authorization: `Bearer ${authState.accessToken}` },
         });
-        const rawLecturas = response.data.lecturas || [];
-        const processedLecturas = rawLecturas.map((l: any) => ({
-          ...l,
-          temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
-          humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
-          peso: l.peso !== null ? parseFloat(l.peso) : null,
-          sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
-        }));
-        setLecturas(processedLecturas);
+
+        if (response.data && response.data.lecturas) {
+          const processedLecturas = response.data.lecturas.map((l: any) => ({
+            ...l,
+            temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
+            humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
+            peso: l.peso !== null ? parseFloat(l.peso) : null,
+            sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
+          }));
+          setLecturas(processedLecturas);
+        }
       } catch (err) {
+        console.error("Error al cargar lecturas:", err);
+        // El interceptor se encarga del logout. Aquí solo mostramos el error.
+        if (isAxiosError(err) && err.response) {
+          setError(err.response.data.message || "Error al cargar los datos de la colmena.");
+        } else {
+          setError("Ocurrió un error inesperado. Revisa tu conexión.");
+        }
         setError('No se pudieron cargar los datos. Inténtalo de nuevo más tarde.');
         console.error(err);
       } finally {

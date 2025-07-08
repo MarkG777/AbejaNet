@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity }
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons'; // Importar iconos
 import { useAuth } from '../../context/AuthContext';
-import { getApiUrl } from '../../utils/ip_config';
+import api from '../../utils/api';
+import { isAxiosError } from 'axios';
 
 // Definimos un tipo para las colmenas para mayor seguridad de código
 type Colmena = {
@@ -23,27 +24,20 @@ export default function ApiarioDetailScreen() {
   useEffect(() => {
     const fetchColmenas = async () => {
       if (!apiarioId) return;
+      setError(null);
 
       try {
-        const apiUrl = await getApiUrl();
-        const token = authState?.accessToken;
-        if (!token) throw new Error('No autenticado');
-
-        const response = await fetch(`${apiUrl}/api/apiarios/${apiarioId}/colmenas`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Error al cargar las colmenas');
+        // Usamos nuestro cliente 'api' que ya maneja la URL base y el token.
+        const response = await api.get<{ colmenas: Colmena[] }>(`/api/apiarios/${apiarioId}/colmenas`);
+        setColmenas(response.data.colmenas);
+      } catch (err) {
+        console.error('Error fetching colmenas:', err);
+        // El interceptor se encarga del logout. Aquí solo mostramos el error.
+        if (isAxiosError(err) && err.response) {
+          setError(err.response.data.message || 'No se pudieron cargar las colmenas.');
+        } else {
+          setError('Ocurrió un error inesperado.');
         }
-
-        setColmenas(data.colmenas);
-      } catch (e: any) {
-        setError(e.message);
       } finally {
         setLoading(false);
       }
