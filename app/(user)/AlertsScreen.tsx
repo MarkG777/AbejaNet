@@ -1,12 +1,22 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
-import api from '@/utils/api'; // Importamos nuestro guardián
-import { isAxiosError } from 'axios'; // Para el manejo de errores
+import api from '@/utils/api';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { Stack, useRouter } from 'expo-router';
+import { isAxiosError } from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { Stack } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 interface Alerta {
   id: number;
@@ -24,15 +34,16 @@ const AlertsScreen = () => {
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null); // Estado para el error
+  const [error, setError] = useState<string | null>(null);
   const { authState } = useAuth();
+  const router = useRouter();
 
   const fetchAlertas = useCallback(async () => {
     if (!authState?.accessToken) {
       setLoading(false);
       return;
     }
-    setError(null); // Limpiamos errores previos
+    setError(null);
     try {
       const response = await api.get<Alerta[]>('/api/alertas');
       setAlertas(response.data);
@@ -49,27 +60,43 @@ const AlertsScreen = () => {
     }
   }, [authState.accessToken]);
 
-  useEffect(() => {
-    fetchAlertas();
-  }, [fetchAlertas]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAlertas();
+    }, [fetchAlertas])
+  );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchAlertas();
   }, [fetchAlertas]);
 
-  const getAlertIcon = (type: string) => {
-    if (type.includes('TEMPERATURA')) return { name: 'thermometer-full', color: '#FF6347' };
-    if (type.includes('PESO')) return { name: 'weight-hanging', color: '#4682B4' };
-    if (type.includes('SONIDO')) return { name: 'volume-up', color: '#FFD700' };
-    return { name: 'exclamation-triangle', color: '#FFA500' };
+  const getAlertIcon = (tipo: string): { name: keyof typeof Ionicons.glyphMap; color: string } => {
+    const lowerCaseTipo = tipo.toLowerCase();
+
+    if (lowerCaseTipo.includes('temperatura_alta')) {
+      return { name: 'thermometer-outline', color: '#FF3B30' };
+    }
+    if (lowerCaseTipo.includes('perdida_de_peso')) {
+      return { name: 'trending-down-outline', color: '#FF9500' };
+    }
+    if (lowerCaseTipo.includes('humedad_baja')) {
+      return { name: 'water-outline', color: '#5AC8FA' };
+    }
+    if (lowerCaseTipo.includes('humedad_alta')) {
+      return { name: 'cloudy-night-outline', color: '#007AFF' };
+    }
+    if (lowerCaseTipo.includes('posible_enjambrazon')) {
+      return { name: 'pulse-outline', color: '#AF52DE' };
+    }
+    return { name: 'alert-circle-outline', color: '#8A8A8E' };
   };
 
   const renderItem = ({ item }: { item: Alerta }) => {
     const icon = getAlertIcon(item.tipo_alerta);
     return (
       <View style={[styles.alertCard, item.leida ? styles.alertRead : {}]}>
-        <FontAwesome5 name={icon.name} size={24} color={icon.color} style={styles.icon} />
+        <Ionicons name={icon.name} size={28} color={icon.color} style={styles.icon} />
         <View style={styles.alertContent}>
           <Text style={styles.alertTitle}>{item.tipo_alerta.replace(/_/g, ' ')}</Text>
           <Text style={styles.alertMessage}>{item.mensaje}</Text>
@@ -84,44 +111,59 @@ const AlertsScreen = () => {
     );
   };
 
-  if (loading) {
-    return <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />;
-  }
+  const renderContent = () => {
+    if (loading && !refreshing) {
+      return <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />;
+    }
 
-  if (error) {
+    if (error) {
+      return (
+        <View style={styles.centeredMessageContainer}>
+          <Ionicons name="cloud-offline-outline" size={60} color="#8A8A8E" />
+          <Text style={styles.messageText}>Ocurrió un error</Text>
+          <Text style={styles.subMessageText}>{error}</Text>
+          <TouchableOpacity onPress={fetchAlertas} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (alertas.length === 0) {
+      return (
+        <View style={styles.centeredMessageContainer}>
+          <Ionicons name="shield-checkmark-outline" size={60} color="#4CAF50" />
+          <Text style={styles.messageText}>¡Todo en orden!</Text>
+          <Text style={styles.subMessageText}>No hay alertas que mostrar.</Text>
+        </View>
+      );
+    }
+
     return (
-      <View style={styles.noAlertsContainer}>
-        <FontAwesome5 name="exclamation-triangle" size={60} color="#FF6347" />
-        <Text style={styles.noAlertsText}>Ocurrió un error</Text>
-        <Text style={styles.noAlertsSubText}>{error}</Text>
-        <TouchableOpacity onPress={fetchAlertas} style={styles.retryButton}>
-          <Text style={styles.retryButtonText}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
+      <FlatList
+        data={alertas}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id.toString()}
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#007AFF"]} tintColor="#007AFF"/>}
+      />
     );
-  }
+  };
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Historial de Alertas' }} />
-      <View style={styles.container}>
-        {alertas.length === 0 ? (
-          <View style={styles.noAlertsContainer}>
-            <FontAwesome5 name="check-circle" size={60} color="#4CAF50" />
-            <Text style={styles.noAlertsText}>¡Todo en orden!</Text>
-            <Text style={styles.noAlertsSubText}>No hay alertas que mostrar.</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={alertas}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.list}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#007AFF"]} tintColor="#007AFF"/>}
-          />
-        )}
-      </View>
-    </>
+    <SafeAreaView style={styles.container}>
+      <Stack.Screen
+        options={{
+          title: 'Historial de Alertas',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10 }}>
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      {renderContent()}
+    </SafeAreaView>
   );
 };
 
@@ -184,30 +226,31 @@ const styles = StyleSheet.create({
     color: '#777',
     marginTop: 4,
   },
-  noAlertsContainer: {
+  centeredMessageContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  noAlertsText: {
+  messageText: {
     fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
     marginTop: 16,
   },
-  noAlertsSubText: {
+  subMessageText: {
     fontSize: 16,
     color: '#666',
     marginTop: 8,
     textAlign: 'center',
+    paddingHorizontal: 20,
   },
   retryButton: {
     marginTop: 20,
     backgroundColor: '#007AFF',
     paddingVertical: 10,
-    paddingHorizontal: 30,
-    borderRadius: 25,
+    paddingHorizontal: 20,
+    borderRadius: 8,
   },
   retryButtonText: {
     color: '#fff',

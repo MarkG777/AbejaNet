@@ -137,6 +137,29 @@ app.post('/api/login', async (req, res) => {
 // RUTAS DE GESTIÓN (APIARIOS, COLMENAS)
 // =================================================================
 
+// Endpoint para obtener un resumen de datos para el dashboard
+app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+
+  try {
+    const query = `
+      SELECT
+        (SELECT COUNT(*) FROM usuarios_apiarios WHERE usuario_id = ?) AS apiariosCount,
+        (SELECT COUNT(c.id) FROM colmenas c JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = ?) AS colmenasCount,
+        (SELECT COUNT(a.id) FROM alertas a JOIN colmenas c ON a.colmena_id = c.id JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = ? AND a.leida = 0) AS alertasCount;
+    `;
+
+    const [rows] = await pool.execute(query, [userId, userId, userId]);
+    const summary = rows[0];
+
+    res.json({ success: true, summary });
+  } catch (err) {
+    console.error('Error en GET /api/dashboard-summary:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor al obtener el resumen.' });
+  }
+});
+
+
 app.get('/api/apiarios', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   try {

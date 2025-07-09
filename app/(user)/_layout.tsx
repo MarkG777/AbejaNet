@@ -77,7 +77,7 @@ export default function UserLayout() {
       <Drawer.Screen
         name="ColmenasScreen"
         options={{
-          title: 'Revisar Colmenas',
+          title: 'Mis Apiarios',
           drawerIcon: ({ color, size }) => (
             <Ionicons name="archive-outline" size={size} color={color} />
           ),
