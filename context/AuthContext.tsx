@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useRe
 import { jwtDecode } from 'jwt-decode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { setAuthToken, setupLogoutOnSessionExpired } from '../utils/api'; // IMPORTAMOS NUESTRO GUARDIÁN
+import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
 
 // Definimos la forma del estado de autenticación y las funciones que proveerá el contexto
 // Definimos la forma de los datos del usuario
@@ -129,6 +130,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         user: user,
       });
       scheduleAutoLogout(token);
+
+      // Registrar para notificaciones push después de un login exitoso
+      console.log('AuthContext: Intentando registrar para notificaciones push...');
+      const pushToken = await registerForPushNotificationsAsync();
+      if (pushToken) {
+        console.log('AuthContext: Token obtenido, intentando guardarlo en el backend...');
+        await savePushToken(pushToken);
+      } else {
+        console.log('AuthContext: No se obtuvo push token, el usuario podría haber denegado los permisos.');
+      }
+
     } catch (e) {
       console.error('Failed to save auth state to storage', e);
       // Aquí podrías manejar el error, quizás mostrando un mensaje al usuario

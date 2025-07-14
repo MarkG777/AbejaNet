@@ -1,4 +1,4 @@
-package com.marcoexpo123.AbejaNet
+package com.markg777.AbejaNet
 
 import android.app.Application
 import android.content.res.Configuration

@@ -5,11 +5,14 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import mysql from 'mysql2/promise';
 import axios from 'axios'; // ÚNICA importación de axios
+import { Expo } from 'expo-server-sdk';
 
 // Carga variables de entorno desde .env
 dotenv.config();
 
 const app = express();
+const expo = new Expo(); // Instancia de Expo
+
 app.use(cors());
 app.use(express.json());
 
@@ -62,6 +65,39 @@ app.get('/test-db', async (req, res) => {
 // =================================================================
 // RUTAS DE USUARIOS Y AUTENTICACIÓN
 // =================================================================
+
+// Endpoint para guardar el token de notificación push
+app.post('/api/save-push-token', verificarToken, async (req, res) => {
+  const { token } = req.body;
+  const idUsuario = req.usuario.id; // Obtenido del middleware verificarToken
+
+  if (!token) {
+    return res.status(400).json({ mensaje: 'No se proporcionó ningún token.' });
+  }
+
+  if (!Expo.isExpoPushToken(token)) {
+    console.error(`Push token no válido recibido del usuario ${idUsuario}: ${token}`);
+    return res.status(400).json({ mensaje: 'El token proporcionado no es válido.' });
+  }
+
+  try {
+    const [results] = await pool.execute(
+      'UPDATE usuarios SET push_token = ? WHERE id = ?',
+      [token, idUsuario]
+    );
+
+    if (results.affectedRows > 0) {
+      console.log(`Token de notificaciones actualizado para el usuario ${idUsuario}`);
+      res.json({ mensaje: 'Token guardado correctamente.' });
+    } else {
+      res.status(404).json({ mensaje: 'Usuario no encontrado.' });
+    }
+  } catch (error) {
+    console.error('Error al guardar el token en la base de datos:', error);
+    res.status(500).json({ mensaje: 'Error interno del servidor.' });
+  }
+});
+
 
 app.post('/api/register', async (req, res) => {
   const { correo_electronico, contrasena } = req.body;

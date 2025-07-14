@@ -1,5 +1,5 @@
 -- ======================================================
--- BASE DE DATOS: AbejaNet v3 (con Perfil de Usuario)
+-- BASE DE DATOS: AbejaNet v3 (con Perfil de Usuario y Notificaciones Push)
 -- ======================================================
 
 -- NOTA: Este script está diseñado para operar sobre la base de datos 'abeja_net_v2' 
@@ -18,7 +18,7 @@ CREATE TABLE roles (
   nombre    VARCHAR(20) NOT NULL UNIQUE
 );
 
--- MODIFICADA: Se añaden campos para el perfil del usuario
+-- MODIFICADA: Se añade campo para notificaciones push
 CREATE TABLE usuarios (
   id                  INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   nombre              VARCHAR(100) NULL DEFAULT NULL,
@@ -26,6 +26,7 @@ CREATE TABLE usuarios (
   apellido_materno    VARCHAR(100) NULL DEFAULT NULL,
   correo_electronico  VARCHAR(120) NOT NULL UNIQUE,
   contrasena          VARCHAR(255) NOT NULL, 
+  push_token          VARCHAR(255) NULL DEFAULT NULL, -- <<< CAMPO NUEVO PARA NOTIFICACIONES
   rol_id              TINYINT UNSIGNED NOT NULL,
   esta_activo         BOOLEAN DEFAULT TRUE,
   fecha_creacion      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

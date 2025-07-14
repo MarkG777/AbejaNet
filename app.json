@@ -44,7 +44,14 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_BASE_URL": "http://172.31.112.4:3000"
-    }
+      "router": {
+        "origin": false
+      },
+      "API_BASE_URL": "http://172.31.112.4:3000",
+      "eas": {
+        "projectId": "c37ef698-5280-4fba-bd24-5a60024ea405"
+      }
+    },
+    "owner": "marcoexpo123"
   }
 }
