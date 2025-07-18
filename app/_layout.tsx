@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AuthProvider, useAuth } from '../context/AuthContext'; // Importa el AuthProvider y useAuth
+import * as Notifications from 'expo-notifications';
 
 // Exporta el ErrorBoundary de Expo Router para manejar errores en rutas
 export { ErrorBoundary } from 'expo-router';
@@ -16,6 +17,16 @@ import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+// Configura cómo se deben manejar las notificaciones cuando la app está en primer plano.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true, // Mostrar la alerta (banner)
+    shouldPlaySound: true, // Reproducir sonido
+    shouldSetBadge: true,  // Actualizar el contador en el ícono de la app
+  }),
+});
+
 
 
 
@@ -71,6 +82,19 @@ function AppLayout() {
     SplashScreen.hideAsync();
 
   }, [loaded, authState.authenticated, authState.userRole, segments, router]);
+
+  // Efecto para manejar la interacción con notificaciones
+  useEffect(() => {
+    // Este listener se dispara cuando un usuario toca una notificación
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log('Usuario ha interactuado con la notificación:', response);
+      // Por ahora, simplemente redirigimos a la pantalla de alertas.
+      // En el futuro, podríamos usar `response.notification.request.content.data` para ir a una pantalla específica.
+      router.push({ pathname: '/(user)/AlertsScreen' });
+    });
+
+    return () => subscription.remove();
+  }, [router]);
 
   // Si las fuentes aún no están cargadas O el estado de autenticación aún se está determinando,
   // no renderizar la estructura principal de la app. El useEffect se encargará de la SplashScreen.

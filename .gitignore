@@ -53,6 +53,18 @@ local.properties
 *.local.properties
 local.properties.*
 
-# Carpetas de documentación y memorias técnicas
+# ///Carpetas de documentación y memorias técnicas///
 memorytecnic/
 Comandos abeja_net2.sql
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+eas.json
+android/app/google-services.json
+utils/ip_config.js

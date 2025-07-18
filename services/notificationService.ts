@@ -47,21 +47,20 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   if (finalStatus !== 'granted') {
-    alert('¡Atención! Para recibir alertas en tiempo real, necesitas habilitar los permisos de notificación.');
+    alert('Debes conceder permisos de notificación para recibir alertas.');
     return null;
   }
 
-  // Obtenemos el token
   try {
-    token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    console.log('Token de Notificaciones Expo:', token);
-  } catch (e) {
-    console.error("Error al obtener el token de notificación:", e);
-    alert('No se pudo registrar para notificaciones.');
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    console.log('----------- TOKEN DE NOTIFICACIÓN -----------');
+    console.log(token);
+    console.log('-------------------------------------------');
+    return token;
+  } catch (error) {
+    console.error("Error al obtener el token de notificación:", error);
     return null;
   }
-  
-  return token;
 }
 
 // Función para enviar el token al backend

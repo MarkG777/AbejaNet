@@ -88,6 +88,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
           console.log('AuthContext: User is authenticated based on stored data.');
           scheduleAutoLogout(token);
+
+          // Asegurarse de registrar para notificaciones al cargar la app
+          console.log('AuthContext: Verificando registro de notificaciones al iniciar...');
+          const pushToken = await registerForPushNotificationsAsync();
+          if (pushToken) {
+            console.log('AuthContext: Token de notificación verificado, guardando en backend...');
+            await savePushToken(pushToken);
+          } else {
+            console.log('AuthContext: No se obtuvo token de notificación al iniciar.');
+          }
         } else {
           setAuthState({
             accessToken: null,

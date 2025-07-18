@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   SafeAreaView, StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, Pressable, Image, Linking, Dimensions
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { isAxiosError } from 'axios';
+import { useFocusEffect } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 
 // --- INTERFACES ---
 interface SummaryData {
@@ -84,35 +86,49 @@ const UserDashboardScreen = () => {
   const flatListRef = useRef<FlatList<NewsArticle>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  // Función para cargar todos los datos del dashboard
+  const fetchData = useCallback(() => {
+    console.log('Actualizando datos del dashboard...');
+    
+    // Cargar resumen
+    setLoadingSummary(true);
+    api.get('/api/dashboard-summary')
+      .then(response => setSummary(response.data.summary))
+      .catch(err => {
+        console.error('Error al obtener el resumen del dashboard:', err);
+        setErrorSummary(isAxiosError(err) && err.response ? `Error: ${err.response.data.message || 'No se pudo cargar.'}` : 'No se pudo cargar.');
+      })
+      .finally(() => setLoadingSummary(false));
+
+    // Cargar noticias (opcional, podrías decidir no recargar noticias cada vez)
+    setLoadingNews(true);
+    api.get('/api/noticias')
+      .then(response => setNews(response.data.articles || []))
+      .catch(err => {
+        console.error('Error al obtener las noticias:', err);
+        setErrorNews('No se pudieron cargar las noticias.');
+      })
+      .finally(() => setLoadingNews(false));
+  }, []); // useCallback con dependencias vacías para que la función no se recree
+
+  // 1. Cargar datos cuando la pantalla entra en foco
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
+
+  // 2. Cargar datos cuando se recibe una notificación mientras la app está abierta
   useEffect(() => {
-    const fetchData = async () => {
-      // Reset states
-      setLoadingSummary(true);
-      setLoadingNews(true);
-      setErrorSummary(null);
-      setErrorNews(null);
+    const notificationListener = Notifications.addNotificationReceivedListener(notification => {
+      console.log('Notificación recibida, actualizando dashboard...');
+      fetchData();
+    });
 
-      // Fetch summary
-      api.get('/api/dashboard-summary')
-        .then(response => setSummary(response.data.summary))
-        .catch(err => {
-          console.error('Error al obtener el resumen del dashboard:', err);
-          setErrorSummary(isAxiosError(err) && err.response ? `Error: ${err.response.data.message || 'No se pudo cargar.'}` : 'No se pudo cargar.');
-        })
-        .finally(() => setLoadingSummary(false));
-
-      // Fetch news
-      api.get('/api/noticias')
-        .then(response => setNews(response.data.articles || []))
-        .catch(err => {
-          console.error('Error al obtener las noticias:', err);
-          setErrorNews('No se pudieron cargar las noticias.');
-        })
-        .finally(() => setLoadingNews(false));
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener);
     };
-
-    fetchData();
-  }, [authState.accessToken]);
+  }, [fetchData]);
 
   // Efecto para el auto-scroll del carrusel de noticias
   useEffect(() => {

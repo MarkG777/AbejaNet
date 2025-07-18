@@ -69,7 +69,7 @@ app.get('/test-db', async (req, res) => {
 // Endpoint para guardar el token de notificación push
 app.post('/api/save-push-token', verificarToken, async (req, res) => {
   const { token } = req.body;
-  const idUsuario = req.usuario.id; // Obtenido del middleware verificarToken
+  const idUsuario = req.usuario.userId; // Obtenido del middleware verificarToken (el payload del token usa 'userId')
 
   if (!token) {
     return res.status(400).json({ mensaje: 'No se proporcionó ningún token.' });
@@ -480,9 +480,49 @@ app.post('/api/alertas', async (req, res) => {
   }
 
   try {
+    // 1. Insertar la alerta en la base de datos
     const query = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje) VALUES (?, ?, ?, ?)';
     await pool.execute(query, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
-    res.status(201).json({ success: true, message: 'Alerta registrada correctamente.' });
+
+    // --- INICIO: LÓGICA DE ENVÍO DE NOTIFICACIONES ---
+
+    // 2. Obtener los tokens de los usuarios asociados a la colmena de la alerta
+    const [usuarios] = await pool.execute(`
+      SELECT u.push_token
+      FROM usuarios u
+      JOIN usuarios_apiarios ua ON u.id = ua.usuario_id
+      JOIN colmenas c ON ua.apiario_id = c.apiario_id
+      WHERE c.id = ? AND u.push_token IS NOT NULL
+    `, [colmena_id]);
+
+    const tokens = usuarios.map(u => u.push_token).filter(t => Expo.isExpoPushToken(t));
+
+    if (tokens.length > 0) {
+      console.log(`Enviando notificaciones a ${tokens.length} dispositivo(s) para la alerta: ${tipo_alerta}`);
+      
+      // 3. Construir los mensajes
+      const messages = tokens.map(token => ({
+        to: token,
+        sound: 'default',
+        title: `🚨 Alerta en AbejaNet: ${tipo_alerta}`,
+        body: mensaje,
+        channelId: 'default', // ¡IMPORTANTE! Asegura que use el canal correcto en Android
+        data: { colmenaId: colmena_id }, // Dato extra para dirigir al usuario en la app
+      }));
+
+      // 4. Enviar los mensajes en lotes
+      const chunks = expo.chunkPushNotifications(messages);
+      for (const chunk of chunks) {
+        try {
+          await expo.sendPushNotificationsAsync(chunk);
+        } catch (error) {
+          console.error('Error al enviar un lote de notificaciones:', error);
+        }
+      }
+    }
+    // --- FIN: LÓGICA DE ENVÍO DE NOTIFICACIONES ---
+
+    res.status(201).json({ success: true, message: 'Alerta registrada y notificaciones enviadas.' });
   } catch (error) {
     console.error('Error al registrar la alerta:', error);
     res.status(500).json({ error: 'Error interno del servidor al registrar la alerta.' });
