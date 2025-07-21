@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from 'expo-router';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   SafeAreaView, StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, Pressable, Image, Linking, Dimensions
@@ -6,7 +7,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { isAxiosError } from 'axios';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 
 // --- INTERFACES ---
@@ -32,12 +33,14 @@ interface StatCardProps {
 }
 
 // --- COMPONENTES ---
-const StatCard: React.FC<StatCardProps> = ({ icon, label, value, color }) => (
-  <View style={styles.statCard}>
+const StatCard: React.FC<StatCardProps & { onPress?: () => void }> = ({ icon, label, value, color, onPress }) => (
+  <Pressable onPress={onPress} style={({ pressed }) => [{ width: '48%' }, pressed && styles.pressed]}>
+      <View style={styles.statCard}>
     <Ionicons name={icon} size={28} color={color} />
     <Text style={styles.statValue}>{value}</Text>
     <Text style={styles.statLabel}>{label}</Text>
-  </View>
+      </View>
+  </Pressable>
 );
 
 const formatDate = (dateString: string) => {
@@ -70,6 +73,8 @@ const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
 };
 
 const UserDashboardScreen = () => {
+  const router = useRouter();
+  const navigation = useNavigation();
   const { authState } = useAuth();
   
   // Estados para el resumen
@@ -81,6 +86,9 @@ const UserDashboardScreen = () => {
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [loadingNews, setLoadingNews] = useState(true);
   const [errorNews, setErrorNews] = useState<string | null>(null);
+
+  // Estado para gestionar la visualización del badge de notificaciones
+  const [showNotificationBadge, setShowNotificationBadge] = useState(true);
 
   // Refs y estado para el carrusel
   const flatListRef = useRef<FlatList<NewsArticle>>(null);
@@ -114,14 +122,16 @@ const UserDashboardScreen = () => {
   // 1. Cargar datos cuando la pantalla entra en foco
   useFocusEffect(
     useCallback(() => {
+      setShowNotificationBadge(true); // Al volver a la pantalla, permitimos que el badge se muestre si hay alertas
       fetchData();
     }, [fetchData])
   );
 
-  // 2. Cargar datos cuando se recibe una notificación mientras la app está abierta
+  // 2. Cargar datos y mostrar badge cuando se recibe una notificación mientras la app está abierta
   useEffect(() => {
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notificación recibida, actualizando dashboard...');
+      setShowNotificationBadge(true); // Si llega una nueva, mostramos el badge
       fetchData();
     });
 
@@ -129,6 +139,30 @@ const UserDashboardScreen = () => {
       Notifications.removeNotificationSubscription(notificationListener);
     };
   }, [fetchData]);
+
+  // 3. Efecto para actualizar la cabecera con el icono de notificación
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable 
+          style={{ marginRight: 15, padding: 5 }} 
+          onPress={() => {
+            setShowNotificationBadge(false); // Ocultar el badge al hacer clic
+            router.push('/(user)/AlertsScreen');
+          }}
+        >
+          <Ionicons name="notifications-outline" size={26} color="#FFFFFF" />
+          {showNotificationBadge && summary && summary.alertasCount > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationText}>
+                {summary.alertasCount > 9 ? '9+' : summary.alertasCount}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      ),
+    });
+  }, [navigation, summary, showNotificationBadge]);
 
   // Efecto para el auto-scroll del carrusel de noticias
   useEffect(() => {
@@ -146,13 +180,24 @@ const UserDashboardScreen = () => {
   const renderSummarySection = () => {
     if (loadingSummary) return <ActivityIndicator size="large" color="#F59E0B" style={{ marginVertical: 20 }} />;
     if (errorSummary) return <Text style={styles.errorText}>{errorSummary}</Text>;
-    if (!summary) return <Text style={styles.errorText}>No hay datos de resumen.</Text>;
+    if (!summary) return null;
 
     return (
       <View style={styles.statsContainer}>
-        <StatCard icon="business-outline" label="Apiarios" value={summary.apiariosCount} color="#3B82F6" />
-        <StatCard icon="archive-outline" label="Colmenas" value={summary.colmenasCount} color="#10B981" />
-        <StatCard icon="notifications-outline" label="Alertas" value={summary.alertasCount} color="#EF4444" />
+        <StatCard 
+          icon="business-outline" 
+          label="Apiarios" 
+          value={summary.apiariosCount} 
+          color="#3B82F6" 
+          onPress={() => router.push('/(user)/ColmenasScreen')}
+        />
+        <StatCard 
+          icon="bug-outline" 
+          label="Colmenas" 
+          value={summary.colmenasCount} 
+          color="#10B981" 
+          onPress={() => router.push('/(user)/ColmenasScreen')}
+        />
       </View>
     );
   };
@@ -182,6 +227,7 @@ const UserDashboardScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* El header ahora se controla desde el layout a través de setOptions */}
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.header}>
           <Ionicons name="sunny-outline" size={50} color="#FFC107" />
@@ -219,11 +265,11 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: '#4B5563', marginTop: 5, textAlign: 'center' },
   contentSection: { padding: 20 },
   sectionTitle: { fontSize: 22, fontWeight: 'bold', color: '#1F2937', marginBottom: 20 },
-  statsContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-around' },
   statCard: {
     backgroundColor: '#FFFFFF', borderRadius: 16, padding: 15,
     alignItems: 'center', justifyContent: 'center',
-    width: '32%', // Ajustado para que quepan 3 tarjetas
+    // width: '32%', // Ajustado para que quepan 3 tarjetas
     elevation: 2, shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2,
@@ -254,6 +300,29 @@ const styles = StyleSheet.create({
   newsFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   newsSource: { fontSize: 12, color: '#888', fontWeight: '500' },
   newsDate: { fontSize: 12, color: '#888' },
+  pressed: {
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
+  },
+
+  notificationBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#EF4444', // Rojo de alerta
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#3B82F6', // Color del header para un borde sutil
+  },
+  notificationText: {
+    color: 'white',
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
 });
 
 export default UserDashboardScreen;

@@ -175,26 +175,49 @@ app.post('/api/login', async (req, res) => {
 
 // Endpoint para obtener un resumen de datos para el dashboard
 app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
-  const userId = req.usuario.userId;
+  const { userId } = req.usuario; // Solo necesitamos el userId, el rol es siempre 'usuario' en este contexto
 
   try {
     const query = `
       SELECT
         (SELECT COUNT(*) FROM usuarios_apiarios WHERE usuario_id = ?) AS apiariosCount,
         (SELECT COUNT(c.id) FROM colmenas c JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = ?) AS colmenasCount,
-        (SELECT COUNT(a.id) FROM alertas a JOIN colmenas c ON a.colmena_id = c.id JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = ? AND a.leida = 0) AS alertasCount;
+        (SELECT COUNT(a.id) FROM alertas a JOIN colmenas c ON a.colmena_id = c.id JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = ? AND a.leida = FALSE) AS alertasCount;
     `;
+    const params = [userId, userId, userId];
 
-    const [rows] = await pool.execute(query, [userId, userId, userId]);
-    const summary = rows[0];
+    const [summary] = await pool.execute(query, params);
+    res.json({ success: true, summary: summary[0] });
 
-    res.json({ success: true, summary });
   } catch (err) {
     console.error('Error en GET /api/dashboard-summary:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor al obtener el resumen.' });
   }
 });
 
+// Endpoint para marcar todas las alertas de un usuario como leídas
+app.post('/api/alertas/marcar-como-leidas', verificarToken, async (req, res) => {
+  const { userId } = req.usuario; // El rol es siempre 'usuario'
+
+  try {
+    const query = `
+      UPDATE alertas a
+      JOIN colmenas c ON a.colmena_id = c.id
+      JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id
+      SET a.leida = TRUE
+      WHERE ua.usuario_id = ? AND a.leida = FALSE;
+    `;
+    const params = [userId];
+
+    const [result] = await pool.execute(query, params);
+    console.log(`Usuario ${userId} ha marcado ${result.affectedRows} alertas como leídas.`);
+    res.status(200).json({ message: `${result.affectedRows} alertas marcadas como leídas.` });
+
+  } catch (err) {
+    console.error('Error al marcar alertas como leídas:', err);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+});
 
 app.get('/api/apiarios', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
@@ -480,8 +503,8 @@ app.post('/api/alertas', async (req, res) => {
   }
 
   try {
-    // 1. Insertar la alerta en la base de datos
-    const query = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje) VALUES (?, ?, ?, ?)';
+    // 1. Insertar la alerta en la base de datos, estableciendo explícitamente leida = FALSE
+    const query = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje, leida) VALUES (?, ?, ?, ?, FALSE)';
     await pool.execute(query, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
 
     // --- INICIO: LÓGICA DE ENVÍO DE NOTIFICACIONES ---

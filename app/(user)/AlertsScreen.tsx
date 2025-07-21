@@ -17,6 +17,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getApiUrl } from '../../utils/ip_config';
 
 interface Alerta {
   id: number;
@@ -60,10 +62,34 @@ const AlertsScreen = () => {
     }
   }, [authState.accessToken]);
 
+
+
   useFocusEffect(
     useCallback(() => {
-      fetchAlertas();
-    }, [fetchAlertas])
+      const markAlertsAsRead = async () => {
+        try {
+          const apiUrl = await getApiUrl();
+          const token = await AsyncStorage.getItem('token');
+          if (!token) return;
+
+          await fetch(`${apiUrl}/api/alertas/marcar-como-leidas`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+          console.log('Alertas marcadas como leídas.');
+        } catch (error) {
+          console.error('Error al marcar alertas como leídas:', error);
+        }
+      };
+
+      // Primero marcamos como leídas, luego cargamos la lista actualizada.
+      markAlertsAsRead().then(() => {
+        fetchAlertas();
+      });
+
+    }, []) // El array de dependencias vacío asegura que se ejecute solo una vez por foco.
   );
 
   const onRefresh = useCallback(() => {
