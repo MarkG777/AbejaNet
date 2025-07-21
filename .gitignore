@@ -1,70 +1,84 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+# === SECRETS & SENSITIVE CONFIGURATION ===
+# NEVER commit these files to a public repository!
+# Environment variables
+.env
+.env*.local
 
-# dependencies
-node_modules/
+# Expo credentials and build configuration
+eas.json
 
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
+# Google / Firebase services configuration
+android/app/google-services.json
 
-# Native
-.kotlin/
-*.orig.*
+# Private keys and certificates
 *.jks
 *.p8
 *.p12
 *.key
+*.pem
 *.mobileprovision
 
-# Metro
-.metro-health-check*
+# Custom sensitive files
+utils/ip_config.js
 
-# debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
+# === DEPENDENCIES & BUILD ARTIFACTS ===
+# Project dependencies, should be installed via package manager
+node_modules/
 
-# macOS
-.DS_Store
-*.pem
+# Build output folders
+build/
+dist/
+out/
+web-build/
 
-# local env files
-.env*.local
-
-# typescript
+# TypeScript build cache
 *.tsbuildinfo
 
-app-example
-#Archivos de configuración
-.env
+# === EXPO & METRO CACHE ===
+# Expo-specific cache and generated files
+.expo/
+expo-env.d.ts
+
+# Metro bundler cache
+.metro-health-check*
+
+# === NATIVE PLATFORM (ANDROID/IOS) ===
+# Android specific
+.kotlin/
+local.properties
+*.local.properties
+local.properties.*
+
+# File backups
+*.orig.*
+
+# === IDE & OS SPECIFIC ===
+# macOS
+.DS_Store
 
 # IntelliJ / Android Studio
 .idea/
 *.iml
 *.ipr
 *.iws
-out/
-build/ # También puede ser útil para builds de Android
 
-# Android local properties
-local.properties
-*.local.properties
-local.properties.*
-
-# ///Carpetas de documentación y memorias técnicas///
-memorytecnic/
-Comandos abeja_net2.sql
+# === LOGS & DEBUG FILES ===
+# General logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
 
 # LaTeX auxiliary files
 *.aux
-*.log
 *.out
 *.toc
 *.bbl
 *.blg
 *.synctex.gz
-eas.json
-android/app/google-services.json
-utils/ip_config.js
+
+# === PROJECT DOCUMENTATION & CUSTOM ===
+# Custom folders and files to ignore
+memorytecnic/
+Comandos abeja_net2.sql
+app-example
