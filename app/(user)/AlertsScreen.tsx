@@ -1,133 +1,103 @@
 import { useAuth } from '@/context/AuthContext';
 import api from '@/utils/api';
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { isAxiosError } from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import React, { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  RefreshControl,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getApiUrl } from '../../utils/ip_config';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
+// Definimos el tipo para una alerta individual
 interface Alerta {
   id: number;
   colmena_id: number;
   tipo_alerta: string;
   valor_registrado: string;
   mensaje: string;
+  fecha_alerta: string; // Corregido para coincidir con el backend
   leida: boolean;
-  fecha_alerta: string;
-  nombre_colmena: string;
-  nombre_apiario: string;
+  colmena_nombre?: string;
+  apiario_nombre?: string;
 }
 
 const AlertsScreen = () => {
+  const router = useRouter();
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { authState } = useAuth();
-  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchAlertas = useCallback(async () => {
-    if (!authState?.accessToken) {
-      setLoading(false);
-      return;
+    if (!refreshing) {
+      setLoading(true);
     }
-    setError(null);
     try {
-      const response = await api.get<Alerta[]>('/api/alertas');
-      setAlertas(response.data);
-    } catch (err) {
-      console.error('Error fetching alerts:', err);
-      if (isAxiosError(err) && err.response) {
-        setError(`Error: ${err.response.data.message || 'No se pudieron cargar las alertas.'}`);
+      const response = await api.get('/api/alertas');
+      if (response.data.success) {
+        setAlertas(response.data.alertas);
+        setError(null);
       } else {
-        setError('No se pudieron cargar las alertas. Revisa tu conexión.');
+        throw new Error(response.data.message || 'Error desconocido al obtener alertas');
       }
+    } catch (err: any) {
+      console.error('Error en fetchAlertas:', err);
+      setError(err.message || 'No se pudieron cargar las alertas.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [authState.accessToken]);
+  }, [refreshing]);
 
-
+  useEffect(() => {
+    fetchAlertas();
+  }, []); // El array vacío es correcto aquí
 
   useFocusEffect(
     useCallback(() => {
-      const markAlertsAsRead = async () => {
-        try {
-          const apiUrl = await getApiUrl();
-          const token = await AsyncStorage.getItem('token');
-          if (!token) return;
-
-          await fetch(`${apiUrl}/api/alertas/marcar-como-leidas`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          console.log('Alertas marcadas como leídas.');
-        } catch (error) {
-          console.error('Error al marcar alertas como leídas:', error);
-        }
-      };
-
-      // Primero marcamos como leídas, luego cargamos la lista actualizada.
-      markAlertsAsRead().then(() => {
-        fetchAlertas();
-      });
-
-    }, []) // El array de dependencias vacío asegura que se ejecute solo una vez por foco.
+      fetchAlertas();
+    }, []) // El array vacío es correcto aquí también
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchAlertas();
-  }, [fetchAlertas]);
+  }, []);
 
   const getAlertIcon = (tipo: string): { name: keyof typeof Ionicons.glyphMap; color: string } => {
-    const lowerCaseTipo = tipo.toLowerCase();
-
-    if (lowerCaseTipo.includes('temperatura_alta')) {
-      return { name: 'thermometer-outline', color: '#FF3B30' };
+    // ... (la función getAlertIcon se mantiene igual)
+    switch (tipo) {
+      case 'TEMPERATURA_ALTA':
+      case 'TEMPERATURA_BAJA':
+        return { name: 'thermometer-outline', color: '#FF6347' };
+      case 'HUMEDAD_ALTA':
+      case 'HUMEDAD_BAJA':
+        return { name: 'water-outline', color: '#1E90FF' };
+      case 'MOVIMIENTO_BRUSCO':
+        return { name: 'move-outline', color: '#FFD700' };
+      case 'BATERIA_BAJA':
+        return { name: 'battery-half-outline', color: '#F44336' };
+      case 'PERDIDA_CONEXION':
+        return { name: 'cloud-offline-outline', color: '#A9A9A9' };
+      case 'PESO_ANOMALO':
+        return { name: 'analytics-outline', color: '#9C27B0' };
+      default:
+        return { name: 'alert-circle-outline', color: '#8A8A8E' };
     }
-    if (lowerCaseTipo.includes('perdida_de_peso')) {
-      return { name: 'trending-down-outline', color: '#FF9500' };
-    }
-    if (lowerCaseTipo.includes('humedad_baja')) {
-      return { name: 'water-outline', color: '#5AC8FA' };
-    }
-    if (lowerCaseTipo.includes('humedad_alta')) {
-      return { name: 'cloudy-night-outline', color: '#007AFF' };
-    }
-    if (lowerCaseTipo.includes('posible_enjambrazon')) {
-      return { name: 'pulse-outline', color: '#AF52DE' };
-    }
-    return { name: 'alert-circle-outline', color: '#8A8A8E' };
   };
 
   const renderItem = ({ item }: { item: Alerta }) => {
     const icon = getAlertIcon(item.tipo_alerta);
     return (
-      <View style={[styles.alertCard, item.leida ? styles.alertRead : {}]}>
+      <View style={[styles.alertCard, !item.leida && styles.alertUnread]}>
         <Ionicons name={icon.name} size={28} color={icon.color} style={styles.icon} />
         <View style={styles.alertContent}>
           <Text style={styles.alertTitle}>{item.tipo_alerta.replace(/_/g, ' ')}</Text>
           <Text style={styles.alertMessage}>{item.mensaje}</Text>
           <Text style={styles.alertDetails}>
-            {item.nombre_apiario} / {item.nombre_colmena}
+            {item.apiario_nombre} / {item.colmena_nombre}
           </Text>
           <Text style={styles.alertDate}>
             {format(new Date(item.fecha_alerta), "d 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}
@@ -139,7 +109,7 @@ const AlertsScreen = () => {
 
   const renderContent = () => {
     if (loading && !refreshing) {
-      return <ActivityIndicator size="large" color="#007AFF" style={styles.loader} />;
+      return <ActivityIndicator size="large" color="#F7B731" style={styles.centeredMessageContainer} />;
     }
 
     if (error) {
@@ -148,7 +118,7 @@ const AlertsScreen = () => {
           <Ionicons name="cloud-offline-outline" size={60} color="#8A8A8E" />
           <Text style={styles.messageText}>Ocurrió un error</Text>
           <Text style={styles.subMessageText}>{error}</Text>
-          <TouchableOpacity onPress={fetchAlertas} style={styles.retryButton}>
+          <TouchableOpacity onPress={() => fetchAlertas()} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Reintentar</Text>
           </TouchableOpacity>
         </View>
@@ -171,7 +141,7 @@ const AlertsScreen = () => {
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#007AFF"]} tintColor="#007AFF"/>}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#F7B731"]} tintColor="#F7B731"/>}
       />
     );
   };
@@ -181,9 +151,12 @@ const AlertsScreen = () => {
       <Stack.Screen
         options={{
           title: 'Historial de Alertas',
+          headerStyle: { backgroundColor: '#FFFFFF' }, // Coincide con el dashboard
+          headerTintColor: '#1F2937', // Coincide con el dashboard
+          headerTitleStyle: { fontWeight: 'bold' },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10 }}>
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name="arrow-back" size={24} color="#1F2937" />
             </TouchableOpacity>
           ),
         }}
@@ -196,34 +169,32 @@ const AlertsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f4f7',
-  },
-  loader: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#F0F4F7', // Coincide con el dashboard
   },
   list: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+    flexGrow: 1,
   },
   alertCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF', // Coincide con el dashboard
+    borderRadius: 16, // Coincide con el dashboard
     padding: 16,
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05, // Coincide con el dashboard
     shadowRadius: 4,
     elevation: 3,
     borderLeftWidth: 5,
-    borderLeftColor: '#FFA500',
+    borderColor: '#E0E0E0', // Borde neutral para alertas leídas
   },
-  alertRead: {
-    borderLeftColor: '#4CAF50',
-    backgroundColor: '#f9f9f9',
+  alertUnread: {
+    borderColor: '#FFC107', // Amarillo/dorado del dashboard
+    backgroundColor: '#FFFBEA', // Un fondo amarillo muy pálido
   },
   icon: {
     marginRight: 16,
@@ -234,22 +205,22 @@ const styles = StyleSheet.create({
   alertTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1F2937', // Color de título del dashboard
     textTransform: 'capitalize',
   },
   alertMessage: {
     fontSize: 14,
-    color: '#555',
+    color: '#4B5563', // Color de subtítulo del dashboard
     marginTop: 4,
   },
   alertDetails: {
     fontSize: 12,
-    color: '#777',
+    color: '#6B7280', // Color de texto secundario del dashboard
     marginTop: 8,
   },
   alertDate: {
     fontSize: 12,
-    color: '#777',
+    color: '#6B7280', // Color de texto secundario del dashboard
     marginTop: 4,
   },
   centeredMessageContainer: {
@@ -257,29 +228,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    backgroundColor: '#F0F4F7',
   },
   messageText: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1F2937',
     marginTop: 16,
   },
   subMessageText: {
     fontSize: 16,
-    color: '#666',
-    marginTop: 8,
+    color: '#6B7280',
     textAlign: 'center',
-    paddingHorizontal: 20,
+    marginTop: 8,
   },
   retryButton: {
-    marginTop: 20,
-    backgroundColor: '#007AFF',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    marginTop: 24,
+    backgroundColor: '#FFC107', // Amarillo/dorado del dashboard
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 25,
   },
   retryButtonText: {
-    color: '#fff',
+    color: '#1F2937',
     fontSize: 16,
     fontWeight: 'bold',
   },

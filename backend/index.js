@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
 import jwt from 'jsonwebtoken';
-import mysql from 'mysql2/promise';
+import pool from './db.js';
 import axios from 'axios'; // ÚNICA importación de axios
 import { Expo } from 'expo-server-sdk';
 
@@ -15,17 +15,6 @@ const expo = new Expo(); // Instancia de Expo
 
 app.use(cors());
 app.use(express.json());
-
-// --- Pool de Conexiones a la Base de Datos ---
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'abeja_user',
-  password: process.env.DB_PASS || 'markruger',
-  database: process.env.DB_NAME || 'abeja_net_v2',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
 
 // --- Middleware de Autenticación --- 
 const verificarToken = (req, res, next) => {
@@ -476,22 +465,62 @@ app.get('/api/noticias', verificarToken, async (req, res) => {
 // en lugar de depender del token de usuario, pero para la fase inicial lo dejamos así.
 app.get('/api/alertas', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
+  let connection;
 
   try {
-    const query = `
-      SELECT a.*, c.nombre AS nombre_colmena, ap.nombre AS nombre_apiario
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // --- LÓGICA REFACTORIZADA Y SEGURA ---
+
+    // 1. Obtener los IDs de las alertas no leídas del usuario.
+    const getUnreadAlertIdsQuery = `
+      SELECT a.id
       FROM alertas a
       JOIN colmenas c ON a.colmena_id = c.id
-      JOIN apiarios ap ON c.apiario_id = ap.id
-      JOIN usuarios_apiarios ua ON ap.id = ua.apiario_id
-      WHERE ua.usuario_id = ?
-      ORDER BY a.fecha_alerta DESC
+      JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id
+      WHERE ua.usuario_id = ? AND a.leida = FALSE;
     `;
-    const [alertas] = await pool.execute(query, [userId]);
-    res.json(alertas);
+    const [unreadAlerts] = await connection.execute(getUnreadAlertIdsQuery, [userId]);
+
+    // 2. Si hay alertas no leídas, marcarlas como leídas usando sus IDs.
+    if (unreadAlerts.length > 0) {
+      const alertIds = unreadAlerts.map(a => a.id);
+      const markAsReadQuery = `
+        UPDATE alertas
+        SET leida = TRUE
+        WHERE id IN (?);
+      `;
+      await connection.execute(markAsReadQuery, alertIds);
+    }
+
+    // 3. Obtener TODAS las alertas del usuario para devolverlas.
+    const getAllAlertsQuery = `
+      SELECT 
+        a.*, 
+        c.nombre AS colmena_nombre, 
+        ap.nombre AS apiario_nombre
+      FROM alertas a
+      INNER JOIN colmenas c ON a.colmena_id = c.id
+      INNER JOIN apiarios ap ON c.apiario_id = ap.id
+      INNER JOIN usuarios_apiarios ua ON ap.id = ua.apiario_id
+      WHERE ua.usuario_id = ?
+      ORDER BY a.fecha_alerta DESC;
+    `;
+    const [allAlerts] = await connection.execute(getAllAlertsQuery, [userId]);
+
+    await connection.commit();
+    
+    // Devolvemos el objeto de éxito que espera el frontend.
+    res.json({ success: true, alertas: allAlerts });
+
   } catch (error) {
-    console.error('Error al obtener las alertas:', error);
-    res.status(500).json({ error: 'Error interno del servidor al obtener las alertas.' });
+    if (connection) await connection.rollback();
+    console.error('Error en GET /api/alertas (transacción):', error);
+    // Devolvemos el objeto de error que espera el frontend.
+    res.status(500).json({ success: false, message: 'Error interno del servidor al obtener alertas.' });
+  } finally {
+    if (connection) connection.release();
   }
 });
 

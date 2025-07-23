@@ -119,12 +119,12 @@ const UserDashboardScreen = () => {
       .finally(() => setLoadingNews(false));
   }, []); // useCallback con dependencias vacías para que la función no se recree
 
-  // 1. Cargar datos cuando la pantalla entra en foco
+  // Usar useFocusEffect para recargar los datos cada vez que la pantalla se enfoca.
+  // Esto es crucial para actualizar el contador de notificaciones después de ver las alertas.
   useFocusEffect(
     useCallback(() => {
-      setShowNotificationBadge(true); // Al volver a la pantalla, permitimos que el badge se muestre si hay alertas
       fetchData();
-    }, [fetchData])
+    }, [fetchData]) // fetchData está memoizado, por lo que no causa re-renders innecesarios.
   );
 
   // 2. Cargar datos y mostrar badge cuando se recibe una notificación mientras la app está abierta
