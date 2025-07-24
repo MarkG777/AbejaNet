@@ -7,7 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { isAxiosError } from 'axios';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 
 const ProfileScreen = () => {
   const { authState, updateUser } = useAuth();
@@ -104,9 +104,16 @@ const ProfileScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={28} color="#333" />
-      </TouchableOpacity>
+      <Stack.Screen
+        options={{
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10 }}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {isEditing ? (
@@ -150,7 +157,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f0f4f7' },
   containerCentered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f4f7' },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
-  backButton: { position: 'absolute', top: 50, left: 20, zIndex: 10, padding: 5 },
+  
   // Estilos de la Tarjeta de Visualización
   card: {
     backgroundColor: '#ffffff',

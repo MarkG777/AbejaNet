@@ -151,12 +151,12 @@ const AlertsScreen = () => {
       <Stack.Screen
         options={{
           title: 'Historial de Alertas',
-          headerStyle: { backgroundColor: '#FFFFFF' }, // Coincide con el dashboard
-          headerTintColor: '#1F2937', // Coincide con el dashboard
+          headerStyle: { backgroundColor: '#1976d2' },
+          headerTintColor: '#fff',
           headerTitleStyle: { fontWeight: 'bold' },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10 }}>
-              <Ionicons name="arrow-back" size={24} color="#1F2937" />
+              <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
           ),
         }}
