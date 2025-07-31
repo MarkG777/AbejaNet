@@ -6,12 +6,14 @@ import jwt from 'jsonwebtoken';
 import pool from './db.js';
 import axios from 'axios'; // ÚNICA importación de axios
 import { Expo } from 'expo-server-sdk';
+import { OAuth2Client } from 'google-auth-library';
 
 // Carga variables de entorno desde .env
 dotenv.config();
 
 const app = express();
 const expo = new Expo(); // Instancia de Expo
+const googleClient = new OAuth2Client();
 
 app.use(cors());
 app.use(express.json());
@@ -129,7 +131,12 @@ app.post('/api/login', async (req, res) => {
 
     const user = rows[0];
     if (!user.esta_activo) {
-      return res.status(403).json({ success: false, message: 'Usuario inactivo.' });
+      return res.status(403).json({ success: false, message: 'La cuenta de usuario está inactiva.' });
+    }
+
+    // Verificación NUEVA: Asegurarse de que el usuario tenga una contraseña (no es un usuario de Google)
+    if (!user.contrasena) {
+      return res.status(401).json({ success: false, message: 'Esta cuenta fue registrada con Google. Por favor, inicie sesión con Google.' });
     }
 
     const contrasenaValida = await bcrypt.compare(password, user.contrasena);
@@ -155,6 +162,85 @@ app.post('/api/login', async (req, res) => {
   } catch (err) {
     console.error('Error en /api/login:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+  }
+});
+
+app.post('/api/auth/google', async (req, res) => {
+  const { token } = req.body;
+  if (!token) {
+    return res.status(400).json({ success: false, message: 'No se proporcionó el token de Google.' });
+  }
+
+  try {
+    // 1. Verificar el token de Google
+    const ticket = await googleClient.verifyIdToken({
+      idToken: token,
+      audience: [
+        process.env.GOOGLE_ANDROID_CLIENT_ID, 
+        process.env.GOOGLE_IOS_CLIENT_ID, 
+        process.env.GOOGLE_WEB_CLIENT_ID,
+        process.env.GOOGLE_ANDROID_CLIENT_ID_DEBUG
+      ],
+    });
+    const payload = ticket.getPayload();
+    const { email, name, given_name, family_name } = payload;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'El token de Google no contenía un correo electrónico.' });
+    }
+
+    // 2. Buscar o crear el usuario en la base de datos
+    let connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    try {
+      let [users] = await connection.execute('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.correo_electronico = ?', [email]);
+      let user = users[0];
+
+      if (!user) {
+        // El usuario no existe, lo creamos
+        const [result] = await connection.execute(
+          'INSERT INTO usuarios (correo_electronico, nombre, apellido_paterno, apellido_materno, contrasena, rol_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [email, given_name || name, family_name || '', '', null, 2] // Rol 2 = usuario, contrasena = null
+        );
+        const newUserId = result.insertId;
+        // Volvemos a consultar para tener el objeto de usuario completo
+        [users] = await connection.execute('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = ?', [newUserId]);
+        user = users[0];
+      }
+
+      await connection.commit();
+
+      // 3. Crear y firmar el token JWT de nuestra aplicación
+      const appToken = jwt.sign(
+        { userId: user.id, rol: user.rol },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.json({
+        success: true,
+        token: appToken,
+        user: {
+          id: user.id,
+          nombre: user.nombre,
+          apellido_paterno: user.apellido_paterno,
+          apellido_materno: user.apellido_materno,
+          correo_electronico: user.correo_electronico,
+          rol: user.rol
+        }
+      });
+
+    } catch (dbError) {
+      await connection.rollback();
+      throw dbError; // Lanza el error para que sea capturado por el catch exterior
+    } finally {
+      if (connection) connection.release();
+    }
+
+  } catch (err) {
+    console.error('Error en /api/auth/google:', err);
+    res.status(500).json({ success: false, message: 'Error en la autenticación con Google.' });
   }
 });
 

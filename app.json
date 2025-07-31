@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "abejanet",
+    "scheme": "com.markg777.AbejaNet",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
@@ -30,6 +30,7 @@
       "backgroundColor": "#F5F5F5"
     },
     "plugins": [
+      "@react-native-google-signin/google-signin",
       "expo-router",
       [
         "expo-splash-screen",
@@ -49,6 +50,12 @@
         "origin": false
       },
       "API_BASE_URL": "http://172.31.112.4:3000",
+      "googleAuth": {
+        "iosClientId": "388995501406-iol2mrvtv0m6akccnm9n5q850chdv17r.apps.googleusercontent.com",
+        "androidClientId": "388995501406-nmqjel504l0lkrg8lkufjlkgofd5vbea.apps.googleusercontent.com",
+        "androidClientIdDebug": "388995501406-r0d70mv0vobj8tistbejalp5nq15u413.apps.googleusercontent.com",
+        "webClientId": "388995501406-ki4qnr91kifk0e5emvj6o0pdnc1s66e9.apps.googleusercontent.com"
+      },
       "eas": {
         "projectId": "c37ef698-5280-4fba-bd24-5a60024ea405"
       }

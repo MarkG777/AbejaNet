@@ -25,7 +25,7 @@ CREATE TABLE usuarios (
   apellido_paterno    VARCHAR(100) NULL DEFAULT NULL,
   apellido_materno    VARCHAR(100) NULL DEFAULT NULL,
   correo_electronico  VARCHAR(120) NOT NULL UNIQUE,
-  contrasena          VARCHAR(255) NOT NULL, 
+  contrasena          VARCHAR(255) NULL DEFAULT NULL, -- Permite NULL para usuarios de Google
   push_token          VARCHAR(255) NULL DEFAULT NULL, -- <<< CAMPO NUEVO PARA NOTIFICACIONES
   rol_id              TINYINT UNSIGNED NOT NULL,
   esta_activo         BOOLEAN DEFAULT TRUE,

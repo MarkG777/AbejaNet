@@ -1,94 +1,179 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useAuth } from '../../context/AuthContext'; // Import useAuth
+import React, { useState, useEffect } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { useAuth } from '../../context/AuthContext';
+import Constants from 'expo-constants';
 import { getApiUrl } from '../../utils/ip_config';
 
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 
 export default function LoginScreen() {
+  const { login } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const { login } = useAuth(); // Get login function from AuthContext
+
+  useEffect(() => {
+    const googleAuthConfig = Constants.expoConfig?.extra?.googleAuth;
+    if (googleAuthConfig?.webClientId) {
+      GoogleSignin.configure({
+        webClientId: googleAuthConfig.webClientId,
+      });
+      console.log('Google Sign-In configurado con webClientId.');
+    } else {
+      console.error('Error: webClientId no encontrado en app.json.');
+      Alert.alert('Error de Configuración', 'Falta el ID de cliente web de Google.');
+    }
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.idToken;
+      
+      if (idToken) {
+        const api = await getApiUrl();
+        const res = await fetch(`${api}/api/auth/google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: idToken }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          await login(data.token, data.user.rol, data.user);
+        } else {
+          Alert.alert('Error de autenticación', data.message || 'No se pudo iniciar sesión con Google.');
+        }
+      } else {
+        throw new Error('No se pudo obtener el idToken de Google.');
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // no hacer nada si el usuario cancela
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        // no hacer nada, ya está en progreso
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Error', 'Los servicios de Google Play no están disponibles.');
+      } else {
+        Alert.alert('Error de inicio de sesión', 'Ocurrió un error inesperado.');
+        console.error('Error en handleGoogleSignIn:', error);
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Completa los campos');
-      return;
-    }
-
+    setIsLoading(true);
     try {
       const api = await getApiUrl();
-      const res = await fetch(`${api}/api/login`, {
+      const res = await fetch(`${api}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-
-      if (res.ok && data.success && data.token && data.user && data.user.rol) {
+      if (res.ok && data.success) {
         await login(data.token, data.user.rol, data.user);
-      } else if (res.ok && data.success && (!data.token || !data.user || !data.user.rol)){
-        Alert.alert('Error de Inicio de Sesión', 'Respuesta inesperada del servidor. Falta token o rol.');
       } else {
-        Alert.alert('Error', data.message || 'Credenciales inválidas');
+        Alert.alert('Error de autenticación', data.message || 'Credenciales incorrectas');
       }
     } catch (err: any) {
-      Alert.alert('Error de red', (err?.message as string) || 'No se pudo contactar al servidor');
+      Alert.alert('Error de red', err.message || 'No se pudo contactar al servidor');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const gotoRegister = () => {
-    router.push('/(auth)/register');
-  };
-
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <ThemedView style={{ alignItems: 'center' }}>
-          <Image
-            source={require('@/assets/images/abejanet.png')}
-            style={styles.logo}
-          />
-        </ThemedView>
-        <ThemedText type="title">Iniciar Sesión</ThemedText>
-        <TextInput
-          placeholder="Correo electrónico"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-        />
-        <View style={styles.passwordContainer}>
-          <TextInput
-            placeholder="Contraseña"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!isPasswordVisible}
-            style={styles.passwordInput}
-          />
-          <TouchableOpacity
-            onPressIn={() => setIsPasswordVisible(true)}
-            onPressOut={() => setIsPasswordVisible(false)}
-            style={styles.eyeIconContainer}
-          >
-            <Ionicons name={isPasswordVisible ? 'eye-off-outline' : 'eye-outline'} size={24} color="#888" />
-          </TouchableOpacity>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.titleContainer}>
+          <Image source={require('../../assets/images/abejanet.png')} style={styles.logo} />
+          <ThemedText type="title">Bienvenido a AbejaNet</ThemedText>
         </View>
-        <Pressable style={styles.button} onPress={handleLogin}>
-          <ThemedText type="defaultSemiBold" style={styles.buttonText}>Ingresar</ThemedText>
-        </Pressable>
-        <Pressable onPress={gotoRegister} style={styles.registerLink}>
-          <Text style={styles.registerText}>
-            ¿No tienes cuenta? <Text style={styles.link}>Regístrate</Text>
-          </Text>
-        </Pressable>
+
+        <View style={styles.formContainer}>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Correo Electrónico"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Contraseña"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!isPasswordVisible}
+            />
+            <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={styles.eyeIcon}>
+              <Ionicons name={isPasswordVisible ? 'eye-off' : 'eye'} size={24} color="gray" />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoading || isGoogleLoading}>
+            {isLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Iniciar Sesión</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.separatorContainer}>
+            <View style={styles.separatorLine} />
+            <Text style={styles.separatorText}>o</Text>
+            <View style={styles.separatorLine} />
+          </View>
+
+          <TouchableOpacity style={[styles.button, styles.googleButton]} onPress={handleGoogleSignIn} disabled={isLoading || isGoogleLoading}>
+            {isGoogleLoading ? (
+                <ActivityIndicator color="#333" />
+            ) : (
+              <>
+                <Image source={require('../../assets/images/google-logo.jpg')} style={styles.googleIcon} />
+                <Text style={[styles.buttonText, styles.googleButtonText]}>Continuar con Google</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <Pressable onPress={() => router.push('/(auth)/register')} disabled={isLoading || isGoogleLoading}>
+            <ThemedText type="link" style={styles.linkText}>
+              ¿No tienes una cuenta? <Text style={styles.boldLink}>Regístrate aquí</Text>
+            </ThemedText>
+          </Pressable>
+          <Pressable onPress={() => router.push('/(auth)/forgot-password' as any)} disabled={isLoading || isGoogleLoading}>
+            <ThemedText type="link" style={styles.linkText}>¿Olvidaste tu contraseña?</ThemedText>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -97,62 +182,100 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    gap: 20,
+    backgroundColor: '#F5F5F5',
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    alignItems: 'center',
+    padding: 20,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 30,
+    backgroundColor: 'transparent',
   },
   logo: {
-    width: 240,
-    height: 240,
-    borderRadius: 120,
-    marginBottom: 24,
-    borderWidth: 4,
-    borderColor: '#fff',
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+    marginBottom: 20,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
-    fontSize: 16,
+  formContainer: {
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
-  passwordContainer: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '90%',
+    height: 50,
+    borderColor: '#CCC',
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderRadius: 10,
+    marginBottom: 15,
+    paddingHorizontal: 10,
+    backgroundColor: '#FFF',
   },
-  passwordInput: {
+  input: {
     flex: 1,
-    padding: 12,
-    fontSize: 16,
+    height: '100%',
   },
-  eyeIconContainer: {
-    padding: 12,
+  eyeIcon: {
+    padding: 5,
   },
   button: {
-    backgroundColor: '#F59E0B',
-    paddingVertical: 14,
-    borderRadius: 8,
+    width: '90%',
+    padding: 15,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    height: 50,
+    minHeight: 50, // Ensure button has a minimum height
   },
   buttonText: {
     color: '#fff',
+    fontWeight: 'bold',
     fontSize: 16,
   },
-  registerLink: {
-    marginTop: 12,
-    alignSelf: 'center',
+  googleButton: {
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    borderColor: '#DDD',
+    borderWidth: 1,
   },
-  registerText: {
-    color: '#555',
+  googleIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 10,
   },
-  link: {
-    fontWeight: 'bold',
+  googleButtonText: {
+    color: '#333',
+  },
+  separatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '90%',
+    marginVertical: 20,
+    backgroundColor: 'transparent',
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#CCC',
+  },
+  separatorText: {
+    marginHorizontal: 10,
+    color: '#888',
+  },
+  linkText: {
+    marginTop: 15,
     color: '#007AFF',
+  },
+  boldLink: {
+    fontWeight: 'bold',
   },
 });

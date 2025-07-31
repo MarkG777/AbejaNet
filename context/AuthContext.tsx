@@ -4,6 +4,7 @@ import { jwtDecode } from 'jwt-decode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { setAuthToken, setupLogoutOnSessionExpired } from '../utils/api'; // IMPORTAMOS NUESTRO GUARDIÁN
 import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 // Definimos la forma del estado de autenticación y las funciones que proveerá el contexto
 // Definimos la forma de los datos del usuario
@@ -163,21 +164,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       clearTimeout(sessionTimeoutRef.current);
       sessionTimeoutRef.current = null;
     }
-    console.log('AuthContext: logout initiated');
+        console.log('AuthContext: logout initiated');
     try {
-      console.log('AuthContext: Attempting to remove accessToken...');
-      await AsyncStorage.removeItem('accessToken');
-      console.log('AuthContext: accessToken removed.');
+      // Intentar cerrar la sesión de Google. Es seguro llamarlo incluso si no hay sesión.
+      await GoogleSignin.signOut();
+      console.log('AuthContext: Google Sign-In session cleared.');
+    } catch (error: any) {
+      // El error 'SIGN_IN_REQUIRED' es normal si el usuario no estaba logueado con Google.
+      // Lo ignoramos para no detener el flujo de logout normal y continuamos.
+      if (error.code !== 'SIGN_IN_REQUIRED') {
+        console.error('AuthContext: Error during Google SignOut, continuing logout...', error);
+      }
+    }
 
-      console.log('AuthContext: Attempting to remove userRole...');
-      await AsyncStorage.removeItem('userRole');
-      console.log('AuthContext: userRole removed.');
+    try {
+      // Proceder a limpiar el estado de la aplicación y el almacenamiento local
+      console.log('AuthContext: Clearing app-specific auth state...');
+      await AsyncStorage.multiRemove(['accessToken', 'userRole', 'user']);
+      console.log('AuthContext: AsyncStorage cleared.');
 
-      console.log('AuthContext: Attempting to remove user...');
-      await AsyncStorage.removeItem('user');
-      console.log('AuthContext: user removed.');
-
-      setAuthToken(null); // <-- AÑADIDO: Limpiamos el token de axios
+      setAuthToken(null); // Limpiamos el token de axios
 
       setAuthState({
         accessToken: null,
