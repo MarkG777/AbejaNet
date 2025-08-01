@@ -4,7 +4,7 @@
     "slug": "AbejaNet",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/abejanet.png",
     "scheme": "com.markg777.AbejaNet",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -12,7 +12,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/abejanet.png",
         "backgroundColor": "#ffffff"
       },
       "package": "com.markg777.AbejaNet",
