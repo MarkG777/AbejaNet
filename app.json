@@ -17,7 +17,11 @@
       },
       "package": "com.markg777.AbejaNet",
       "usesCleartextTraffic": true,
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "notification": {
+        "icon": "./assets/images/pruebados.png",
+        "color": "#F9A825"
+      }
     },
     "web": {
       "bundler": "metro",
