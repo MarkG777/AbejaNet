@@ -577,7 +577,8 @@ app.get('/api/alertas', verificarToken, async (req, res) => {
         SET leida = TRUE
         WHERE id IN (?);
       `;
-      await connection.execute(markAsReadQuery, alertIds);
+      // MySQL2 requiere pasar el array de IDs anidado para que expanda los placeholders
+      await connection.execute(markAsReadQuery, [alertIds]);
     }
 
     // 3. Obtener TODAS las alertas del usuario para devolverlas.

@@ -39,6 +39,7 @@ const AlertsScreen = () => {
       if (response.data.success) {
         setAlertas(response.data.alertas);
         setError(null);
+
       } else {
         throw new Error(response.data.message || 'Error desconocido al obtener alertas');
       }
@@ -55,10 +56,15 @@ const AlertsScreen = () => {
     fetchAlertas();
   }, []); // El array vacío es correcto aquí
 
+  // Cargar alertas cada vez que se enfoca la pantalla
   useFocusEffect(
     useCallback(() => {
       fetchAlertas();
-    }, []) // El array vacío es correcto aquí también
+      // Cuando el usuario salga de la pantalla, marcamos las alertas como leídas
+      return () => {
+        api.post('/api/alertas/marcar-como-leidas').catch(err => console.error('Error marcando alertas leídas', err));
+      };
+    }, [])
   );
 
   const onRefresh = useCallback(() => {
@@ -193,8 +199,8 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0', // Borde neutral para alertas leídas
   },
   alertUnread: {
-    borderColor: '#FFC107', // Amarillo/dorado del dashboard
-    backgroundColor: '#FFFBEA', // Un fondo amarillo muy pálido
+    borderColor: '#FF7043', // naranja-rojizo para destacar
+    backgroundColor: '#FFF3E0', // fondo crema anaranjado suave
   },
   icon: {
     marginRight: 16,

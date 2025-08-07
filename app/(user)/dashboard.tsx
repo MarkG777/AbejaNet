@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from 'expo-router';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
-  SafeAreaView, StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, Pressable, Image, Linking, Dimensions
+  SafeAreaView, StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, Pressable, Image, Linking, Dimensions, AppState
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -101,7 +101,13 @@ const UserDashboardScreen = () => {
     // Cargar resumen
     setLoadingSummary(true);
     api.get('/api/dashboard-summary')
-      .then(response => setSummary(response.data.summary))
+      .then(response => {
+        const count = response.data.summary.alertasCount;
+        setSummary(response.data.summary);
+        setShowNotificationBadge(count > 0);
+        // Sincronizar badge del icono de la app con las alertas no leídas
+        Notifications.setBadgeCountAsync(count).catch(() => {});
+      })
       .catch(err => {
         console.error('Error al obtener el resumen del dashboard:', err);
         setErrorSummary(isAxiosError(err) && err.response ? `Error: ${err.response.data.message || 'No se pudo cargar.'}` : 'No se pudo cargar.');
@@ -127,7 +133,17 @@ const UserDashboardScreen = () => {
     }, [fetchData]) // fetchData está memoizado, por lo que no causa re-renders innecesarios.
   );
 
-  // 2. Cargar datos y mostrar badge cuando se recibe una notificación mientras la app está abierta
+  // 2. Actualizar al volver a primer plano (AppState)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        fetchData();
+      }
+    });
+    return () => sub.remove();
+  }, [fetchData]);
+
+  // 3. Cargar datos y mostrar badge cuando se recibe una notificación mientras la app está abierta
   useEffect(() => {
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notificación recibida, actualizando dashboard...');
@@ -140,7 +156,7 @@ const UserDashboardScreen = () => {
     };
   }, [fetchData]);
 
-  // 3. Efecto para actualizar la cabecera con el icono de notificación
+  // 4. Efecto para actualizar la cabecera con el icono de notificación
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -148,7 +164,9 @@ const UserDashboardScreen = () => {
           style={{ marginRight: 15, padding: 5 }} 
           onPress={() => {
             setShowNotificationBadge(false); // Ocultar el badge al hacer clic
-            router.push('/(user)/AlertsScreen');
+            router.push({ pathname: '/(user)/AlertsScreen' });
+            // Cuando regrese, refrescar el resumen para actualizar el contador
+            setTimeout(() => fetchData(), 500);
           }}
         >
           <Ionicons name="notifications-outline" size={26} color="#FFFFFF" />
