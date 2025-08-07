@@ -198,7 +198,9 @@ const styles = StyleSheet.create({
   logo: {
     width: 120,
     height: 120,
-    resizeMode: 'contain',
+    borderRadius: 60, // make it circular
+    overflow: 'hidden',
+    resizeMode: 'cover',
     marginBottom: 20,
   },
   formContainer: {
