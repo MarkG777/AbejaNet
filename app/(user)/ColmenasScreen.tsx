@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, SafeAreaView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, Stack } from 'expo-router';
 import { useAuth } from '../../context/AuthContext'; // Importar el hook de autenticación
 
 import api from '../../utils/api';
@@ -108,12 +108,16 @@ export default function ColmenasScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.headerContainer}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={28} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.header}>Mis Apiarios</Text>
-      </View>
+      <Stack.Screen
+        options={{
+          title: 'Mis Apiarios',
+          headerLeft: () => (
+            <TouchableOpacity onPress={handleBack} style={{ marginLeft: 10 }}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <FlatList
         data={apiarios}
         keyExtractor={(item) => item.id.toString()}
@@ -179,22 +183,7 @@ const styles = StyleSheet.create({
     color: '#888',
     textAlign: 'center',
   },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
-  },
-  backButton: {
-    paddingRight: 15,
-    zIndex: 1,
-  },
-  header: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-  },
+
   card: {
     flexDirection: 'row',
     alignItems: 'center',

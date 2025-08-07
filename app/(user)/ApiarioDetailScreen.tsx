@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons'; // Importar iconos
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
@@ -88,49 +88,30 @@ export default function ApiarioDetailScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => router.push('/(user)/ColmenasScreen')} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={22} color="#007AFF" />
-        <Text style={styles.backButtonText}>Volver a Mis Apiarios</Text>
-      </TouchableOpacity>
-      <Text style={styles.title}>{String(apiarioNombre) || 'Detalle del Apiario'}</Text>
-      <Text style={styles.subtitle}>Colmenas</Text>
+      <Stack.Screen
+        options={{
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.push('/(user)/ColmenasScreen')} style={{ marginLeft: 10 }}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+          ),
+          title: String(apiarioNombre) || 'Apiario',
+        }}
+      />
+
       {renderContent()}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  backButtonText: {
-    marginLeft: 6,
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
+
   container: {
     flex: 1,
     padding: 20,
     backgroundColor: '#FFF',
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#555',
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEE',
-    paddingBottom: 10,
-  },
+
   list: {
     width: '100%',
   },
