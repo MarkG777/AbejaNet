@@ -30,6 +30,13 @@ const labelMap: Record<MetricKey, string> = {
   sonido: 'Sonido',
 };
 
+const unitMap: Record<MetricKey, string> = {
+  temperatura: '°C',
+  humedad: '%',
+  peso: 'kg',
+  sonido: 'dB',
+};
+
 const colorMap: Record<MetricKey, string> = {
   temperatura: 'rgba(255,99,132,1)',
   humedad: 'rgba(54,162,235,1)',
@@ -39,6 +46,8 @@ const colorMap: Record<MetricKey, string> = {
 
 const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, timeRange, baseKey }) => {
   const [activeKeys, setActiveKeys] = useState<MetricKey[]>([baseKey]);
+  const [selectedPoint, setSelectedPoint] = useState<any | null>(null);
+  
 
   const toggleKey = (k: MetricKey) => {
     setActiveKeys(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
@@ -64,6 +73,7 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
         raw,
         delta,
         series: labelMap[key],
+        metricKey: key,
       };
     });
   };
@@ -89,8 +99,9 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
           domainPadding={{ y: 20, x: 30 }}
           containerComponent={
             <VictoryVoronoiContainer
-              labels={({ datum }) => `${datum.series}\n${datum.raw?.toFixed(1)} (${datum.delta.toFixed(1)}%)`}
-              labelComponent={<VictoryTooltip cornerRadius={4} flyoutStyle={{ fill: '#fff' }} />}
+              labels={({ datum }) => `${datum.series}\n${datum.raw?.toFixed(1)} ${unitMap[datum.metricKey as MetricKey]} (${datum.delta.toFixed(1)}%)`}
+              labelComponent={<VictoryTooltip cornerRadius={4} flyoutStyle={{ fill: '#fff' }} style={{ fontSize: 16 }} />}
+              onActivated={(pts) => pts && pts[0] ? setSelectedPoint(pts[0]) : null}
             />
           }
         >
@@ -110,6 +121,12 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
             data={activeKeys.map(k => ({ name: labelMap[k], symbol: { fill: colorMap[k] } }))}
           />
         </VictoryChart>
+
+        {selectedPoint && (
+          <Text style={styles.selectedInfo}>
+            {`${selectedPoint.series} ${selectedPoint.raw.toFixed(1)} ${unitMap[selectedPoint.metricKey as MetricKey]} (${selectedPoint.delta.toFixed(1)}%)`}
+          </Text>
+        )}
 
         <View style={styles.chipRow}>
           {(Object.keys(labelMap) as MetricKey[]).map(k => (
@@ -199,6 +216,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 30,
     borderRadius: 8,
+  },
+  selectedInfo: {
+    marginTop: 8,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
   },
   closeText: {
     color: '#fff',

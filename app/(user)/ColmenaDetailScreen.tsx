@@ -1,13 +1,14 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, ActivityIndicator, TouchableOpacity, Modal } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
-import { LineChartData } from 'react-native-chart-kit/dist/line-chart/LineChart';
-import { useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/utils/api';
 import { isAxiosError } from 'axios';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
+import { LineChartData } from 'react-native-chart-kit/dist/line-chart/LineChart';
+import ComparisonChartModal from '../components/ComparisonChartModal';
 
 // Tipos de datos
 interface Lectura {
@@ -70,6 +71,9 @@ const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorCha
       </View>
     );
   }
+
+  // Ajustar decimales dinámicamente: para peso usamos 2 decimales para apreciar variaciones pequeñas
+  const localChartConfig = { ...chartConfig, decimalPlaces: dataKey === 'peso' ? 2 : 1 } as typeof chartConfig;
 
   const chartData = {
     labels: data.map(d => {
@@ -211,17 +215,19 @@ export default function ColmenaDetailScreen() {
   // Estado para el modal
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedChart, setSelectedChart] = useState<Omit<SensorChartProps, 'data' | 'timeRange'> | null>(null);
+  // Estado para la métrica de comparación (ya no se muestra en UI pero lo usa lógica interna)
   const [comparisonKey, setComparisonKey] = useState<SensorDataKey | null>(null);
+  
 
   const handleChartPress = (chartProps: Omit<SensorChartProps, 'data' | 'timeRange'>) => {
     setSelectedChart(chartProps);
-    setComparisonKey(null); // Reset comparison on new modal open
+    setComparisonKey(null); // Reiniciamos la comparación al abrir
     setModalVisible(true);
   };
 
   const handleCloseModal = () => {
     setModalVisible(false);
-    setComparisonKey(null);
+    setComparisonKey(null); // Reiniciamos la comparación al cerrar
   };
 
   useEffect(() => {
@@ -322,49 +328,15 @@ export default function ColmenaDetailScreen() {
         </TouchableOpacity>
       ))}
 
-      {/* Modal para la gráfica ampliada y comparación */}
+      {/* Modal de comparación (Victory) */}
       {selectedChart && (
-        <Modal
-          animationType="slide"
-          transparent={false}
+        <ComparisonChartModal
           visible={modalVisible}
-          onRequestClose={handleCloseModal}
-        >
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>{comparisonKey ? `${selectedChart.title} vs. ${allChartProps.find(p => p.dataKey === comparisonKey)?.title}` : selectedChart.title}</Text>
-            
-            <MemoizedComparisonChart 
-              lecturas={filteredLecturas} 
-              timeRange={timeRange} 
-              selectedChart={selectedChart} 
-              comparisonKey={comparisonKey} 
-            />
-
-            <View style={styles.comparisonContainer}>
-              <Text style={styles.comparisonTitle}>Comparar con:</Text>
-              <View style={styles.comparisonButtons}>
-                {allChartProps
-                  .filter((p) => p.dataKey !== selectedChart.dataKey)
-                  .map((p) => (
-                    <TouchableOpacity
-                      key={p.dataKey}
-                      style={[styles.comparisonButton, comparisonKey === p.dataKey && styles.comparisonButtonSelected]}
-                      onPress={() => setComparisonKey(comparisonKey === p.dataKey ? null : p.dataKey)}
-                    >
-                      <Text style={styles.comparisonButtonText}>{p.title}</Text>
-                    </TouchableOpacity>
-                  ))}
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleCloseModal}
-            >
-              <Text style={styles.closeButtonText}>Cerrar</Text>
-            </TouchableOpacity>
-          </View>
-        </Modal>
+          onClose={handleCloseModal}
+          lecturas={filteredLecturas}
+          timeRange={timeRange}
+          baseKey={selectedChart.dataKey}
+        />
       )}
     </ScrollView>
   );
