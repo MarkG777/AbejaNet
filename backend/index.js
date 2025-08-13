@@ -569,17 +569,7 @@ app.get('/api/alertas', verificarToken, async (req, res) => {
     `;
     const [unreadAlerts] = await connection.execute(getUnreadAlertIdsQuery, [userId]);
 
-    // 2. Si hay alertas no leídas, marcarlas como leídas usando sus IDs.
-    if (unreadAlerts.length > 0) {
-      const alertIds = unreadAlerts.map(a => a.id);
-      const markAsReadQuery = `
-        UPDATE alertas
-        SET leida = TRUE
-        WHERE id IN (?);
-      `;
-      // MySQL2 requiere pasar el array de IDs anidado para que expanda los placeholders
-      await connection.execute(markAsReadQuery, [alertIds]);
-    }
+    // 2. No las marcamos como leídas aquí; eso se hará cuando el usuario salga de la pantalla.
 
     // 3. Obtener TODAS las alertas del usuario para devolverlas.
     const getAllAlertsQuery = `
@@ -608,6 +598,23 @@ app.get('/api/alertas', verificarToken, async (req, res) => {
     res.status(500).json({ success: false, message: 'Error interno del servidor al obtener alertas.' });
   } finally {
     if (connection) connection.release();
+  }
+});
+
+// Endpoint para marcar alertas como leídas al salir de la pantalla
+app.post('/api/alertas/marcar-como-leidas', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  try {
+    const markQuery = `UPDATE alertas a
+      JOIN colmenas c ON a.colmena_id = c.id
+      JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id
+      SET a.leida = TRUE
+      WHERE ua.usuario_id = ? AND a.leida = FALSE`;
+    await pool.execute(markQuery, [userId]);
+    res.json({ success: true, message: 'Alertas marcadas como leídas.' });
+  } catch (err) {
+    console.error('Error en POST /api/alertas/marcar-como-leidas:', err);
+    res.status(500).json({ success: false, message: 'Error al marcar alertas como leídas.' });
   }
 });
 

@@ -75,6 +75,13 @@ const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorCha
   // Ajustar decimales dinámicamente: para peso usamos 2 decimales para apreciar variaciones pequeñas
   const localChartConfig = { ...chartConfig, decimalPlaces: dataKey === 'peso' ? 2 : 1 } as typeof chartConfig;
 
+  // Configuración específica por métrica para mostrar decimales en eje Y
+  const customConfig = { ...chartConfig, decimalPlaces: dataKey === 'peso' ? 1 : chartConfig.decimalPlaces };
+  const formatYLabel = (val: string) => {
+    const num = parseFloat(val);
+    return dataKey === 'peso' ? num.toFixed(1) : num.toFixed(1);
+  };
+
   const chartData = {
     labels: data.map(d => {
       const date = parseISO(d.fecha_registro);

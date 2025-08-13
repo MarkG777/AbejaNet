@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AuthProvider, useAuth } from '../context/AuthContext'; // Importa el AuthProvider y useAuth
+import { NotificationsProvider } from './context/NotificationsContext';
 import * as Notifications from 'expo-notifications';
 
 // Exporta el ErrorBoundary de Expo Router para manejar errores en rutas
@@ -124,7 +125,9 @@ function AppLayout() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <AppLayout />
+      <NotificationsProvider>
+        <AppLayout />
+      </NotificationsProvider>
     </AuthProvider>
   );
 }

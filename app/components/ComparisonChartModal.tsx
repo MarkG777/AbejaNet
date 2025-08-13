@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, Modal, StyleSheet, Dimensions, Pressable } from 'react-native';
-import { VictoryChart, VictoryLine, VictoryTheme, VictoryAxis, VictoryVoronoiContainer, VictoryTooltip, VictoryLegend, VictoryGroup } from 'victory-native';
+import { VictoryChart, VictoryLine, VictoryScatter, VictoryTheme, VictoryAxis, VictoryVoronoiContainer, VictoryTooltip, VictoryLegend, VictoryGroup } from 'victory-native';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -120,6 +120,13 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
             gutter={20}
             data={activeKeys.map(k => ({ name: labelMap[k], symbol: { fill: colorMap[k] } }))}
           />
+        {selectedPoint && (
+            <VictoryScatter
+              data={[selectedPoint]}
+              size={6}
+              style={{ data: { fill: colorMap[selectedPoint.metricKey as MetricKey] } }}
+            />
+          )}
         </VictoryChart>
 
         {selectedPoint && (

@@ -9,6 +9,7 @@ import api from '../../utils/api';
 import { isAxiosError } from 'axios';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import { useNotifications } from '../context/NotificationsContext';
 
 // --- INTERFACES ---
 interface SummaryData {
@@ -87,8 +88,8 @@ const UserDashboardScreen = () => {
   const [loadingNews, setLoadingNews] = useState(true);
   const [errorNews, setErrorNews] = useState<string | null>(null);
 
-  // Estado para gestionar la visualización del badge de notificaciones
-  const [showNotificationBadge, setShowNotificationBadge] = useState(true);
+  const { unread, setUnread } = useNotifications();
+  const [hideBadge, setHideBadge] = useState(false);
 
   // Refs y estado para el carrusel
   const flatListRef = useRef<FlatList<NewsArticle>>(null);
@@ -104,7 +105,7 @@ const UserDashboardScreen = () => {
       .then(response => {
         const count = response.data.summary.alertasCount;
         setSummary(response.data.summary);
-        setShowNotificationBadge(count > 0);
+        setUnread(count);
         // Sincronizar badge del icono de la app con las alertas no leídas
         Notifications.setBadgeCountAsync(count).catch(() => {});
       })
@@ -147,7 +148,7 @@ const UserDashboardScreen = () => {
   useEffect(() => {
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
       console.log('Notificación recibida, actualizando dashboard...');
-      setShowNotificationBadge(true); // Si llega una nueva, mostramos el badge
+      setUnread(unread + 1);
       fetchData();
     });
 
@@ -163,24 +164,25 @@ const UserDashboardScreen = () => {
         <Pressable 
           style={{ marginRight: 15, padding: 5 }} 
           onPress={() => {
-            setShowNotificationBadge(false); // Ocultar el badge al hacer clic
+            setHideBadge(true);
+            setUnread(0);
             router.push({ pathname: '/(user)/AlertsScreen' });
             // Cuando regrese, refrescar el resumen para actualizar el contador
             setTimeout(() => fetchData(), 500);
           }}
         >
           <Ionicons name="notifications-outline" size={26} color="#FFFFFF" />
-          {showNotificationBadge && summary && summary.alertasCount > 0 && (
+          {!hideBadge && unread > 0 && (
             <View style={styles.notificationBadge}>
               <Text style={styles.notificationText}>
-                {summary.alertasCount > 9 ? '9+' : summary.alertasCount}
+                {unread > 9 ? '9+' : unread}
               </Text>
             </View>
           )}
         </Pressable>
       ),
     });
-  }, [navigation, summary, showNotificationBadge]);
+  }, [navigation, summary, hideBadge, unread]);
 
   // Efecto para el auto-scroll del carrusel de noticias
   useEffect(() => {
