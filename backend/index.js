@@ -626,49 +626,76 @@ app.post('/api/alertas', async (req, res) => {
   }
 
   try {
-    // 1. Insertar la alerta en la base de datos, estableciendo explícitamente leida = FALSE
-    const query = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje, leida) VALUES (?, ?, ?, ?, FALSE)';
-    await pool.execute(query, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
+    // Paso 1: Insertar la nueva alerta. Usamos el pool directamente para simplicidad.
+    const insertQuery = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje, leida) VALUES (?, ?, ?, ?, FALSE)';
+    await pool.execute(insertQuery, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
 
-    // --- INICIO: LÓGICA DE ENVÍO DE NOTIFICACIONES ---
-
-    // 2. Obtener los tokens de los usuarios asociados a la colmena de la alerta
+    // Paso 2: Obtener todos los usuarios (con sus tokens) asociados a la colmena afectada.
     const [usuarios] = await pool.execute(`
-      SELECT u.push_token
+      SELECT u.id, u.nombre, u.push_token
       FROM usuarios u
       JOIN usuarios_apiarios ua ON u.id = ua.usuario_id
       JOIN colmenas c ON ua.apiario_id = c.apiario_id
       WHERE c.id = ? AND u.push_token IS NOT NULL
     `, [colmena_id]);
 
-    const tokens = usuarios.map(u => u.push_token).filter(t => Expo.isExpoPushToken(t));
+    // Agrupar tokens por ID de usuario para manejar múltiples dispositivos.
+    const usuariosConTokens = usuarios.reduce((acc, user) => {
+      if (user.id && user.push_token && Expo.isExpoPushToken(user.push_token)) {
+        if (!acc[user.id]) {
+          acc[user.id] = { tokens: new Set(), nombre: user.nombre };
+        }
+        acc[user.id].tokens.add(user.push_token);
+      }
+      return acc;
+    }, {});
 
-    if (tokens.length > 0) {
-      console.log(`Enviando notificaciones a ${tokens.length} dispositivo(s) para la alerta: ${tipo_alerta}`);
+    const userIds = Object.keys(usuariosConTokens);
+    if (userIds.length === 0) {
+      console.log('Alerta registrada, pero no hay usuarios con tokens para notificar.');
+      return res.status(201).json({ success: true, message: 'Alerta registrada. No se enviaron notificaciones.' });
+    }
+
+    // Paso 3: Para cada usuario, obtener su conteo de alertas y construir los mensajes.
+    let allMessages = [];
+    for (const userId of userIds) {
+      // La inserción anterior ya terminó, por lo que este conteo será preciso.
+      const [countResult] = await pool.execute(`
+        SELECT COUNT(*) as unreadCount FROM alertas a
+        JOIN colmenas c ON a.colmena_id = c.id
+        JOIN apiarios ap ON c.apiario_id = ap.id
+        JOIN usuarios_apiarios ua ON ap.id = ua.apiario_id
+        WHERE ua.usuario_id = ? AND a.leida = FALSE
+      `, [userId]);
       
-      // 3. Construir los mensajes
-      const messages = tokens.map(token => ({
+      const unreadCount = countResult[0].unreadCount;
+      console.log(`DEBUG: Usuario ID ${userId} tiene un nuevo total de ${unreadCount} alertas.`);
+
+      const userTokens = Array.from(usuariosConTokens[userId].tokens);
+      const userMessages = userTokens.map(token => ({
         to: token,
         sound: 'default',
         title: `🚨 Alerta en AbejaNet: ${tipo_alerta}`,
         body: mensaje,
-        channelId: 'default', // ¡IMPORTANTE! Asegura que use el canal correcto en Android
-        data: { colmenaId: colmena_id }, // Dato extra para dirigir al usuario en la app
+        badge: unreadCount, // El contador correcto y actualizado.
+        channelId: 'default',
+        data: { colmenaId: colmena_id },
       }));
+      allMessages.push(...userMessages);
+    }
 
-      // 4. Enviar los mensajes en lotes
-      const chunks = expo.chunkPushNotifications(messages);
-      for (const chunk of chunks) {
-        try {
-          await expo.sendPushNotificationsAsync(chunk);
-        } catch (error) {
-          console.error('Error al enviar un lote de notificaciones:', error);
-        }
+    // Paso 4: Enviar todas las notificaciones.
+    const chunks = expo.chunkPushNotifications(allMessages);
+    for (const chunk of chunks) {
+      try {
+        await expo.sendPushNotificationsAsync(chunk);
+      } catch (error) {
+        console.error('Error al enviar un lote de notificaciones:', error);
       }
     }
-    // --- FIN: LÓGICA DE ENVÍO DE NOTIFICACIONES ---
 
     res.status(201).json({ success: true, message: 'Alerta registrada y notificaciones enviadas.' });
+
   } catch (error) {
     console.error('Error al registrar la alerta:', error);
     res.status(500).json({ error: 'Error interno del servidor al registrar la alerta.' });
