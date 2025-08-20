@@ -1,19 +1,20 @@
-import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import pg from 'pg';
 
 dotenv.config();
 
-// --- Pool de Conexiones a la Base de Datos ---
-// Centralizamos la creación del pool aquí para que pueda ser reutilizado
-// en cualquier parte del backend sin tener que redefinirlo.
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'abeja_user',
-  password: process.env.DB_PASS || 'markruger',
-  database: process.env.DB_NAME || 'abeja_net_v2',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+const { Pool } = pg;
+
+// --- Pool de Conexiones a la Base de Datos PostgreSQL ---
+// Render y otros proveedores de la nube configuran la variable de entorno DATABASE_URL.
+// La librería 'pg' la usa automáticamente si está disponible.
+// Para desarrollo local, puedes crear un archivo .env con DATABASE_URL="postgresql://user:password@host:port/database"
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // Si estás usando una base de datos de Render con SSL, es importante añadir esto:
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // Exportamos el pool para que otros módulos puedan usarlo para hacer consultas.

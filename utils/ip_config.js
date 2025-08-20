@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // const DEFAULT_API_BASE_URL = "http://172.31.112.6:3000";
 
 // Opción 3: Conectar al servidor de desarrollo en tu VM local (casa)
-const DEFAULT_API_BASE_URL = "http://192.168.100.42:3000";
+export const DEFAULT_API_BASE_URL = 'https://abejanet-backend.onrender.com';
 
 export async function setApiUrl(url) {
   await AsyncStorage.setItem('API_BASE_URL', url);

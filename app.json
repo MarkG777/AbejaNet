@@ -53,7 +53,7 @@
       "router": {
         "origin": false
       },
-      "API_BASE_URL": "http://172.31.112.4:3000",
+      "API_BASE_URL": "https://abejanet-backend.onrender.com",
       "googleAuth": {
         "iosClientId": "388995501406-iol2mrvtv0m6akccnm9n5q850chdv17r.apps.googleusercontent.com",
         "androidClientId": "388995501406-nmqjel504l0lkrg8lkufjlkgofd5vbea.apps.googleusercontent.com",

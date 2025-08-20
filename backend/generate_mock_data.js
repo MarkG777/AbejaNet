@@ -2,10 +2,11 @@
 // =================================================================
 // Script para poblar la base de datos con datos de UN SOLO SENSOR simulado
 // que envía un paquete completo de datos cada 15 minutos durante un mes.
+// ADAPTADO PARA POSTGRESQL.
 // =================================================================
 
-import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import pg from 'pg';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -18,15 +19,11 @@ const LECTURAS_POR_HORA = 4; // Una lectura cada 15 minutos
 const FECHA_INICIO = new Date();
 FECHA_INICIO.setDate(FECHA_INICIO.getDate() - DIAS_A_GENERAR);
 
-// --- Configuración de la Base de Datos ---
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'abeja_user',
-  password: process.env.DB_PASS || 'markruger',
-  database: process.env.DB_NAME || 'abeja_net_v2',
-};
+// --- Configuración de la Base de Datos (PostgreSQL) ---
+// El Pool de pg leerá automáticamente la variable de entorno DATABASE_URL
+const pool = new pg.Pool();
 
-// --- Funciones de Simulación de Datos ---
+// --- Funciones de Simulación de Datos (sin cambios) ---
 
 const simularTemperatura = (date) => {
   const hora = date.getHours();
@@ -56,31 +53,35 @@ const simularSonido = (date) => {
   return parseFloat((baseSound + Math.random() * 10).toFixed(2));
 };
 
-// --- Script Principal ---
+// --- Script Principal (Adaptado para PostgreSQL) ---
 
 const generarDatos = async () => {
-  let connection;
+  let client;
   try {
-    console.log('Conectando a la base de datos...');
-    connection = await mysql.createConnection(dbConfig);
+    console.log('Conectando a la base de datos PostgreSQL...');
+    client = await pool.connect();
     console.log('Conexión exitosa.');
 
     // 1. Obtener el ID de la colmena
     console.log(`Buscando la colmena: ${COLMENA_NOMBRE}`);
-    const [colmenas] = await connection.execute('SELECT id FROM colmenas WHERE nombre = ?', [COLMENA_NOMBRE]);
+    const { rows: colmenas } = await client.query('SELECT id FROM colmenas WHERE nombre = $1', [COLMENA_NOMBRE]);
     if (colmenas.length === 0) {
-      throw new Error(`La colmena '${COLMENA_NOMBRE}' no fue encontrada.`);
+      throw new Error(`La colmena '${COLMENA_NOMBRE}' no fue encontrada. Asegúrate de crearla primero.`);
     }
     const colmenaId = colmenas[0].id;
     console.log(`Colmena ID: ${colmenaId}`);
 
-    // 2. Crear y asignar UN sensor a la colmena
+    // 2. Crear y asignar UN sensor a la colmena (Sintaxis PostgreSQL)
     console.log(`Asegurando la existencia del sensor con MAC: ${SENSOR_MAC}`);
-    await connection.execute(
-      'INSERT INTO sensores (mac_address, colmena_id, tipo_sensor, estado, fecha_instalacion) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE colmena_id = VALUES(colmena_id), estado = VALUES(estado)',
-      [SENSOR_MAC, colmenaId, 'Multisensor', 'activo', FECHA_INICIO]
-    );
-    const [rows] = await connection.execute('SELECT id FROM sensores WHERE mac_address = ?', [SENSOR_MAC]);
+    const insertSensorQuery = `
+      INSERT INTO sensores (mac_address, colmena_id, tipo_sensor, estado, fecha_instalacion)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (mac_address) DO UPDATE SET
+        colmena_id = EXCLUDED.colmena_id,
+        estado = EXCLUDED.estado
+      RETURNING id;
+    `;
+    const { rows } = await client.query(insertSensorQuery, [SENSOR_MAC, colmenaId, 'Multisensor', 'activo', FECHA_INICIO]);
     const sensorId = rows[0].id;
     console.log(`- Sensor (MAC: ${SENSOR_MAC}) listo con ID: ${sensorId}`);
 
@@ -91,8 +92,12 @@ const generarDatos = async () => {
     const fechaActual = new Date(FECHA_INICIO);
     const fechaFin = new Date();
 
-    const sql = 'INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, fecha_registro) VALUES ?';
-    const todasLasLecturas = [];
+    // Para PostgreSQL, es más eficiente hacer una sola transacción grande
+    await client.query('BEGIN');
+    console.log('Iniciando transacción para inserción masiva...');
+
+    const insertLecturaQuery = 'INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, fecha_registro) VALUES ($1, $2, $3, $4, $5, $6, $7)';
+    let lecturasInsertadas = 0;
 
     while (fechaActual < fechaFin) {
       const diaSimulacion = (fechaActual - FECHA_INICIO) / (1000 * 60 * 60 * 24);
@@ -103,31 +108,38 @@ const generarDatos = async () => {
       const sonido = simularSonido(fechaActual);
       const lluvia = Math.random() < 0.05;
 
-      todasLasLecturas.push([
+      await client.query(insertLecturaQuery, [
         sensorId,
         temperatura,
         humedad,
         peso,
         sonido,
         lluvia,
-        new Date(fechaActual) // Clonar la fecha para evitar problemas de referencia
+        new Date(fechaActual)
       ]);
+      lecturasInsertadas++;
       
       fechaActual.setMinutes(fechaActual.getMinutes() + (60 / LECTURAS_POR_HORA));
     }
 
-    // Insertar todas las lecturas en un solo batch para máxima eficiencia
-    await connection.query(sql, [todasLasLecturas]);
+    await client.query('COMMIT');
+    console.log('Transacción completada.');
 
-    console.log(`\n¡Proceso completado! Se insertaron un total de ${todasLasLecturas.length} registros.`);
+    console.log(`\n¡Proceso finalizado! Se insertaron un total de ${lecturasInsertadas} registros.`);
 
   } catch (error) {
+    if (client) {
+      await client.query('ROLLBACK');
+      console.error('Error durante la transacción, se ha hecho rollback.');
+    }
     console.error('\nError durante la generación de datos:', error.message);
   } finally {
-    if (connection) {
-      await connection.end();
-      console.log('Conexión a la base de datos cerrada.');
+    if (client) {
+      client.release();
+      console.log('Cliente liberado.');
     }
+    await pool.end();
+    console.log('Pool de conexiones cerrado.');
   }
 };
 

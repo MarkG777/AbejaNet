@@ -1,12 +1,12 @@
+import axios from 'axios'; // ÚNICA importación de axios
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { Expo } from 'expo-server-sdk';
 import express from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import pool from './db.js';
-import axios from 'axios'; // ÚNICA importación de axios
-import { Expo } from 'expo-server-sdk';
-import { OAuth2Client } from 'google-auth-library';
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -72,12 +72,12 @@ app.post('/api/save-push-token', verificarToken, async (req, res) => {
   }
 
   try {
-    const [results] = await pool.execute(
-      'UPDATE usuarios SET push_token = ? WHERE id = ?',
+    const { rowCount } = await pool.query(
+      'UPDATE usuarios SET push_token = $1 WHERE id = $2',
       [token, idUsuario]
     );
 
-    if (results.affectedRows > 0) {
+    if (rowCount > 0) {
       console.log(`Token de notificaciones actualizado para el usuario ${idUsuario}`);
       res.json({ mensaje: 'Token guardado correctamente.' });
     } else {
@@ -97,18 +97,21 @@ app.post('/api/register', async (req, res) => {
   }
 
   try {
-    const [usuarios] = await pool.execute('SELECT id FROM usuarios WHERE correo_electronico = ?', [correo_electronico]);
-    if (usuarios.length > 0) {
+    const { rows: existingUsers } = await pool.query('SELECT id FROM usuarios WHERE correo_electronico = $1', [correo_electronico]);
+    if (existingUsers.length > 0) {
       return res.status(409).json({ success: false, message: 'El correo ya está registrado.' });
     }
 
     const contrasenaHasheada = await bcrypt.hash(contrasena, 10);
-    const [resultado] = await pool.execute(
-      'INSERT INTO usuarios (correo_electronico, contrasena, rol_id) VALUES (?, ?, ?)',
-      [correo_electronico, contrasenaHasheada, 2] // Rol 2 = usuario
-    );
+    // En PostgreSQL, para obtener el ID del rol de forma segura, hacemos una subconsulta.
+    const insertQuery = `
+      INSERT INTO usuarios (correo_electronico, contrasena, rol_id)
+      VALUES ($1, $2, (SELECT id FROM roles WHERE nombre = 'usuario'))
+      RETURNING id;
+    `;
+    const { rows } = await pool.query(insertQuery, [correo_electronico, contrasenaHasheada]);
 
-    res.status(201).json({ success: true, message: 'Usuario registrado con éxito.', userId: resultado.insertId });
+    res.status(201).json({ success: true, message: 'Usuario registrado con éxito.', userId: rows[0].id });
   } catch (error) {
     console.error('Error en /api/register:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor.' });
@@ -118,10 +121,10 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const [rows] = await pool.execute(
-      `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
-       FROM usuarios u JOIN roles r ON u.rol_id = r.id
-       WHERE u.correo_electronico = ?`,
+    const { rows } = await pool.query(
+       `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
+        FROM usuarios u JOIN roles r ON u.rol_id = r.id
+       WHERE u.correo_electronico = $1`,
       [email]
     );
 
@@ -190,26 +193,25 @@ app.post('/api/auth/google', async (req, res) => {
     }
 
     // 2. Buscar o crear el usuario en la base de datos
-    let connection = await pool.getConnection();
-    await connection.beginTransaction();
-
+    const client = await pool.connect();
     try {
-      let [users] = await connection.execute('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.correo_electronico = ?', [email]);
+      await client.query('BEGIN');
+
+      let { rows: users } = await client.query('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.correo_electronico = $1', [email]);
       let user = users[0];
 
       if (!user) {
-        // El usuario no existe, lo creamos
-        const [result] = await connection.execute(
-          'INSERT INTO usuarios (correo_electronico, nombre, apellido_paterno, apellido_materno, contrasena, rol_id) VALUES (?, ?, ?, ?, ?, ?)',
-          [email, given_name || name, family_name || '', '', null, 2] // Rol 2 = usuario, contrasena = null
-        );
-        const newUserId = result.insertId;
-        // Volvemos a consultar para tener el objeto de usuario completo
-        [users] = await connection.execute('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.id = ?', [newUserId]);
-        user = users[0];
+        // El usuario no existe, lo creamos. Usamos RETURNING para obtener los datos del nuevo usuario directamente.
+        const insertQuery = `
+          INSERT INTO usuarios (correo_electronico, nombre, apellido_paterno, apellido_materno, rol_id)
+          VALUES ($1, $2, $3, $4, (SELECT id FROM roles WHERE nombre = 'usuario'))
+          RETURNING id, nombre, apellido_paterno, apellido_materno, correo_electronico, (SELECT nombre FROM roles WHERE id = rol_id) as rol;
+        `;
+        const { rows: newUsers } = await client.query(insertQuery, [email, given_name || name, family_name || '', '']);
+        user = newUsers[0];
       }
 
-      await connection.commit();
+      await client.query('COMMIT');
 
       // 3. Crear y firmar el token JWT de nuestra aplicación
       const appToken = jwt.sign(
@@ -232,10 +234,10 @@ app.post('/api/auth/google', async (req, res) => {
       });
 
     } catch (dbError) {
-      await connection.rollback();
+      await client.query('ROLLBACK');
       throw dbError; // Lanza el error para que sea capturado por el catch exterior
     } finally {
-      if (connection) connection.release();
+      client.release();
     }
 
   } catch (err) {
@@ -250,18 +252,18 @@ app.post('/api/auth/google', async (req, res) => {
 
 // Endpoint para obtener un resumen de datos para el dashboard
 app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
-  const { userId } = req.usuario; // Solo necesitamos el userId, el rol es siempre 'usuario' en este contexto
+  const { userId } = req.usuario;
 
   try {
     const query = `
       SELECT
-        (SELECT COUNT(*) FROM usuarios_apiarios WHERE usuario_id = ?) AS apiariosCount,
-        (SELECT COUNT(c.id) FROM colmenas c JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = ?) AS colmenasCount,
-        (SELECT COUNT(a.id) FROM alertas a JOIN colmenas c ON a.colmena_id = c.id JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = ? AND a.leida = FALSE) AS alertasCount;
+        (SELECT COUNT(*) FROM usuarios_apiarios WHERE usuario_id = $1) AS "apiariosCount",
+        (SELECT COUNT(c.id) FROM colmenas c JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = $2) AS "colmenasCount",
+        (SELECT COUNT(a.id) FROM alertas a JOIN colmenas c ON a.colmena_id = c.id JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id WHERE ua.usuario_id = $3 AND a.leida = FALSE) AS "alertasCount";
     `;
     const params = [userId, userId, userId];
 
-    const [summary] = await pool.execute(query, params);
+    const { rows: summary } = await pool.query(query, params);
     res.json({ success: true, summary: summary[0] });
 
   } catch (err) {
@@ -270,38 +272,14 @@ app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
   }
 });
 
-// Endpoint para marcar todas las alertas de un usuario como leídas
-app.post('/api/alertas/marcar-como-leidas', verificarToken, async (req, res) => {
-  const { userId } = req.usuario; // El rol es siempre 'usuario'
-
-  try {
-    const query = `
-      UPDATE alertas a
-      JOIN colmenas c ON a.colmena_id = c.id
-      JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id
-      SET a.leida = TRUE
-      WHERE ua.usuario_id = ? AND a.leida = FALSE;
-    `;
-    const params = [userId];
-
-    const [result] = await pool.execute(query, params);
-    console.log(`Usuario ${userId} ha marcado ${result.affectedRows} alertas como leídas.`);
-    res.status(200).json({ message: `${result.affectedRows} alertas marcadas como leídas.` });
-
-  } catch (err) {
-    console.error('Error al marcar alertas como leídas:', err);
-    res.status(500).json({ message: 'Error interno del servidor' });
-  }
-});
-
 app.get('/api/apiarios', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   try {
-    const [apiarios] = await pool.execute(
-      `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas 
-       FROM apiarios a
-       JOIN usuarios_apiarios ua ON a.id = ua.apiario_id
-       WHERE ua.usuario_id = ?`,
+    const { rows: apiarios } = await pool.query(
+       `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas 
+        FROM apiarios a
+        JOIN usuarios_apiarios ua ON a.id = ua.apiario_id
+       WHERE ua.usuario_id = $1`,
       [userId]
     );
     res.json({ success: true, apiarios });
@@ -318,8 +296,8 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
 
   try {
     // 1. Verificación de seguridad: ¿Tiene el usuario acceso a este apiario?
-    const [permisos] = await pool.execute(
-      'SELECT usuario_id FROM usuarios_apiarios WHERE usuario_id = ? AND apiario_id = ?',
+    const { rows: permisos } = await pool.query(
+      'SELECT usuario_id FROM usuarios_apiarios WHERE usuario_id = $1 AND apiario_id = $2',
       [userId, apiarioId]
     );
 
@@ -328,8 +306,8 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
     }
 
     // 2. Si tiene acceso, obtener las colmenas
-    const [colmenas] = await pool.execute(
-      'SELECT id, nombre, descripcion_especifica FROM colmenas WHERE apiario_id = ?',
+    const { rows: colmenas } = await pool.query(
+      'SELECT id, nombre, descripcion_especifica FROM colmenas WHERE apiario_id = $1',
       [apiarioId]
     );
     res.json({ success: true, colmenas });
@@ -348,8 +326,8 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
 
   try {
     // 1. Verificación de seguridad
-    const [permisos] = await pool.execute(
-      `SELECT ua.usuario_id FROM usuarios_apiarios ua JOIN colmenas c ON ua.apiario_id = c.apiario_id WHERE ua.usuario_id = ? AND c.id = ?`,
+    const { rows: permisos } = await pool.query(
+      `SELECT ua.usuario_id FROM usuarios_apiarios ua JOIN colmenas c ON ua.apiario_id = c.apiario_id WHERE ua.usuario_id = $1 AND c.id = $2`,
       [userId, colmenaId]
     );
     if (permisos.length === 0) {
@@ -364,50 +342,50 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
       case 'month':
         // Para el mes, agrupa por semana y calcula el promedio semanal
         query = `SELECT 
-                   STR_TO_DATE(CONCAT(YEARWEEK(l.fecha_registro, 1), ' Monday'), '%x%v %W') as fecha_registro,
+                   date_trunc('week', l.fecha_registro) as fecha_registro,
                    AVG(l.temperatura) as temperatura,
                    AVG(l.humedad) as humedad,
                    AVG(l.peso) as peso,
                    AVG(l.sonido) as sonido
                  FROM lecturas_ambientales l
                  JOIN sensores s ON l.sensor_id = s.id
-                 WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 MONTH
-                 GROUP BY YEARWEEK(l.fecha_registro, 1)
+                 WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '1 MONTH'
+                 GROUP BY date_trunc('week', l.fecha_registro)
                  ORDER BY fecha_registro ASC`;
         break;
       case 'week':
         // Para la semana, agrupa por día y calcula el promedio diario
         query = `SELECT 
-                   DATE(l.fecha_registro) as fecha_registro,
+                   l.fecha_registro::date as fecha_registro,
                    AVG(l.temperatura) as temperatura,
                    AVG(l.humedad) as humedad,
                    AVG(l.peso) as peso,
                    AVG(l.sonido) as sonido
                  FROM lecturas_ambientales l
                  JOIN sensores s ON l.sensor_id = s.id
-                 WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 WEEK
-                 GROUP BY DATE(l.fecha_registro)
+                 WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '1 WEEK'
+                 GROUP BY l.fecha_registro::date
                  ORDER BY fecha_registro ASC`;
         break;
       default: // 'day'
         // Para el día, agrupa por bloques de 2 horas y calcula el promedio (versión corregida)
         query = `SELECT 
-                   -- Construye una marca de tiempo representativa para el bloque de 2 horas
-                   CONCAT(DATE(l.fecha_registro), ' ', LPAD(FLOOR(HOUR(l.fecha_registro) / 2) * 2, 2, '0'), ':00:00') AS fecha_registro,
+                   -- Trunca la fecha al bloque de 2 horas más cercano
+                   date_trunc('hour', l.fecha_registro) - (EXTRACT(hour FROM l.fecha_registro)::int % 2) * interval '1 hour' as fecha_registro,
                    AVG(l.temperatura) as temperatura,
                    AVG(l.humedad) as humedad,
                    AVG(l.peso) as peso,
                    AVG(l.sonido) as sonido
                  FROM lecturas_ambientales l
                  JOIN sensores s ON l.sensor_id = s.id
-                 WHERE s.colmena_id = ? AND l.fecha_registro >= NOW() - INTERVAL 1 DAY
-                 -- Agrupa por el día y el bloque de 2 horas para garantizar el correcto funcionamiento
-                 GROUP BY DATE(l.fecha_registro), FLOOR(HOUR(l.fecha_registro) / 2)
+                 WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '1 DAY'
+                 -- Agrupa por el bloque de 2 horas
+                 GROUP BY fecha_registro
                  ORDER BY fecha_registro ASC`;
         break;
     }
 
-    const [lecturas] = await pool.execute(query, params);
+    const { rows: lecturas } = await pool.query(query, params);
     res.json({ success: true, lecturas });
 
   } catch (err) {
@@ -425,12 +403,12 @@ app.put('/api/profile', verificarToken, async (req, res) => {
   }
 
   try {
-    const [result] = await pool.execute(
-      'UPDATE usuarios SET nombre = ?, apellido_paterno = ?, apellido_materno = ? WHERE id = ?',
+    const { rowCount } = await pool.query(
+      'UPDATE usuarios SET nombre = $1, apellido_paterno = $2, apellido_materno = $3 WHERE id = $4',
       [nombre.trim(), apellido_paterno.trim(), apellido_materno.trim(), userId]
     );
 
-    if (result.affectedRows === 0) {
+    if (rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
     }
 
@@ -452,15 +430,14 @@ app.post('/api/lecturas', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Falta el campo macAddress.' });
   }
 
-  let connection;
+  const client = await pool.connect();
   try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
+    await client.query('BEGIN');
 
     let sensorId;
     let isNewSensor = false;
 
-    const [sensores] = await connection.execute('SELECT id, estado FROM sensores WHERE mac_address = ?', [macAddress]);
+    const { rows: sensores } = await client.query('SELECT id, estado FROM sensores WHERE mac_address = $1', [macAddress]);
 
     if (sensores.length > 0) {
       const sensor = sensores[0];
@@ -471,21 +448,21 @@ app.post('/api/lecturas', async (req, res) => {
     } else {
       isNewSensor = true;
       console.log(`AUTO-REGISTRO: Nuevo sensor detectado con MAC: ${macAddress}`);
-      const [result] = await connection.execute(
-        "INSERT INTO sensores (mac_address, estado, fecha_instalacion) VALUES (?, 'no_asignado', NOW())",
+      const { rows } = await client.query(
+        "INSERT INTO sensores (mac_address, estado, fecha_instalacion) VALUES ($1, 'no_asignado', NOW()) RETURNING id",
         [macAddress]
       );
-      sensorId = result.insertId;
+      sensorId = rows[0].id;
     }
 
-    await connection.execute(
-      `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia) VALUES (?, ?, ?, ?, ?, ?)`,
+    await client.query(
+      `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia) VALUES ($1, $2, $3, $4, $5, $6)`,
       [sensorId, temperatura, humedad, peso, sonido, lluvia]
     );
 
-    await connection.execute('UPDATE sensores SET ultima_lectura_en = NOW() WHERE id = ?', [sensorId]);
+    await client.query('UPDATE sensores SET ultima_lectura_en = NOW() WHERE id = $1', [sensorId]);
 
-    await connection.commit();
+    await client.query('COMMIT');
 
     const message = isNewSensor
       ? 'Nuevo sensor registrado y primera lectura guardada con éxito.'
@@ -494,12 +471,12 @@ app.post('/api/lecturas', async (req, res) => {
     res.status(201).json({ success: true, message, sensorId });
 
   } catch (err) {
-    if (connection) await connection.rollback();
+    await client.query('ROLLBACK');
     console.error(`Error procesando lectura de MAC ${macAddress}:`, err.message);
     const statusCode = err.message.includes('no está activo') ? 403 : 500;
     res.status(statusCode).json({ success: false, message: err.message });
   } finally {
-    if (connection) connection.release();
+    client.release();
   }
 });
 
@@ -551,53 +528,34 @@ app.get('/api/noticias', verificarToken, async (req, res) => {
 // en lugar de depender del token de usuario, pero para la fase inicial lo dejamos así.
 app.get('/api/alertas', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
-  let connection;
 
   try {
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    // --- LÓGICA REFACTORIZADA Y SEGURA ---
-
-    // 1. Obtener los IDs de las alertas no leídas del usuario.
-    const getUnreadAlertIdsQuery = `
-      SELECT a.id
-      FROM alertas a
-      JOIN colmenas c ON a.colmena_id = c.id
-      JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id
-      WHERE ua.usuario_id = ? AND a.leida = FALSE;
-    `;
-    const [unreadAlerts] = await connection.execute(getUnreadAlertIdsQuery, [userId]);
-
-    // 2. No las marcamos como leídas aquí; eso se hará cuando el usuario salga de la pantalla.
-
-    // 3. Obtener TODAS las alertas del usuario para devolverlas.
-    const getAllAlertsQuery = `
+    // La transacción no es necesaria para una consulta SELECT.
+    const query = `
       SELECT 
-        a.*, 
+        a.id,
+        a.colmena_id,
+        a.tipo_alerta,
+        a.valor_registrado,
+        a.mensaje,
+        a.fecha_alerta,
+        a.leida,
         c.nombre AS colmena_nombre, 
         ap.nombre AS apiario_nombre
       FROM alertas a
       INNER JOIN colmenas c ON a.colmena_id = c.id
       INNER JOIN apiarios ap ON c.apiario_id = ap.id
       INNER JOIN usuarios_apiarios ua ON ap.id = ua.apiario_id
-      WHERE ua.usuario_id = ?
+      WHERE ua.usuario_id = $1
       ORDER BY a.fecha_alerta DESC;
     `;
-    const [allAlerts] = await connection.execute(getAllAlertsQuery, [userId]);
-
-    await connection.commit();
+    const { rows: allAlerts } = await pool.query(query, [userId]);
     
-    // Devolvemos el objeto de éxito que espera el frontend.
     res.json({ success: true, alertas: allAlerts });
 
   } catch (error) {
-    if (connection) await connection.rollback();
-    console.error('Error en GET /api/alertas (transacción):', error);
-    // Devolvemos el objeto de error que espera el frontend.
+    console.error('Error en GET /api/alertas:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor al obtener alertas.' });
-  } finally {
-    if (connection) connection.release();
   }
 });
 
@@ -605,12 +563,17 @@ app.get('/api/alertas', verificarToken, async (req, res) => {
 app.post('/api/alertas/marcar-como-leidas', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   try {
-    const markQuery = `UPDATE alertas a
-      JOIN colmenas c ON a.colmena_id = c.id
-      JOIN usuarios_apiarios ua ON c.apiario_id = ua.apiario_id
-      SET a.leida = TRUE
-      WHERE ua.usuario_id = ? AND a.leida = FALSE`;
-    await pool.execute(markQuery, [userId]);
+    // Sintaxis de UPDATE para PostgreSQL usando la cláusula USING.
+    const markQuery = `
+      UPDATE alertas a
+      SET leida = TRUE
+      FROM colmenas c, usuarios_apiarios ua
+      WHERE a.colmena_id = c.id
+        AND c.apiario_id = ua.apiario_id
+        AND ua.usuario_id = $1
+        AND a.leida = FALSE;
+    `;
+    await pool.query(markQuery, [userId]);
     res.json({ success: true, message: 'Alertas marcadas como leídas.' });
   } catch (err) {
     console.error('Error en POST /api/alertas/marcar-como-leidas:', err);
@@ -626,17 +589,17 @@ app.post('/api/alertas', async (req, res) => {
   }
 
   try {
-    // Paso 1: Insertar la nueva alerta. Usamos el pool directamente para simplicidad.
-    const insertQuery = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje, leida) VALUES (?, ?, ?, ?, FALSE)';
-    await pool.execute(insertQuery, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
+    // Paso 1: Insertar la nueva alerta.
+    const insertQuery = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje, leida) VALUES ($1, $2, $3, $4, FALSE)';
+    await pool.query(insertQuery, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
 
     // Paso 2: Obtener todos los usuarios (con sus tokens) asociados a la colmena afectada.
-    const [usuarios] = await pool.execute(`
+    const { rows: usuarios } = await pool.query(`
       SELECT u.id, u.nombre, u.push_token
       FROM usuarios u
       JOIN usuarios_apiarios ua ON u.id = ua.usuario_id
       JOIN colmenas c ON ua.apiario_id = c.apiario_id
-      WHERE c.id = ? AND u.push_token IS NOT NULL
+      WHERE c.id = $1 AND u.push_token IS NOT NULL
     `, [colmena_id]);
 
     // Agrupar tokens por ID de usuario para manejar múltiples dispositivos.
@@ -659,16 +622,15 @@ app.post('/api/alertas', async (req, res) => {
     // Paso 3: Para cada usuario, obtener su conteo de alertas y construir los mensajes.
     let allMessages = [];
     for (const userId of userIds) {
-      // La inserción anterior ya terminó, por lo que este conteo será preciso.
-      const [countResult] = await pool.execute(`
-        SELECT COUNT(*) as unreadCount FROM alertas a
+      const { rows: countResult } = await pool.query(`
+        SELECT COUNT(*) as "unreadCount" FROM alertas a
         JOIN colmenas c ON a.colmena_id = c.id
         JOIN apiarios ap ON c.apiario_id = ap.id
         JOIN usuarios_apiarios ua ON ap.id = ua.apiario_id
-        WHERE ua.usuario_id = ? AND a.leida = FALSE
+        WHERE ua.usuario_id = $1 AND a.leida = FALSE
       `, [userId]);
       
-      const unreadCount = countResult[0].unreadCount;
+      const unreadCount = parseInt(countResult[0].unreadCount, 10);
       console.log(`DEBUG: Usuario ID ${userId} tiene un nuevo total de ${unreadCount} alertas.`);
 
       const userTokens = Array.from(usuariosConTokens[userId].tokens);
