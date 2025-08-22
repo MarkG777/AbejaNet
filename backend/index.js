@@ -480,8 +480,12 @@ app.post('/api/lecturas', async (req, res) => {
   }
 });
 
+
+/*
 // =================================================================
-// ENDPOINT DE NOTICIAS
+// ENDPOINT DE NOTICIAS (DESHABILITADO)
+// La lógica se movió al frontend para evitar el bloqueo de Cloudflare.
+// Se conserva comentado como referencia.
 // =================================================================
 
 app.get('/api/noticias', async (req, res) => {
@@ -522,6 +526,7 @@ app.get('/api/noticias', async (req, res) => {
     }
   }
 });
+*/
 
 // ==============================================
 // ENDPOINT PARA GESTIÓN DE ALERTAS

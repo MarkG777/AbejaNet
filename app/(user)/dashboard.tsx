@@ -10,6 +10,7 @@ import { isAxiosError } from 'axios';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { useNotifications } from '../context/NotificationsContext';
+import Constants from 'expo-constants';
 
 // --- INTERFACES ---
 interface SummaryData {
@@ -115,15 +116,30 @@ const UserDashboardScreen = () => {
       })
       .finally(() => setLoadingSummary(false));
 
-    // Cargar noticias (opcional, podrías decidir no recargar noticias cada vez)
+    // Cargar noticias directamente desde NewsAPI para evitar el bloqueo de Cloudflare
     setLoadingNews(true);
-    api.get('/api/noticias')
-      .then(response => setNews(response.data.articles || []))
-      .catch(err => {
-        console.error('Error al obtener las noticias:', err);
-        setErrorNews('No se pudieron cargar las noticias.');
-      })
-      .finally(() => setLoadingNews(false));
+    const apiKey = Constants.expoConfig?.extra?.NEWS_API_KEY;
+
+    if (!apiKey) {
+      console.error('NEWS_API_KEY no está configurada en app.json');
+      setErrorNews('Falta la configuración para cargar noticias.');
+      setLoadingNews(false);
+    } else {
+      const query = '(apicultura OR abejas OR colmenas OR "producción de miel" OR apicultor OR polinización) NOT (Acteal OR política OR fábula OR izquierda OR corrupción)';
+      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=es&sortBy=publishedAt&apiKey=${apiKey}`;
+
+      // Usamos el 'api' (instancia de Axios) para hacer la petición directa
+      api.get(url)
+        .then(response => {
+          const filteredArticles = response.data.articles.filter((article: NewsArticle) => article.title && article.title !== "[Removed]");
+          setNews(filteredArticles || []);
+        })
+        .catch(err => {
+          console.error('Error al obtener las noticias directamente desde NewsAPI:', err);
+          setErrorNews('No se pudieron cargar las noticias.');
+        })
+        .finally(() => setLoadingNews(false));
+    }
   }, []); // useCallback con dependencias vacías para que la función no se recree
 
   // Usar useFocusEffect para recargar los datos cada vez que la pantalla se enfoca.
