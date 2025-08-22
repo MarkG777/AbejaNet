@@ -484,7 +484,7 @@ app.post('/api/lecturas', async (req, res) => {
 // ENDPOINT DE NOTICIAS
 // =================================================================
 
-app.get('/api/noticias', verificarToken, async (req, res) => {
+app.get('/api/noticias', async (req, res) => {
   try {
     const apiKey = process.env.NEWS_API_KEY;
     if (!apiKey) {
