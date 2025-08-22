@@ -175,17 +175,28 @@ app.post('/api/auth/google', async (req, res) => {
   }
 
   try {
-    // 1. Verificar el token de Google
+    // 1. Verificar el token de Google de forma segura y dinámica
     const ticket = await googleClient.verifyIdToken({
       idToken: token,
-      audience: [
-        process.env.GOOGLE_ANDROID_CLIENT_ID, 
-        process.env.GOOGLE_IOS_CLIENT_ID, 
-        process.env.GOOGLE_WEB_CLIENT_ID,
-        process.env.GOOGLE_ANDROID_CLIENT_ID_DEBUG
-      ],
+      // La audiencia se verifica dinámicamente en el backend.
+      // No se pasa una lista fija aquí, ya que el token debe ser validado
+      // contra el Client ID específico para el que fue emitido.
     });
+
     const payload = ticket.getPayload();
+    const tokenAudience = payload.aud;
+
+    // Lista de Client IDs válidos de tus variables de entorno
+    const validClients = [
+      process.env.GOOGLE_ANDROID_CLIENT_ID,
+      process.env.GOOGLE_IOS_CLIENT_ID,
+      process.env.GOOGLE_WEB_CLIENT_ID,
+      process.env.GOOGLE_ANDROID_CLIENT_ID_DEBUG
+    ].filter(Boolean); // Filtra por si alguna variable no está definida
+
+    if (!validClients.includes(tokenAudience)) {
+      throw new Error(`Token inválido: la audiencia (${tokenAudience}) no corresponde a un cliente autorizado.`);
+    }
     const { email, name, given_name, family_name } = payload;
 
     if (!email) {
