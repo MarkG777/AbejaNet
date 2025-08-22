@@ -32,15 +32,32 @@ export default function LoginScreen() {
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   useEffect(() => {
-    const googleAuthConfig = Constants.expoConfig?.extra?.googleAuth;
-    if (googleAuthConfig?.webClientId) {
+    try {
+      const googleAuthConfig = Constants.expoConfig?.extra?.googleAuth;
+      if (!googleAuthConfig) {
+        throw new Error('La configuración de Google Auth no se encuentra en app.json.');
+      }
+
+      // Determina qué Android Client ID usar
+      const androidClientId = __DEV__ 
+        ? googleAuthConfig.androidClientIdDebug 
+        : googleAuthConfig.androidClientId;
+
+      if (!androidClientId) {
+        throw new Error(`El Client ID de Android para el entorno ${__DEV__ ? 'de depuración' : 'de producción'} no está definido.`);
+      }
+
       GoogleSignin.configure({
-        webClientId: googleAuthConfig.webClientId,
+        webClientId: googleAuthConfig.webClientId, // Necesario para obtener el idToken
+        androidClientId: androidClientId,         // ID específico para la app Android
+        iosClientId: googleAuthConfig.iosClientId,   // ID específico para iOS
       });
-      console.log('Google Sign-In configurado con webClientId.');
-    } else {
-      console.error('Error: webClientId no encontrado en app.json.');
-      Alert.alert('Error de Configuración', 'Falta el ID de cliente web de Google.');
+
+      console.log(`Google Sign-In configurado para el entorno ${__DEV__ ? 'DEBUG' : 'PROD'}.`);
+
+    } catch (error: any) {
+      console.error('Error al configurar Google Sign-In:', error.message);
+      Alert.alert('Error de Configuración', error.message || 'No se pudo inicializar Google Sign-In.');
     }
   }, []);
 
