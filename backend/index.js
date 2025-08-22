@@ -276,6 +276,75 @@ app.post('/api/auth/google', async (req, res) => {
 // =================================================================
 
 // Endpoint para obtener un resumen de datos para el dashboard
+// =================================================================
+// MIDDLEWARE PARA AUTENTICACIÓN DE DISPOSITIVOS IOT (ESP32)
+// =================================================================
+const verificarApiKey = (req, res, next) => {
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey !== process.env.ESP32_API_KEY) {
+    return res.status(401).json({ success: false, message: 'API Key no válida o no proporcionada.' });
+  }
+  next();
+};
+
+// =================================================================
+// ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
+// =================================================================
+app.post('/api/sensor-data', verificarApiKey, async (req, res) => {
+  const { mac_address, temperatura, humedad, peso, sonido, lluvia } = req.body;
+
+  if (!mac_address) {
+    return res.status(400).json({ success: false, message: 'La mac_address es obligatoria.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    // 1. Buscar el sensor por MAC. Si no existe, crearlo. Si existe, verificar su estado.
+    let sensorResult = await client.query('SELECT id, estado FROM sensores WHERE mac_address = $1', [mac_address]);
+    let sensorId;
+
+    if (sensorResult.rows.length === 0) {
+      // Sensor no encontrado, lo registramos como 'no_asignado'.
+      const newSensorResult = await client.query(
+        'INSERT INTO sensores (mac_address, estado) VALUES ($1, $2) RETURNING id',
+        [mac_address, 'no_asignado']
+      );
+      sensorId = newSensorResult.rows[0].id;
+      console.log(`[INFO] Nuevo sensor auto-registrado con MAC: ${mac_address} y ID: ${sensorId}`);
+    } else {
+      // El sensor ya existe, verificamos su estado.
+      const sensor = sensorResult.rows[0];
+      if (sensor.estado === 'inactivo' || sensor.estado === 'mantenimiento') {
+        // Si el sensor está inactivo o en mantenimiento, rechazamos la lectura.
+        return res.status(403).json({ 
+          success: false, 
+          message: `El sensor con MAC ${mac_address} está actualmente '${sensor.estado}' y no puede registrar datos.` 
+        });
+      }
+      sensorId = sensor.id;
+    }
+
+    // 2. Insertar la nueva lectura ambiental
+    await client.query(
+      `INSERT INTO lecturas_ambientales (sensor_id, humedad, temperatura, peso, sonido, lluvia)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [sensorId, humedad, temperatura, peso, sonido, lluvia]
+    );
+
+    // 3. Actualizar la fecha de última lectura en la tabla de sensores
+    await client.query('UPDATE sensores SET ultima_lectura_en = CURRENT_TIMESTAMP WHERE id = $1', [sensorId]);
+
+    res.status(201).json({ success: true, message: 'Datos del sensor recibidos y guardados correctamente.' });
+
+  } catch (err) {
+    console.error('Error en /api/sensor-data:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor al procesar los datos del sensor.' });
+  } finally {
+    client.release();
+  }
+});
+
+
 app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
   const { userId } = req.usuario;
 

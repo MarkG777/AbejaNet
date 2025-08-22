@@ -7,7 +7,7 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
-import pg from 'pg';
+import pool from './db.js'; // Importar el pool configurado
 import { fileURLToPath } from 'url';
 
 console.log('--- Script de generación de datos iniciado ---');
@@ -27,23 +27,6 @@ const LECTURAS_POR_HORA = 4; // Una lectura cada 15 minutos
 const FECHA_INICIO = new Date();
 FECHA_INICIO.setDate(FECHA_INICIO.getDate() - DIAS_A_GENERAR);
 
-// --- Configuración de la Base de Datos (PostgreSQL) ---
-// El Pool de pg leerá la variable de entorno y le añadimos la configuración SSL
-// necesaria para conectar con bases de datos en la nube como Render.
-// --- Configuración de la Base de Datos (PostgreSQL) ---
-// Construimos la configuración manualmente para máxima compatibilidad,
-// imitando la configuración que funcionó en DBeaver.
-const pool = new pg.Pool({
-  connectionTimeoutMillis: 10000, // 10 segundos de tiempo de espera
-  host: '35.227.164.209',
-  user: 'abeja_user',
-  database: 'abeja_net_v2_s99y',
-  password: 'kIN5PhmpwAtG4MdUSl7DnyMwaRW6n2TI',
-  port: 5432,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
 
 // --- Funciones de Simulación de Datos (sin cambios) ---
 
