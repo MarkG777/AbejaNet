@@ -10,8 +10,11 @@ const { Pool } = pg;
 // La librería 'pg' la usa automáticamente si está disponible.
 // Para desarrollo local, puedes crear un archivo .env con DATABASE_URL="postgresql://user:password@host:port/database"
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // Si estás usando una base de datos de Render con SSL, es importante añadir esto:
+  host: '35.227.164.209', // IP directa para evitar problemas de DNS
+  user: 'abeja_user',
+  database: 'abeja_net_v2_s99y',
+  password: 'kIN5PhmpwAtG4MdUSl7DnyMwaRW6n2TI',
+  port: 5432,
   ssl: {
     rejectUnauthorized: false
   }

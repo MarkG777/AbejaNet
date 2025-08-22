@@ -6,10 +6,18 @@
 // =================================================================
 
 import dotenv from 'dotenv';
+import path from 'path';
 import pg from 'pg';
+import { fileURLToPath } from 'url';
 
-// Cargar variables de entorno
-dotenv.config();
+console.log('--- Script de generación de datos iniciado ---');
+
+// --- Configuración de la ruta para .env ---
+// Esto asegura que el script encuentre el .env en su propio directorio (backend/)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+
 
 // --- Configuración de la Simulación ---
 const COLMENA_NOMBRE = 'Colmena Beta Lab';
@@ -20,8 +28,22 @@ const FECHA_INICIO = new Date();
 FECHA_INICIO.setDate(FECHA_INICIO.getDate() - DIAS_A_GENERAR);
 
 // --- Configuración de la Base de Datos (PostgreSQL) ---
-// El Pool de pg leerá automáticamente la variable de entorno DATABASE_URL
-const pool = new pg.Pool();
+// El Pool de pg leerá la variable de entorno y le añadimos la configuración SSL
+// necesaria para conectar con bases de datos en la nube como Render.
+// --- Configuración de la Base de Datos (PostgreSQL) ---
+// Construimos la configuración manualmente para máxima compatibilidad,
+// imitando la configuración que funcionó en DBeaver.
+const pool = new pg.Pool({
+  connectionTimeoutMillis: 10000, // 10 segundos de tiempo de espera
+  host: '35.227.164.209',
+  user: 'abeja_user',
+  database: 'abeja_net_v2_s99y',
+  password: 'kIN5PhmpwAtG4MdUSl7DnyMwaRW6n2TI',
+  port: 5432,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 // --- Funciones de Simulación de Datos (sin cambios) ---
 
@@ -96,19 +118,16 @@ const generarDatos = async () => {
     await client.query('BEGIN');
     console.log('Iniciando transacción para inserción masiva...');
 
-    const insertLecturaQuery = 'INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, fecha_registro) VALUES ($1, $2, $3, $4, $5, $6, $7)';
-    let lecturasInsertadas = 0;
-
+    const lecturas = [];
     while (fechaActual < fechaFin) {
       const diaSimulacion = (fechaActual - FECHA_INICIO) / (1000 * 60 * 60 * 24);
-
       const temperatura = simularTemperatura(fechaActual);
       const humedad = simularHumedad(temperatura);
       const peso = simularPeso(diaSimulacion);
       const sonido = simularSonido(fechaActual);
       const lluvia = Math.random() < 0.05;
 
-      await client.query(insertLecturaQuery, [
+      lecturas.push([
         sensorId,
         temperatura,
         humedad,
@@ -117,15 +136,23 @@ const generarDatos = async () => {
         lluvia,
         new Date(fechaActual)
       ]);
-      lecturasInsertadas++;
       
       fechaActual.setMinutes(fechaActual.getMinutes() + (60 / LECTURAS_POR_HORA));
+    }
+
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < lecturas.length; i += BATCH_SIZE) {
+      const batch = lecturas.slice(i, i + BATCH_SIZE);
+      const valuesPlaceholder = batch.map((_, index) => `($${index * 7 + 1}, $${index * 7 + 2}, $${index * 7 + 3}, $${index * 7 + 4}, $${index * 7 + 5}, $${index * 7 + 6}, $${index * 7 + 7})`).join(',');
+      const insertQuery = `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, fecha_registro) VALUES ${valuesPlaceholder}`;
+      await client.query(insertQuery, batch.flat());
+      console.log(`- Lote insertado: ${i + batch.length} de ${lecturas.length} registros.`);
     }
 
     await client.query('COMMIT');
     console.log('Transacción completada.');
 
-    console.log(`\n¡Proceso finalizado! Se insertaron un total de ${lecturasInsertadas} registros.`);
+    console.log(`\n¡Proceso finalizado! Se insertaron un total de ${lecturas.length} registros.`);
 
   } catch (error) {
     if (client) {
