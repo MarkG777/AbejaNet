@@ -174,28 +174,26 @@ app.post('/api/auth/google', async (req, res) => {
     return res.status(400).json({ success: false, message: 'No se proporcionó el token de Google.' });
   }
 
+  // Lista de Client IDs válidos de tus variables de entorno
+  const validClients = [
+    process.env.GOOGLE_ANDROID_CLIENT_ID,
+    process.env.GOOGLE_IOS_CLIENT_ID,
+    process.env.GOOGLE_WEB_CLIENT_ID,
+    process.env.GOOGLE_ANDROID_CLIENT_ID_DEBUG
+  ].filter(Boolean); // Filtra por si alguna variable no está definida
+
   try {
     // 1. Verificar el token de Google de forma segura y dinámica
     const ticket = await googleClient.verifyIdToken({
       idToken: token,
-      // La audiencia se verifica dinámicamente en el backend.
-      // No se pasa una lista fija aquí, ya que el token debe ser validado
-      // contra el Client ID específico para el que fue emitido.
     });
 
     const payload = ticket.getPayload();
     const tokenAudience = payload.aud;
 
-    // Lista de Client IDs válidos de tus variables de entorno
-    const validClients = [
-      process.env.GOOGLE_ANDROID_CLIENT_ID,
-      process.env.GOOGLE_IOS_CLIENT_ID,
-      process.env.GOOGLE_WEB_CLIENT_ID,
-      process.env.GOOGLE_ANDROID_CLIENT_ID_DEBUG
-    ].filter(Boolean); // Filtra por si alguna variable no está definida
-
     if (!validClients.includes(tokenAudience)) {
-      throw new Error(`Token inválido: la audiencia (${tokenAudience}) no corresponde a un cliente autorizado.`);
+      // Lanzamos un error específico para que el bloque catch lo identifique.
+      throw new Error(`Wrong recipient: la audiencia del token (${tokenAudience}) no está en la lista de clientes autorizados.`);
     }
     const { email, name, given_name, family_name } = payload;
 
@@ -252,8 +250,24 @@ app.post('/api/auth/google', async (req, res) => {
     }
 
   } catch (err) {
-    console.error('Error en /api/auth/google:', err);
-    res.status(500).json({ success: false, message: 'Error en la autenticación con Google.' });
+    // Si el error es por una audiencia incorrecta, lo capturamos para depurar.
+    if (err.message.includes('Wrong recipient')) {
+      const decodedToken = jwt.decode(token);
+      const audienceInToken = decodedToken?.aud || 'No se pudo decodificar la audiencia del token.';
+      
+      console.error(`[AUTH DEBUG] Fallo de audiencia en Google Sign-In.`);
+      console.error(`[AUTH DEBUG] Audience en el token recibido: ${audienceInToken}`);
+      console.error(`[AUTH DEBUG] Client IDs válidos configurados en Render: ${JSON.stringify(validClients)}`);
+
+      return res.status(401).json({ 
+        success: false, 
+        message: `Error de autenticación: El token de la app no coincide con los Client IDs del servidor. Audience en token: ${audienceInToken}` 
+      });
+    }
+
+    // Para cualquier otro tipo de error.
+    console.error('Error inesperado en /api/auth/google:', err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor durante la autenticación con Google.' });
   }
 });
 
