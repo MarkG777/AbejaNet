@@ -25,10 +25,12 @@ const char* password = "TU_CONTRASENA_WIFI"; // La contraseña de tu red WiFi
 // La IP y el puerto de tu servidor backend. 
 // Ejemplo: si tu backend corre en 192.168.1.100 en el puerto 3000,
 // la URL sería "http://192.168.1.100:3000/api/sensor-data"
-const char* serverUrl = "http://TU_IP_DE_SERVIDOR:3000/api/sensor-data";
+// La URL de tu servicio backend en Render. Reemplaza 'nombre-app' por el tuyo.
+const char* serverUrl = "https://TU_APP_RENDER.onrender.com/api/sensor-data";
 
 // Tu clave de API secreta (la misma que en el archivo .env del backend)
-const char* apiKey = "TU_ESP32_API_KEY"; 
+// Tu clave de API secreta (la misma que en el archivo .env del backend)
+const char* apiKey = "abeja-maestra-secreta-777"; 
 
 // Intervalo entre envíos de datos (en milisegundos)
 // 600000 ms = 10 minutos
