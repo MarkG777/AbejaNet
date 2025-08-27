@@ -281,7 +281,7 @@ app.post('/api/auth/google', async (req, res) => {
 // =================================================================
 const verificarApiKey = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
-  if (!apiKey || apiKey !== process.env.ESP32_API_KEY) {
+    if (!apiKey || apiKey !== process.env['X-API-Key']) {
     return res.status(401).json({ success: false, message: 'API Key no válida o no proporcionada.' });
   }
   next();
@@ -579,14 +579,11 @@ app.post('/api/lecturas', async (req, res) => {
 // =================================================================
 // ENDPOINT DE NOTICIAS (DESHABILITADO)
 // La lógica se movió al frontend para evitar el bloqueo de Cloudflare.
-// Se conserva comentado como referencia.
-// =================================================================
-
 app.get('/api/noticias', async (req, res) => {
   try {
-    const apiKey = process.env.NEWS_API_KEY;
+    const apiKey = process.env['X-API-Key'];
     if (!apiKey) {
-      console.error('La clave de API para noticias (NEWS_API_KEY) no está configurada en el archivo .env');
+      console.error('La clave de API para noticias (X-API-Key) no está configurada en el archivo .env');
       return res.status(500).json({ message: 'Error de configuración del servidor: falta la clave de API de noticias.' });
     }
 
