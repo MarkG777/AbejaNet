@@ -280,8 +280,12 @@ app.post('/api/auth/google', async (req, res) => {
 // MIDDLEWARE PARA AUTENTICACIÓN DE DISPOSITIVOS IOT (ESP32)
 // =================================================================
 const verificarApiKey = (req, res, next) => {
-  const apiKey = req.headers['x-api-key'];
-    if (!apiKey || apiKey !== process.env['X-API-Key']) {
+    const apiKey = req.headers['x-api-key'];
+  const expectedApiKey = process.env['X-API-Key'];
+
+  console.log(`[AUTH DEBUG] Received API Key: ${apiKey}`);
+  console.log(`[AUTH DEBUG] Expected API Key from Env: ${expectedApiKey}`);
+      if (!apiKey || apiKey !== expectedApiKey) {
     return res.status(401).json({ success: false, message: 'API Key no válida o no proporcionada.' });
   }
   next();
