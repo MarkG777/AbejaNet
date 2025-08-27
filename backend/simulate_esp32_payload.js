@@ -34,7 +34,7 @@ const enviarLectura = async () => {
       timeout: 90000, // 90 segundos de timeout para dar tiempo a Render a despertar
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': API_KEY // Añadir la cabecera de autenticación
+        'x-api-key': API_KEY // Añadir la cabecera de autenticación
       }
     });
 
