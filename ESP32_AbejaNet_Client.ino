@@ -26,7 +26,7 @@ const char* password = "TU_CONTRASENA_WIFI"; // La contraseña de tu red WiFi
 // Ejemplo: si tu backend corre en 192.168.1.100 en el puerto 3000,
 // la URL sería "http://192.168.1.100:3000/api/sensor-data"
 // La URL de tu servicio backend en Render. Reemplaza 'nombre-app' por el tuyo.
-const char* serverUrl = "https://TU_APP_RENDER.onrender.com/api/sensor-data";
+const char* serverUrl = "https://abejanet-backend.onrender.com/api/sensor-data";
 
 // Tu clave de API secreta (la misma que en el archivo .env del backend)
 // Tu clave de API secreta (la misma que en el archivo .env del backend)

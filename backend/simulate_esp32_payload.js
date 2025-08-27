@@ -10,12 +10,12 @@ import axios from 'axios';
 // Asegúrate de que esta URL apunta a tu backend en ejecución.
 // Si ejecutas este script en la misma máquina que el servidor, localhost es correcto.
 const API_ENDPOINT = 'https://abejanet-backend.onrender.com/api/sensor-data';
-const API_KEY = 'abeja-maestra-secreta-777'; // Tu API Key
+const API_KEY = 'abeja-maestra-secreta-777'; // mi API Key
 
 // Datos de ejemplo que simulan la lectura de un sensor.
 // Este es el JSON exacto que enviría un ESP32.
 const payload = {
-  "mac_address": "A8:03:2A:B4:C1:D0", // Clave correcta
+  "mac_address": "A8:03:2A:B4:C1:D1", // Clave correcta
   "temperatura": 27.5,
   "humedad": 68.9,
   "peso": 42.1,
