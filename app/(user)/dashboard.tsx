@@ -74,6 +74,8 @@ const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
   );
 };
 
+const CARD_WIDTH = Dimensions.get('window').width - 40;
+
 const UserDashboardScreen = () => {
   const router = useRouter();
   const navigation = useNavigation();
@@ -238,6 +240,12 @@ const UserDashboardScreen = () => {
     );
   };
 
+    const getItemLayout = useCallback((data: any, index: number) => ({
+    length: CARD_WIDTH,
+    offset: CARD_WIDTH * index,
+    index,
+  }), []);
+
   const renderNewsSection = () => {
     if (loadingNews) return <ActivityIndicator size="large" color="#F59E0B" style={{ marginVertical: 20 }} />;
     if (errorNews) return <Text style={styles.errorText}>{errorNews}</Text>;
@@ -251,9 +259,10 @@ const UserDashboardScreen = () => {
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        getItemLayout={getItemLayout}
         onScroll={(event) => {
           // Actualizar el índice activo si el usuario desliza manualmente
-          const index = Math.round(event.nativeEvent.contentOffset.x / (Dimensions.get('window').width - 40));
+          const index = Math.round(event.nativeEvent.contentOffset.x / CARD_WIDTH);
           setActiveIndex(index);
         }}
         scrollEventThrottle={16}
@@ -320,7 +329,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 4,
     overflow: 'hidden',
-    width: Dimensions.get('window').width - 40, // Ancho completo menos el padding
+    width: CARD_WIDTH, // Ancho completo menos el padding
     height: 300, // Altura fija para el carrusel
   },
   newsImage: { width: '100%', height: 180 },

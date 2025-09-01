@@ -13,7 +13,7 @@
 DO $$
 DECLARE
     -- ¡SOLO NECESITAS MODIFICAR ESTAS TRES LÍNEAS!
-    correo_usuario_a_asignar TEXT := 'profejuanito@gmail.com'; -- <-- Reemplaza con el correo del usuario
+    correo_usuario_a_asignar TEXT := 'alejandrapadilla@gmail.com'; -- <-- Reemplaza con el correo del usuario
     nombre_apiario_a_asignar TEXT := 'Apiario Secundario del Laboratorio';   -- <-- Reemplaza con el nombre del apiario
     correo_admin_que_asigna  TEXT := 'admin@abejanet.com';     -- <-- Reemplaza con el correo del admin
 

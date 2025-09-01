@@ -44,9 +44,49 @@ const colorMap: Record<MetricKey, string> = {
   sonido: 'rgba(153,102,255,1)',
 };
 
+const processLecturas = (lecturas: Lectura[], timeRange: TimeRange): Lectura[] => {
+  if (timeRange !== 'day' || lecturas.length === 0) {
+    return lecturas;
+  }
+
+  const hourlyData: { [hour: string]: { sums: Record<MetricKey, number>; counts: Record<MetricKey, number>; } } = {};
+
+  lecturas.forEach(lectura => {
+    const hour = format(parseISO(lectura.fecha_registro), 'yyyy-MM-dd HH:00');
+    if (!hourlyData[hour]) {
+      hourlyData[hour] = {
+        sums: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
+        counts: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
+      };
+    }
+
+    (['temperatura', 'humedad', 'peso', 'sonido'] as MetricKey[]).forEach(key => {
+      if (lectura[key] !== null && typeof lectura[key] === 'number') {
+        hourlyData[hour].sums[key] += lectura[key]!;
+        hourlyData[hour].counts[key]++;
+      }
+    });
+  });
+
+  const averagedLecturas: Lectura[] = Object.keys(hourlyData).map(hour => {
+    const data = hourlyData[hour];
+    return {
+      fecha_registro: parseISO(hour).toISOString(),
+      temperatura: data.counts.temperatura > 0 ? data.sums.temperatura / data.counts.temperatura : null,
+      humedad: data.counts.humedad > 0 ? data.sums.humedad / data.counts.humedad : null,
+      peso: data.counts.peso > 0 ? data.sums.peso / data.counts.peso : null,
+      sonido: data.counts.sonido > 0 ? data.sums.sonido / data.counts.sonido : null,
+    } as Lectura;
+  });
+
+  return averagedLecturas.sort((a, b) => new Date(a.fecha_registro).getTime() - new Date(b.fecha_registro).getTime());
+};
+
 const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, timeRange, baseKey }) => {
   const [activeKeys, setActiveKeys] = useState<MetricKey[]>([baseKey]);
   const [selectedPoint, setSelectedPoint] = useState<any | null>(null);
+
+  const processedData = useMemo(() => processLecturas(lecturas, timeRange), [lecturas, timeRange]);
   
 
   const toggleKey = (k: MetricKey) => {
@@ -54,17 +94,20 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
   };
 
   const firstValues = useMemo(() => {
-    const first = lecturas[0];
+    if (processedData.length === 0) {
+      return { temperatura: 0, humedad: 0, peso: 0, sonido: 0 };
+    }
+    const first = processedData[0];
     return {
       temperatura: first?.temperatura ?? 0,
       humedad: first?.humedad ?? 0,
       peso: first?.peso ?? 0,
       sonido: first?.sonido ?? 0,
     } as Record<MetricKey, number>;
-  }, [lecturas]);
+  }, [processedData]);
 
   const buildSeries = (key: MetricKey) => {
-    return lecturas.map(l => {
+    return processedData.map(l => {
       const raw = l[key] ?? 0;
       const delta = firstValues[key] === 0 ? 0 : ((raw - firstValues[key]) * 100) / firstValues[key];
       return {
@@ -92,12 +135,13 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
       <View style={styles.container}>
         <Text style={styles.title}>{labelMap[baseKey]} – Comparación</Text>
 
-        <VictoryChart
-          width={Dimensions.get('window').width - 20}
-          height={260}
-          theme={VictoryTheme.material}
-          domainPadding={{ y: 20, x: 30 }}
-          containerComponent={
+        {processedData.length > 0 ? (
+          <VictoryChart
+            width={Dimensions.get('window').width - 20}
+            height={260}
+            theme={VictoryTheme.material}
+            domainPadding={{ y: 20, x: 30 }}
+            containerComponent={
             <VictoryVoronoiContainer
               labels={({ datum }) => `${datum.series}\n${datum.raw?.toFixed(1)} ${unitMap[datum.metricKey as MetricKey]} (${datum.delta.toFixed(1)}%)`}
               labelComponent={<VictoryTooltip cornerRadius={4} flyoutStyle={{ fill: '#fff' }} style={{ fontSize: 16 }} />}
@@ -114,12 +158,6 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
               style={{ data: { stroke: colorMap[k], strokeWidth: 2 } }}
             />
           ))}
-          <VictoryLegend
-            x={50}
-            y={0}
-            gutter={20}
-            data={activeKeys.map(k => ({ name: labelMap[k], symbol: { fill: colorMap[k] } }))}
-          />
         {selectedPoint && (
             <VictoryScatter
               data={[selectedPoint]}
@@ -127,7 +165,12 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
               style={{ data: { fill: colorMap[selectedPoint.metricKey as MetricKey] } }}
             />
           )}
-        </VictoryChart>
+          </VictoryChart>
+        ) : (
+          <View style={styles.chartPlaceholder}>
+            <Text style={styles.chartPlaceholderText}>No hay datos para mostrar en el período seleccionado.</Text>
+          </View>
+        )}
 
         {selectedPoint && (
           <Text style={styles.selectedInfo}>
@@ -150,7 +193,7 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
         {inactiveKeys.length > 0 && (
           <View style={styles.deltaRow}>
             {inactiveKeys.map(k => {
-              const last = lecturas[lecturas.length - 1][k] ?? 0;
+              const last = processedData.length > 0 ? processedData[processedData.length - 1][k] ?? 0 : 0;
               const first = firstValues[k];
               const delta = first === 0 ? 0 : ((last - first) * 100) / first;
               return (
@@ -171,6 +214,20 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
 export default ComparisonChartModal;
 
 const styles = StyleSheet.create({
+  chartPlaceholder: {
+    height: 260,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    width: Dimensions.get('window').width - 20,
+    borderRadius: 8,
+  },
+  chartPlaceholderText: {
+    color: '#6c757d',
+    fontSize: 16,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
   container: {
     flex: 1,
     paddingTop: 40,

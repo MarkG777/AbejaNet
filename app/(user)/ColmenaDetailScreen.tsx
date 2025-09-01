@@ -277,14 +277,46 @@ export default function ColmenaDetailScreen() {
     fetchLecturas();
   }, [colmenaId, authState.accessToken, timeRange]);
 
-  const filteredLecturas = useMemo(() => {
-    return lecturas;
-  }, [lecturas]);
+  
+  const processDataForPreview = (data: Lectura[], range: TimeRange): Lectura[] => {
+    if (range !== 'day' || data.length < 24) { // Solo promediar si hay suficientes datos
+      return data;
+    }
+
+    const hourlyData: { [hour: string]: { sums: Record<SensorDataKey, number>; counts: Record<SensorDataKey, number>; } } = {};
+
+    data.forEach(lectura => {
+      const hour = format(parseISO(lectura.fecha_registro), 'yyyy-MM-dd HH:00');
+      if (!hourlyData[hour]) {
+        hourlyData[hour] = {
+          sums: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
+          counts: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
+        };
+      }
+      allChartProps.forEach(({ dataKey }) => {
+        if (lectura[dataKey] !== null && typeof lectura[dataKey] === 'number') {
+          hourlyData[hour].sums[dataKey] += lectura[dataKey]!;
+          hourlyData[hour].counts[dataKey]++;
+        }
+      });
+    });
+
+    return Object.keys(hourlyData).map(hour => {
+      const hourData = hourlyData[hour];
+      const newLectura: any = { fecha_registro: parseISO(hour).toISOString() };
+      allChartProps.forEach(({ dataKey }) => {
+        newLectura[dataKey] = hourData.counts[dataKey] > 0 ? hourData.sums[dataKey] / hourData.counts[dataKey] : null;
+      });
+      return newLectura;
+    }).sort((a, b) => new Date(a.fecha_registro).getTime() - new Date(b.fecha_registro).getTime());
+  };
+
+  const chartPreviewData = useMemo(() => processDataForPreview(lecturas, timeRange), [lecturas, timeRange]);
 
   const ultimaLectura = useMemo(() => {
-    if (filteredLecturas.length === 0) return null;
-    return filteredLecturas[filteredLecturas.length - 1];
-  }, [filteredLecturas]);
+    if (lecturas.length === 0) return null;
+    return lecturas[lecturas.length - 1];
+  }, [lecturas]);
 
   if (loading) {
     return <ActivityIndicator size="large" color="#0000ff" style={styles.centered} />;
@@ -331,7 +363,7 @@ export default function ColmenaDetailScreen() {
 
       {allChartProps.map((props) => (
         <TouchableOpacity key={props.title} onPress={() => handleChartPress(props)}>
-          <SensorChart {...props} data={filteredLecturas} timeRange={timeRange} />
+          <SensorChart {...props} data={chartPreviewData} timeRange={timeRange} />
         </TouchableOpacity>
       ))}
 
@@ -340,7 +372,7 @@ export default function ColmenaDetailScreen() {
         <ComparisonChartModal
           visible={modalVisible}
           onClose={handleCloseModal}
-          lecturas={filteredLecturas}
+          lecturas={lecturas} // Pasamos los datos en BRUTO al modal
           timeRange={timeRange}
           baseKey={selectedChart.dataKey}
         />
