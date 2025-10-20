@@ -44,7 +44,7 @@ void setup() {
   Serial.println("\n--- AbejaNet ESP32 Client ---");
 
   // Conectar a WiFi
-  connectToWiFi();
+  // connectToWiFi(); // Desactivado temporalmente para prueba de boot loop
 }
 
 void loop() {

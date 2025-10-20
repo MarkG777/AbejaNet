@@ -155,3 +155,4 @@ INSERT INTO lecturas_ambientales (sensor_id, humedad, temperatura, peso, sonido,
 ((SELECT id FROM sensores WHERE mac_address = 'AA:BB:CC:11:22:33' LIMIT 1), 65.5, 28.2, NULL, 55.4, false),
 ((SELECT id FROM sensores WHERE mac_address = 'AA:BB:CC:11:22:44' LIMIT 1), NULL, NULL, 15.5, NULL, false),
 ((SELECT id FROM sensores WHERE mac_address = 'AA:BB:CC:11:22:55' LIMIT 1), 70.1, 26.8, NULL, 62.1, false);
+
