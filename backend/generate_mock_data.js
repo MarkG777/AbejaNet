@@ -7,8 +7,8 @@
 
 import dotenv from 'dotenv';
 import path from 'path';
-import pool from './db.js'; // Importar el pool configurado
 import { fileURLToPath } from 'url';
+import pool from './db.js'; // Importar el pool configurado
 
 console.log('--- Script de generación de datos iniciado ---');
 
@@ -21,7 +21,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 // --- Configuración de la Simulación ---
 const COLMENA_NOMBRE = 'Colmena Beta Lab';
-const SENSOR_MAC = 'A8:03:2A:B4:C1:D0'; // MAC del ESP32 simulado
+const SENSOR_MAC = 'A8:03:2A:B9:C1:D0'; // MAC del ESP32 simulado
 const DIAS_A_GENERAR = 30; // Generar datos para un mes
 const LECTURAS_POR_HORA = 4; // Una lectura cada 15 minutos
 const FECHA_INICIO = new Date();
@@ -153,4 +153,10 @@ const generarDatos = async () => {
   }
 };
 
-generarDatos();
+// Solo ejecutar si se llama directamente (no cuando se importa)
+if (import.meta.url === `file://${process.argv[1]}`) {
+  generarDatos();
+}
+
+// Exportar la función para usarla desde otros módulos
+export default generarDatos;

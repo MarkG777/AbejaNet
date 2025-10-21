@@ -7,6 +7,7 @@ import express from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import pool from './db.js';
+import generarDatos from './generate_mock_data.js';
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -82,6 +83,18 @@ app.get('/debug/data', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para poblar datos de sensores (llama al módulo generate_mock_data.js)
+app.post('/debug/populate-data', async (req, res) => {
+  try {
+    console.log('Iniciando generación de datos de sensores...');
+    await generarDatos();
+    res.json({ success: true, message: 'Datos generados exitosamente' });
+  } catch (error) {
+    console.error('Error al generar datos:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
