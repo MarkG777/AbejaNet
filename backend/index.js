@@ -53,6 +53,38 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
+// Endpoint temporal para ver datos en la DB
+app.get('/debug/data', async (req, res) => {
+  try {
+    const roles = await pool.query('SELECT COUNT(*) as total FROM roles');
+    const usuarios = await pool.query('SELECT COUNT(*) as total FROM usuarios');
+    const apiarios = await pool.query('SELECT COUNT(*) as total FROM apiarios');
+    const colmenas = await pool.query('SELECT COUNT(*) as total FROM colmenas');
+    const sensores = await pool.query('SELECT COUNT(*) as total FROM sensores');
+    const lecturas = await pool.query('SELECT COUNT(*) as total FROM lecturas_ambientales');
+    const usuariosApiarios = await pool.query('SELECT COUNT(*) as total FROM usuarios_apiarios');
+    
+    const allUsuarios = await pool.query('SELECT id, correo_electronico, nombre, rol_id FROM usuarios LIMIT 10');
+    const allApiarios = await pool.query('SELECT id, nombre, descripcion_general FROM apiarios LIMIT 10');
+    
+    res.json({
+      totales: {
+        roles: roles.rows[0].total,
+        usuarios: usuarios.rows[0].total,
+        apiarios: apiarios.rows[0].total,
+        colmenas: colmenas.rows[0].total,
+        sensores: sensores.rows[0].total,
+        lecturas_ambientales: lecturas.rows[0].total,
+        usuarios_apiarios: usuariosApiarios.rows[0].total
+      },
+      usuarios: allUsuarios.rows,
+      apiarios: allApiarios.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // =================================================================
 // RUTAS DE USUARIOS Y AUTENTICACIÓN
 // =================================================================

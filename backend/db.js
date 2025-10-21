@@ -14,7 +14,8 @@ const pool = new Pool({
   },
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000
+  connectionTimeoutMillis: 60000, // 60 segundos para conexiones lentas
+  statement_timeout: 60000
 });
 
 // Exportamos el pool para que otros módulos puedan usarlo para hacer consultas.
