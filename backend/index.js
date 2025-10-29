@@ -8,6 +8,7 @@ import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
+import asignarUsuariosAApiario from './assign_users.js';
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -90,10 +91,31 @@ app.get('/debug/data', async (req, res) => {
 app.post('/debug/populate-data', async (req, res) => {
   try {
     console.log('Iniciando generación de datos de sensores...');
-    await generarDatos();
+    await generarDatos(false); // NO cerrar el pool cuando se llama desde aquí
     res.json({ success: true, message: 'Datos generados exitosamente' });
   } catch (error) {
     console.error('Error al generar datos:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Endpoint para asignar usuarios a apiarios (llama al módulo assign_users.js)
+app.post('/debug/assign-users', async (req, res) => {
+  try {
+    // Acepta un array de asignaciones o un solo objeto
+    let asignaciones = req.body;
+    
+    // Si envían un solo objeto, convertirlo a array
+    if (!Array.isArray(asignaciones)) {
+      asignaciones = [asignaciones];
+    }
+    
+    console.log('Asignando usuarios a apiarios...');
+    const resultado = await asignarUsuariosAApiario(asignaciones);
+    
+    res.json(resultado);
+  } catch (error) {
+    console.error('Error al asignar usuarios:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -60,7 +60,7 @@ const simularSonido = (date) => {
 
 // --- Script Principal (Adaptado para PostgreSQL) ---
 
-const generarDatos = async () => {
+const generarDatos = async (cerrarPool = true) => {
   let client;
   try {
     console.log('Conectando a la base de datos PostgreSQL...');
@@ -148,8 +148,10 @@ const generarDatos = async () => {
       client.release();
       console.log('Cliente liberado.');
     }
-    await pool.end();
-    console.log('Pool de conexiones cerrado.');
+    if (cerrarPool) {
+      await pool.end();
+      console.log('Pool de conexiones cerrado.');
+    }
   }
 };
 
