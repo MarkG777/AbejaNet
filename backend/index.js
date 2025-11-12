@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
 import asignarUsuariosAApiario from './assign_users.js';
+import enviarNotificacionPrueba from './test_notification.js';
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -832,6 +833,30 @@ app.post('/api/alertas', async (req, res) => {
   } catch (error) {
     console.error('Error al registrar la alerta:', error);
     res.status(500).json({ error: 'Error interno del servidor al registrar la alerta.' });
+  }
+});
+
+// ==============================================
+// ENDPOINT PARA PRUEBAS DE NOTIFICACIONES
+// ==============================================
+// Este endpoint utiliza el módulo test_notification.js para disparar
+// una notificación de prueba. Mantiene index.js limpio y modular.
+app.get('/api/test-notification', async (req, res) => {
+  try {
+    const colmenaNombre = req.query.colmena || 'Colmena Gamma Ppal';
+    const mensaje = req.query.mensaje;
+    
+    const opciones = {};
+    if (mensaje) opciones.mensaje = mensaje;
+
+    const resultado = await enviarNotificacionPrueba(colmenaNombre, opciones);
+    res.json(resultado);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error al ejecutar la prueba de notificación.',
+      error: error.message,
+    });
   }
 });
 
