@@ -860,10 +860,22 @@ app.get('/api/test-notification', async (req, res) => {
 });
 
 // ==============================================
-// ⚠️ ENDPOINT TEMPORAL - ELIMINAR DESPUÉS DE USAR
+// ENDPOINT DE SETUP DE BASE DE DATOS (PROTEGIDO)
 // ==============================================
-app.get('/SETUP-DB-ONCE', async (req, res) => {
+// Solo se ejecuta si se proporciona la clave secreta correcta
+app.post('/debug/setup-database', async (req, res) => {
   try {
+    // Protección: requiere clave secreta
+    const { secret } = req.body;
+    if (secret !== process.env.SETUP_SECRET) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acceso denegado. Clave secreta incorrecta.' 
+      });
+    }
+
+    console.log('🚀 Ejecutando setup de base de datos...');
+    
     const fs = await import('fs');
     const path = await import('path');
     const { fileURLToPath } = await import('url');
@@ -887,21 +899,22 @@ app.get('/SETUP-DB-ONCE', async (req, res) => {
         (SELECT COUNT(*) FROM sensores) as sensores
     `);
     
-    res.send(`
-      <h1>✅ Base de Datos Configurada</h1>
-      <h2>📊 Tablas Creadas:</h2>
-      <ul>${tables.map(t => `<li>${t.table_name}</li>`).join('')}</ul>
-      <h2>📈 Datos Insertados:</h2>
-      <ul>
-        <li>Usuarios: ${counts[0].usuarios}</li>
-        <li>Apiarios: ${counts[0].apiarios}</li>
-        <li>Colmenas: ${counts[0].colmenas}</li>
-        <li>Sensores: ${counts[0].sensores}</li>
-      </ul>
-      <p><strong>⚠️ AHORA ELIMINA ESTE ENDPOINT DE index.js</strong></p>
-    `);
+    console.log('✅ Setup completado exitosamente');
+    
+    res.json({
+      success: true,
+      message: 'Base de datos configurada exitosamente',
+      tables: tables.map(t => t.table_name),
+      data: counts[0]
+    });
+    
   } catch (error) {
-    res.status(500).send(`<h1>❌ Error</h1><pre>${error.message}\n\n${error.stack}</pre>`);
+    console.error('❌ Error en setup:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al configurar base de datos',
+      error: error.message
+    });
   }
 });
 
