@@ -1,4 +1,3 @@
-import axios from 'axios'; // ÚNICA importación de axios
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -6,9 +5,9 @@ import { Expo } from 'expo-server-sdk';
 import express from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
+import asignarUsuariosAApiario from './assign_users.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
-import asignarUsuariosAApiario from './assign_users.js';
 import enviarNotificacionPrueba from './test_notification.js';
 
 // Carga variables de entorno desde .env
