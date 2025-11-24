@@ -859,6 +859,52 @@ app.get('/api/test-notification', async (req, res) => {
   }
 });
 
+// ==============================================
+// ⚠️ ENDPOINT TEMPORAL - ELIMINAR DESPUÉS DE USAR
+// ==============================================
+app.get('/SETUP-DB-ONCE', async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    
+    const sqlPath = path.join(__dirname, '..', 'abeja_net_v3_postgres.sql');
+    const sqlScript = fs.readFileSync(sqlPath, 'utf8');
+    
+    await pool.query(sqlScript);
+    
+    const { rows: tables } = await pool.query(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
+    );
+    
+    const { rows: counts } = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM usuarios) as usuarios,
+        (SELECT COUNT(*) FROM apiarios) as apiarios,
+        (SELECT COUNT(*) FROM colmenas) as colmenas,
+        (SELECT COUNT(*) FROM sensores) as sensores
+    `);
+    
+    res.send(`
+      <h1>✅ Base de Datos Configurada</h1>
+      <h2>📊 Tablas Creadas:</h2>
+      <ul>${tables.map(t => `<li>${t.table_name}</li>`).join('')}</ul>
+      <h2>📈 Datos Insertados:</h2>
+      <ul>
+        <li>Usuarios: ${counts[0].usuarios}</li>
+        <li>Apiarios: ${counts[0].apiarios}</li>
+        <li>Colmenas: ${counts[0].colmenas}</li>
+        <li>Sensores: ${counts[0].sensores}</li>
+      </ul>
+      <p><strong>⚠️ AHORA ELIMINA ESTE ENDPOINT DE index.js</strong></p>
+    `);
+  } catch (error) {
+    res.status(500).send(`<h1>❌ Error</h1><pre>${error.message}\n\n${error.stack}</pre>`);
+  }
+});
+
 // --- Arranque del Servidor ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
