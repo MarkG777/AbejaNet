@@ -298,6 +298,44 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
     );
   };
 
+  const CustomTooltip = ({ datum }: any) => {
+    if (!datum) return null;
+    
+    const xIndex = datum.x;
+    const currentData = processedData[xIndex];
+    
+    if (!currentData) return null;
+
+    return (
+      <View style={styles.tooltipContainer}>
+        <Text style={styles.tooltipDate}>
+          {formatLabel(currentData.fecha_registro)}
+        </Text>
+        {activeKeys.map(key => {
+          const value = currentData[key];
+          if (value === null) return null;
+          
+          const firstValue = firstValues[key];
+          const delta = firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0;
+          const deltaSign = delta >= 0 ? '+' : '';
+          
+          return (
+            <View key={key} style={styles.tooltipRow}>
+              <View style={[styles.tooltipDot, { backgroundColor: colorMap[key] }]} />
+              <Text style={styles.tooltipLabel}>{labelMap[key]}:</Text>
+              <Text style={styles.tooltipValue}>
+                {value.toFixed(1)} {unitMap[key]}
+              </Text>
+              <Text style={[styles.tooltipDelta, { color: delta >= 0 ? '#2e7d32' : '#c62828' }]}>
+                ({deltaSign}{delta.toFixed(1)}%)
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
@@ -313,8 +351,15 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
             domainPadding={{ y: 20, x: 30 }}
             containerComponent={
             <VictoryVoronoiContainer
-              labels={({ datum }) => `${datum.series}\n${datum.raw?.toFixed(1)} ${unitMap[datum.metricKey as MetricKey]} (${datum.delta.toFixed(1)}%)`}
-              labelComponent={<VictoryTooltip cornerRadius={4} flyoutStyle={{ fill: '#fff' }} style={{ fontSize: 16 }} />}
+              labels={() => ' '}
+              labelComponent={
+                <VictoryTooltip
+                  flyoutComponent={<CustomTooltip />}
+                  cornerRadius={8}
+                  pointerLength={0}
+                  flyoutStyle={{ fill: 'transparent', stroke: 'transparent' }}
+                />
+              }
               onActivated={(pts) => pts && pts[0] ? setSelectedPoint(pts[0]) : null}
             />
           }
@@ -547,5 +592,56 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  tooltipContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    minWidth: 200,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  tooltipDate: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 8,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    paddingBottom: 4,
+  },
+  tooltipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 3,
+  },
+  tooltipDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  tooltipLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 6,
+    minWidth: 90,
+  },
+  tooltipValue: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#000',
+    marginRight: 6,
+  },
+  tooltipDelta: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });
