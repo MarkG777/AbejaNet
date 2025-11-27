@@ -6,7 +6,7 @@ import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme, VictoryTooltip, VictoryVoronoiContainer } from 'victory-native';
+import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme, VictoryVoronoiContainer } from 'victory-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
 
 // Tipos para las props de la gráfica de comparación
@@ -378,47 +378,57 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
     return format(d, 'dd/MM');
   };
 
-  const CustomTooltip = ({ datum }: any) => {
-    if (!datum) return null;
+  const renderSelectedPointInfo = () => {
+    if (!selectedPoint) {
+      return (
+        <View style={styles.selectedPointPlaceholder}>
+          <Text style={styles.selectedPointPlaceholderText}>
+            👆 Toca un punto en el gráfico para ver sus detalles
+          </Text>
+        </View>
+      );
+    }
     
-    const xIndex = datum.x;
+    const xIndex = selectedPoint.x;
     const currentData = processedData[xIndex];
     
     if (!currentData) return null;
 
     return (
-      <View style={styles.tooltipContainer}>
-        <View style={styles.tooltipHeader}>
-          <Text style={styles.tooltipDate}>
+      <View style={styles.selectedPointContainer}>
+        <View style={styles.selectedPointHeader}>
+          <Text style={styles.selectedPointDate}>
             📅 {formatLabel(currentData.fecha_registro)}
           </Text>
         </View>
-        {activeKeys.map(key => {
-          const value = currentData[key];
-          if (value === null) return null;
-          
-          const firstValue = firstValues[key];
-          const delta = firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0;
-          const deltaSign = delta >= 0 ? '+' : '';
-          const deltaColor = delta >= 0 ? '#4caf50' : '#f44336';
-          
-          return (
-            <View key={key} style={styles.tooltipRow}>
-              <View style={[styles.tooltipColorBar, { backgroundColor: colorMap[key] }]} />
-              <View style={styles.tooltipContent}>
-                <View style={styles.tooltipTopRow}>
-                  <Text style={styles.tooltipLabel}>{labelMap[key]}</Text>
-                  <Text style={styles.tooltipValue}>{value.toFixed(1)} {unitMap[key]}</Text>
-                </View>
-                <View style={styles.tooltipBottomRow}>
-                  <Text style={[styles.tooltipDelta, { color: deltaColor }]}>
-                    {deltaSign}{delta.toFixed(1)}% {delta >= 0 ? '↗' : '↘'}
-                  </Text>
+        <View style={styles.selectedPointDataContainer}>
+          {activeKeys.map(key => {
+            const value = currentData[key];
+            if (value === null) return null;
+            
+            const firstValue = firstValues[key];
+            const delta = firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0;
+            const deltaSign = delta >= 0 ? '+' : '';
+            const deltaColor = delta >= 0 ? '#4caf50' : '#f44336';
+            
+            return (
+              <View key={key} style={styles.selectedPointRow}>
+                <View style={[styles.selectedPointColorBar, { backgroundColor: colorMap[key] }]} />
+                <View style={styles.selectedPointContent}>
+                  <View style={styles.selectedPointTopRow}>
+                    <Text style={styles.selectedPointLabel}>{labelMap[key]}</Text>
+                    <Text style={styles.selectedPointValue}>{value.toFixed(1)} {unitMap[key]}</Text>
+                  </View>
+                  <View style={styles.selectedPointBottomRow}>
+                    <Text style={[styles.selectedPointDelta, { color: deltaColor }]}>
+                      {deltaSign}{delta.toFixed(1)}% {delta >= 0 ? '↗' : '↘'}
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })}
+        </View>
       </View>
     );
   };
@@ -456,15 +466,6 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
           domainPadding={{ y: 20, x: 30 }}
           containerComponent={
             <VictoryVoronoiContainer
-              labels={() => ' '}
-              labelComponent={
-                <VictoryTooltip
-                  flyoutComponent={<CustomTooltip />}
-                  cornerRadius={8}
-                  pointerLength={0}
-                  flyoutStyle={{ fill: 'transparent', stroke: 'transparent' }}
-                />
-              }
               onActivated={(pts) => onSetSelectedPoint(pts && pts[0] ? pts[0] : null)}
             />
           }
@@ -513,6 +514,9 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
         </View>
       )}
       {renderThresholdLegend()}
+      
+      {/* Información del punto seleccionado - Fija debajo del gráfico */}
+      {renderSelectedPointInfo()}
     </View>
   );
 };
@@ -673,69 +677,85 @@ const styles = StyleSheet.create({
     color: '#6c757d',
     fontSize: 14,
   },
-  tooltipContainer: {
-    backgroundColor: '#ffffff',
+  selectedPointPlaceholder: {
+    marginTop: 16,
+    padding: 20,
+    backgroundColor: '#f0f4f8',
     borderRadius: 12,
-    padding: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
-    minWidth: 240,
-    maxWidth: 300,
-    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#d1dce5',
+    borderStyle: 'dashed',
+    alignItems: 'center',
   },
-  tooltipHeader: {
-    backgroundColor: '#f5f5f5',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#e0e0e0',
-  },
-  tooltipDate: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#555',
+  selectedPointPlaceholderText: {
+    fontSize: 14,
+    color: '#6c757d',
+    fontWeight: '500',
     textAlign: 'center',
   },
-  tooltipRow: {
-    flexDirection: 'row',
-    backgroundColor: '#fafafa',
-    marginVertical: 1,
+  selectedPointContainer: {
+    marginTop: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
     overflow: 'hidden',
   },
-  tooltipColorBar: {
+  selectedPointHeader: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  selectedPointDate: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    textAlign: 'center',
+  },
+  selectedPointDataContainer: {
+    padding: 12,
+  },
+  selectedPointRow: {
+    flexDirection: 'row',
+    backgroundColor: '#fafafa',
+    marginVertical: 4,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  selectedPointColorBar: {
     width: 6,
     alignSelf: 'stretch',
   },
-  tooltipContent: {
+  selectedPointContent: {
     flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  tooltipTopRow: {
+  selectedPointTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
-  tooltipBottomRow: {
+  selectedPointBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  tooltipLabel: {
-    fontSize: 14,
+  selectedPointLabel: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#333',
   },
-  tooltipValue: {
-    fontSize: 16,
+  selectedPointValue: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#000',
   },
-  tooltipDelta: {
-    fontSize: 13,
+  selectedPointDelta: {
+    fontSize: 14,
     fontWeight: '600',
   },
 });
