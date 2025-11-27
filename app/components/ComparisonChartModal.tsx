@@ -308,9 +308,11 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
 
     return (
       <View style={styles.tooltipContainer}>
-        <Text style={styles.tooltipDate}>
-          {formatLabel(currentData.fecha_registro)}
-        </Text>
+        <View style={styles.tooltipHeader}>
+          <Text style={styles.tooltipDate}>
+            📅 {formatLabel(currentData.fecha_registro)}
+          </Text>
+        </View>
         {activeKeys.map(key => {
           const value = currentData[key];
           if (value === null) return null;
@@ -318,17 +320,22 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
           const firstValue = firstValues[key];
           const delta = firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0;
           const deltaSign = delta >= 0 ? '+' : '';
+          const deltaColor = delta >= 0 ? '#4caf50' : '#f44336';
           
           return (
             <View key={key} style={styles.tooltipRow}>
-              <View style={[styles.tooltipDot, { backgroundColor: colorMap[key] }]} />
-              <Text style={styles.tooltipLabel}>{labelMap[key]}:</Text>
-              <Text style={styles.tooltipValue}>
-                {value.toFixed(1)} {unitMap[key]}
-              </Text>
-              <Text style={[styles.tooltipDelta, { color: delta >= 0 ? '#2e7d32' : '#c62828' }]}>
-                ({deltaSign}{delta.toFixed(1)}%)
-              </Text>
+              <View style={[styles.tooltipColorBar, { backgroundColor: colorMap[key] }]} />
+              <View style={styles.tooltipContent}>
+                <View style={styles.tooltipTopRow}>
+                  <Text style={styles.tooltipLabel}>{labelMap[key]}</Text>
+                  <Text style={styles.tooltipValue}>{value.toFixed(1)} {unitMap[key]}</Text>
+                </View>
+                <View style={styles.tooltipBottomRow}>
+                  <Text style={[styles.tooltipDelta, { color: deltaColor }]}>
+                    {deltaSign}{delta.toFixed(1)}% {delta >= 0 ? '↗' : '↘'}
+                  </Text>
+                </View>
+              </View>
             </View>
           );
         })}
@@ -594,54 +601,68 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   tooltipContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-    minWidth: 200,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+    minWidth: 240,
+    maxWidth: 300,
+    overflow: 'hidden',
+  },
+  tooltipHeader: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e0e0e0',
   },
   tooltipDate: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: 'bold',
-    color: '#666',
-    marginBottom: 8,
+    color: '#555',
     textAlign: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    paddingBottom: 4,
   },
   tooltipRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 3,
+    backgroundColor: '#fafafa',
+    marginVertical: 1,
+    overflow: 'hidden',
   },
-  tooltipDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+  tooltipColorBar: {
+    width: 6,
+    alignSelf: 'stretch',
+  },
+  tooltipContent: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  tooltipTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  tooltipBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   tooltipLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#333',
-    marginRight: 6,
-    minWidth: 90,
   },
   tooltipValue: {
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#000',
-    marginRight: 6,
   },
   tooltipDelta: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
