@@ -20,7 +20,7 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 
 // --- Configuración de la Simulación ---
-const COLMENA_NOMBRE = 'Colmena Gamma Ppal';
+const COLMENA_NOMBRE = 'Colmena Beta Lab';
 const SENSOR_MAC = 'A2:04:2A:B9:C1:D9'; // MAC del ESP32 simulado
 const DIAS_A_GENERAR = 30; // Generar datos para un mes
 const LECTURAS_POR_HORA = 4; // Una lectura cada 15 minutos

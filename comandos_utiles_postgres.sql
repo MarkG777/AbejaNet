@@ -13,7 +13,7 @@
 DO $$
 DECLARE
     -- ¡SOLO NECESITAS MODIFICAR ESTAS TRES LÍNEAS!
-    correo_usuario_a_asignar TEXT := 'alejandrapadilla@gmail.com'; -- <-- Reemplaza con el correo del usuario
+    correo_usuario_a_asignar TEXT := 'silvia_og16@hotmail.com'; -- <-- Reemplaza con el correo del usuario
     nombre_apiario_a_asignar TEXT := 'Apiario Secundario del Laboratorio';   -- <-- Reemplaza con el nombre del apiario
     correo_admin_que_asigna  TEXT := 'admin@abejanet.com';     -- <-- Reemplaza con el correo del admin
 
@@ -121,3 +121,24 @@ curl -X POST https://abejanet-backend.onrender.com/api/alertas \
 -- 'http://<ip_local>:3000/api/lecturas' a la URL pública de tu backend en Render:
 -- 'https://abejanet-backend.onrender.com/api/lecturas'
 -- ====================================================================
+
+
+
+--GENERAR LOS DATOS DIRECTAMENTE DESDE EL SERVIDOR DE GENERATE_MODCK_DATA.JS COMO EXTENCIÓN DE INDEX.JS
+-- Internet
+https://abejanet-backend.onrender.com/debug/populate-data
+--Poweershell
+ Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST
+ Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST
+
+--Generar una notificación llamando al modulo de C:\Users\marco\AbejaNet\backend\test_notification.js desde index.js
+ Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/api/test-notification" -Method POST
+
+
+
+
+cd C:\Users\marco\AbejaNet
+
+# Reemplaza PASSWORD_COMPLETO con el password real
+$env:PGPASSWORD="8oPtc2jkVBnE4gEL1ZBG3BasCbBjgPmA"
+psql -h dpg-d4hqgl75r7bs73c1vk90-a.oregon-postgres.render.com -U abeja_user -d abeja_net_v3_jwlcx -f abeja_net_v3_postgres.sql
