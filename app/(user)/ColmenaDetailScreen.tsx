@@ -5,9 +5,8 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme, VictoryTooltip, VictoryVoronoiContainer } from 'victory-native';
-import { Pressable } from 'react-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
 
 // Tipos para las props de la gráfica de comparación
@@ -315,6 +314,19 @@ interface InteractiveChartProps {
 const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, selectedPoint, onSetSelectedPoint }: InteractiveChartProps) => {
   const processedData = useMemo(() => processDataForPreview(lecturas, timeRange), [lecturas, timeRange]);
 
+  const firstValues = useMemo(() => {
+    if (processedData.length === 0) {
+      return { temperatura: 0, humedad: 0, peso: 0, sonido: 0 };
+    }
+    const first = processedData[0];
+    return {
+      temperatura: first?.temperatura ?? 0,
+      humedad: first?.humedad ?? 0,
+      peso: first?.peso ?? 0,
+      sonido: first?.sonido ?? 0,
+    } as Record<SensorDataKey, number>;
+  }, [processedData]);
+
       const buildSeries = (k: SensorDataKey) => {
     const firstValue = processedData.length > 0 ? (processedData[0][k] || 0) : 0;
     return processedData.map((d: Lectura, i: number) => {
@@ -366,6 +378,51 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
     return format(d, 'dd/MM');
   };
 
+  const CustomTooltip = ({ datum }: any) => {
+    if (!datum) return null;
+    
+    const xIndex = datum.x;
+    const currentData = processedData[xIndex];
+    
+    if (!currentData) return null;
+
+    return (
+      <View style={styles.tooltipContainer}>
+        <View style={styles.tooltipHeader}>
+          <Text style={styles.tooltipDate}>
+            📅 {formatLabel(currentData.fecha_registro)}
+          </Text>
+        </View>
+        {activeKeys.map(key => {
+          const value = currentData[key];
+          if (value === null) return null;
+          
+          const firstValue = firstValues[key];
+          const delta = firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0;
+          const deltaSign = delta >= 0 ? '+' : '';
+          const deltaColor = delta >= 0 ? '#4caf50' : '#f44336';
+          
+          return (
+            <View key={key} style={styles.tooltipRow}>
+              <View style={[styles.tooltipColorBar, { backgroundColor: colorMap[key] }]} />
+              <View style={styles.tooltipContent}>
+                <View style={styles.tooltipTopRow}>
+                  <Text style={styles.tooltipLabel}>{labelMap[key]}</Text>
+                  <Text style={styles.tooltipValue}>{value.toFixed(1)} {unitMap[key]}</Text>
+                </View>
+                <View style={styles.tooltipBottomRow}>
+                  <Text style={[styles.tooltipDelta, { color: deltaColor }]}>
+                    {deltaSign}{delta.toFixed(1)}% {delta >= 0 ? '↗' : '↘'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
   const renderThresholdLegend = () => {
     const legendDataWeight = [
       { name: "Normal", symbol: { fill: "green", type: "circle" } },
@@ -399,15 +456,15 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
           domainPadding={{ y: 20, x: 30 }}
           containerComponent={
             <VictoryVoronoiContainer
-                            labels={({ datum }) => {
-                if (!datum.raw && datum.raw !== 0) return '';
-                const rawValue = `${datum.series}\n${datum.raw.toFixed(1)} ${unitMap[datum.metricKey as SensorDataKey]}`;
-                if (datum.delta || datum.delta === 0) {
-                  return `${rawValue} (${datum.delta.toFixed(1)}%)`;
-                }
-                return rawValue;
-              }}
-              labelComponent={<VictoryTooltip cornerRadius={4} flyoutStyle={{ fill: '#fff' }} style={{ fontSize: 16 }} />}
+              labels={() => ' '}
+              labelComponent={
+                <VictoryTooltip
+                  flyoutComponent={<CustomTooltip />}
+                  cornerRadius={8}
+                  pointerLength={0}
+                  flyoutStyle={{ fill: 'transparent', stroke: 'transparent' }}
+                />
+              }
               onActivated={(pts) => onSetSelectedPoint(pts && pts[0] ? pts[0] : null)}
             />
           }
@@ -615,5 +672,70 @@ const styles = StyleSheet.create({
   chartPlaceholderText: {
     color: '#6c757d',
     fontSize: 14,
+  },
+  tooltipContainer: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
+    minWidth: 240,
+    maxWidth: 300,
+    overflow: 'hidden',
+  },
+  tooltipHeader: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e0e0e0',
+  },
+  tooltipDate: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#555',
+    textAlign: 'center',
+  },
+  tooltipRow: {
+    flexDirection: 'row',
+    backgroundColor: '#fafafa',
+    marginVertical: 1,
+    overflow: 'hidden',
+  },
+  tooltipColorBar: {
+    width: 6,
+    alignSelf: 'stretch',
+  },
+  tooltipContent: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  tooltipTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  tooltipBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tooltipLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+  },
+  tooltipValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000',
+  },
+  tooltipDelta: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
