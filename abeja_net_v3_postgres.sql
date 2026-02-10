@@ -119,19 +119,19 @@ CREATE TABLE alertas (
 -- DATOS DE PRUEBA (Versión robusta)
 -- ======================================================
 
--- NOTA: Las contraseñas se guardan en texto plano. En un entorno de producción real,
--- se recomienda usar una librería como bcrypt en el backend para hashearlas antes de guardarlas.
+-- NOTA: Las contraseñas están hasheadas con bcrypt (10 rounds).
+-- Contraseñas originales: admin123, otro_admin_pass, ana123, inactivo123
 
 INSERT INTO roles (nombre) VALUES ('administrador'), ('usuario');
 
 INSERT INTO usuarios (nombre, apellido_paterno, correo_electronico, contrasena, rol_id) VALUES
-('Admin', 'Principal', 'admin@abejanet.com', 'admin123', (SELECT id FROM roles WHERE nombre = 'administrador')),
-('Admin', 'Secundario', 'otro_admin@abejanet.com', 'otro_admin_pass', (SELECT id FROM roles WHERE nombre = 'administrador')),
-('Ana', 'Cliente', 'ana_cliente@abejanet.com', 'ana123', (SELECT id FROM roles WHERE nombre = 'usuario'));
+('Admin', 'Principal', 'admin@abejanet.com', '$2b$10$qSab3b1mfy2j.Kwo4aOecuJ9c0vCIf7U4ALbWuArx2g.iq7.kiarW', (SELECT id FROM roles WHERE nombre = 'administrador')),
+('Admin', 'Secundario', 'otro_admin@abejanet.com', '$2b$10$umbEO7ZifM9THuLlmgEmdeu2Ezmbc/RymxnEQfaMAnAFhGFYd/VIu', (SELECT id FROM roles WHERE nombre = 'administrador')),
+('Ana', 'Cliente', 'ana_cliente@abejanet.com', '$2b$10$c26mygaY7Pm18Z6pBuHLT.lO2Hum3ECOx263UX7WIGffylur/iUAu', (SELECT id FROM roles WHERE nombre = 'usuario'));
 
 -- Usuario inactivo
 INSERT INTO usuarios (correo_electronico, contrasena, rol_id, esta_activo) VALUES
-('usuario_inactivo@abejanet.com', 'inactivo123', (SELECT id FROM roles WHERE nombre = 'usuario'), FALSE);
+('usuario_inactivo@abejanet.com', '$2b$10$rFV2psn699BWdezZgq/a9ebS82k8gjifYE.v0.F7bkGKcgIVsPcZu', (SELECT id FROM roles WHERE nombre = 'usuario'), FALSE);
 
 INSERT INTO apiarios (nombre, descripcion_general, direccion_o_coordenadas, creado_por_usuario_id) VALUES
 ('Apiario Principal', 'Apiario de prueba ubicado en el patio trasero.', '19.4326° N, 99.1332° W', (SELECT id FROM usuarios WHERE correo_electronico = 'admin@abejanet.com')),
