@@ -1,37 +1,33 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { getApiUrl } from '../../utils/ip_config';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ActivityIndicator, StyleSheet } from 'react-native'; // Import StyleSheet
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack } from 'expo-router';
+import { useAppColors } from '@/hooks/useAppColors';
 
 interface AdminProfile {
   id: number;
   rol: string;
 }
 
-export default function AdminDashboardScreen() { // Renamed component for clarity
+export default function AdminDashboardScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
+  const colors = useAppColors();
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [profileData, setProfileData] = useState<AdminProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
-    const initializeScreen = async () => { // Renamed function for clarity
+    const initializeScreen = async () => {
       try {
         const baseUrl = await getApiUrl();
         setApiBaseUrl(baseUrl);
 
-        // Fetch admin profile data
         setLoadingProfile(true);
         setProfileError(null);
         const token = await AsyncStorage.getItem('accessToken');
-        console.log('AdminDashboardScreen Fetch: Using token:', token);
 
         if (!token) {
           setProfileError('No se encontró token. Inicie sesión.');
@@ -74,51 +70,48 @@ export default function AdminDashboardScreen() { // Renamed component for clarit
   }, []);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ThemedView style={styles.container}>
-      <ThemedText style={styles.title}>
-        Panel de Administrador
-      </ThemedText>
-      <ThemedText style={styles.subtitle}>
-        Bienvenido, <ThemedText style={{ fontWeight: 'bold' }}>{email || 'Admin'}</ThemedText>
-      </ThemedText>
-      <ThemedText style={styles.apiInfo}>
-        API Conectada: {apiBaseUrl || 'Cargando...'}
-      </ThemedText>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={[styles.title, { color: colors.text }]}>
+          Panel de Administrador
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Bienvenido, <Text style={{ fontWeight: 'bold' }}>{email || 'Admin'}</Text>
+        </Text>
+        <Text style={[styles.apiInfo, { color: colors.textTertiary }]}>
+          API Conectada: {apiBaseUrl || 'Cargando...'}
+        </Text>
 
-      {loadingProfile && (
-        <ActivityIndicator size="large" color="#1976d2" style={{ marginVertical: 20 }} />
-      )}
+        {loadingProfile && (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />
+        )}
 
-      {profileError && (
-        <ThemedView style={styles.infoBoxError}>
-          <ThemedText style={{ fontWeight: 'bold', color: '#D32F2F' }}>Error al cargar perfil:</ThemedText>
-          <ThemedText style={{ color: '#D32F2F' }}>{profileError}</ThemedText>
-        </ThemedView>
-      )}
+        {profileError && (
+          <View style={[styles.infoBoxError, { backgroundColor: colors.background, borderColor: colors.danger }]}>
+            <Text style={{ fontWeight: 'bold', color: colors.danger }}>Error al cargar perfil:</Text>
+            <Text style={{ color: colors.danger }}>{profileError}</Text>
+          </View>
+        )}
 
-      {profileData && !loadingProfile && (
-        <ThemedView style={styles.infoBoxSuccess}>
-          <ThemedText style={{ fontWeight: 'bold', color: '#388E3C' }}>Perfil (API Protegida):</ThemedText>
-          <ThemedText>ID Usuario: {profileData.id}</ThemedText>
-          <ThemedText>Rol: {profileData.rol}</ThemedText>
-        </ThemedView>
-      )}
-      </ThemedView>
+        {profileData && !loadingProfile && (
+          <View style={[styles.infoBoxSuccess, { backgroundColor: colors.background, borderColor: colors.success }]}>
+            <Text style={{ fontWeight: 'bold', color: colors.success }}>Perfil (API Protegida):</Text>
+            <Text style={{ color: colors.text }}>ID Usuario: {profileData.id}</Text>
+            <Text style={{ color: colors.text }}>Rol: {profileData.rol}</Text>
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 }
 
-// Add basic styles if they are not imported from elsewhere or define them here
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#f0f0f0', // Match container background or make it transparent
   },
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#f0f0f0', // Example background color
   },
   title: {
     fontSize: 24,
@@ -135,23 +128,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 20,
     textAlign: 'center',
-    color: 'grey',
   },
   infoBoxError: {
-    backgroundColor: '#FFEBEE', // Light red
     padding: 10,
     borderRadius: 5,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#D32F2F', // Darker red
   },
   infoBoxSuccess: {
-    backgroundColor: '#E8F5E9', // Light green
     padding: 10,
     borderRadius: 5,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#388E3C', // Darker green
   },
-  // Add other styles used by ThemedText/ThemedView if necessary
 });

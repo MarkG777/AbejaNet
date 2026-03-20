@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant ESP as ESP32
+    participant API as Backend API
+    participant DB as PostgreSQL
+    participant ALERT as Motor Alertas
+    participant EXPO as Expo Push
+    participant APP as App Movil
+
+    Note over ESP: Lectura cada X segundos
+    ESP->>+API: POST /api/lecturas {mac, temp, humedad, peso}
+    API->>+DB: INSERT lecturas_ambientales
+    DB-->>-API: OK
+    API->>DB: UPDATE sensores SET ultima_lectura_en
+
+    API->>+ALERT: Verificar umbrales
+    alt Umbral superado
+        ALERT->>DB: INSERT alertas
+        ALERT->>DB: SELECT push_token FROM usuarios
+        ALERT->>+EXPO: Enviar notificacion push
+        EXPO-->>-APP: Alerta Temperatura Alta
+    end
+    ALERT-->>-API: Resultado verificacion
+    API-->>-ESP: 200 OK
+
+    Note over APP: Usuario abre la app
+    APP->>+API: GET /api/lecturas?colmenaId=1
+    API->>+DB: SELECT FROM lecturas_ambientales
+    DB-->>-API: Datos de lecturas
+    API-->>-APP: JSON con lecturas
+    Note over APP: Renderiza graficas interactivas

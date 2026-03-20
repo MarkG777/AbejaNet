@@ -70,7 +70,7 @@ postgresql://usuario:password@host/database
 
 Ejemplo:
 ```
-postgresql://abeja_user:ABC123xyz@dpg-xxxxx-a/abeja_net_v3_xxxx
+postgresql://abeja_user:EK06Cvp5Y7ihiVxocC77N3fXnHhl8Jgr@dpg-d6567vtum26s73fgo090-a/abeja_net_v3_h9fm
 ```
 
 **Cópiala completa** → La necesitarás en el siguiente paso.

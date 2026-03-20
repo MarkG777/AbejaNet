@@ -29,9 +29,9 @@
       "favicon": "./assets/images/favicon.png"
     },
     "splash": {
-      "image": "./assets/images/abejanet.png",
+      "image": "./assets/images/logo_abejanet_sin_letras.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F5F5F5"
+      "backgroundColor": "#FFCC3C"
     },
     "plugins": [
       "@react-native-google-signin/google-signin",
@@ -39,9 +39,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/abejanet.png",
+          "image": "./assets/images/logo_abejanet_sin_letras.png",
           "resizeMode": "contain",
-          "backgroundColor": "#F5F5F5"
+          "backgroundColor": "#FFCC3C"
         }
       ],
       "expo-secure-store"

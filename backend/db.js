@@ -9,9 +9,8 @@ const { Pool } = pg;
 // Leer la DATABASE_URL del archivo .env (que ya tiene el hostname correcto)
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 60000, // 60 segundos para conexiones lentas

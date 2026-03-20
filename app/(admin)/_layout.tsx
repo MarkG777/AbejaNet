@@ -5,11 +5,13 @@ import { Drawer } from 'expo-router/drawer';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useAppColors } from '@/hooks/useAppColors';
 
 // Custom Drawer Content with Logo
 function CustomDrawerContent(props: any) {
   const { logout } = useAuth();
   const router = useRouter();
+  const colors = useAppColors();
 
   const handleLogout = async () => {
     await logout();
@@ -17,10 +19,10 @@ function CustomDrawerContent(props: any) {
   };
 
   return (
-    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }}>
-      <View style={styles.logoContainer}>
+    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1 }} style={{ backgroundColor: colors.drawerBackground }}>
+      <View style={[styles.logoContainer, { backgroundColor: colors.logoContainerBg, borderBottomColor: colors.drawerDivider }]}>
         <Image
-          source={require('../../assets/images/abejanet.png')} // Path to logo
+          source={require('../../assets/images/abejanet.png')}
           style={styles.logo}
         />
       </View>
@@ -37,21 +39,25 @@ function CustomDrawerContent(props: any) {
 
 // Admin Layout using Drawer 
 export default function AdminLayout() {
+  const colors = useAppColors();
+
   return (
     <Drawer
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#1976d2',
+          backgroundColor: colors.headerBackground,
         },
-        headerTintColor: '#fff',
+        headerTintColor: colors.headerText,
         headerTitleStyle: {
           fontWeight: 'bold',
         },
-        drawerActiveTintColor: '#1976d2',
-        drawerInactiveTintColor: '#333',
+        drawerActiveTintColor: colors.drawerActiveText,
+        drawerInactiveTintColor: colors.drawerInactiveText,
+        drawerStyle: {
+          backgroundColor: colors.drawerBackground,
+        },
         drawerLabelStyle: {
-          // marginLeft: -20, // Eliminado para evitar que el texto se corte
           fontSize: 15,
         },
       }}
@@ -65,10 +71,8 @@ export default function AdminLayout() {
           ),
         }}
       />
-      {/* Las siguientes pantallas son marcadores de posición para que coincidan con tu diseño. */}
-      {/* Descoméntalas cuando crees los archivos correspondientes (ej. app/(admin)/colmenas.tsx) */}
       <Drawer.Screen
-        name="colmenas" // Asumiendo que el archivo es app/(admin)/colmenas.tsx
+        name="colmenas"
         options={{
           title: 'Colmenas',
           drawerIcon: ({ color, size }) => (
@@ -77,7 +81,7 @@ export default function AdminLayout() {
         }}
       />
       <Drawer.Screen
-        name="sensores" // Asumiendo que el archivo es app/(admin)/sensores.tsx
+        name="sensores"
         options={{
           title: 'Sensores',
           drawerIcon: ({ color, size }) => (
@@ -86,7 +90,7 @@ export default function AdminLayout() {
         }}
       />
       <Drawer.Screen
-        name="usuarios" // Asumiendo que el archivo es app/(admin)/usuarios.tsx
+        name="usuarios"
         options={{
           title: 'Usuarios',
           drawerIcon: ({ color, size }) => (
@@ -103,9 +107,7 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0f0f0',
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
   },
   logo: {
     width: 80,

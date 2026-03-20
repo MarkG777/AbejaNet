@@ -6,6 +6,7 @@ import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAppColors } from '@/hooks/useAppColors';
 import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme, VictoryVoronoiContainer } from 'victory-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
 
@@ -112,17 +113,17 @@ const allChartProps: Omit<SensorChartProps, 'data' | 'timeRange'>[] = [
 // Componente optimizado para la gráfica de comparación en el modal
 
 // Componente para el resumen detallado
-const DetailedSummary = ({ data }: { data: Lectura[] }) => {
+const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => {
   if (data.length < 1) {
-    return <Text style={styles.infoText}>No hay lecturas recientes.</Text>;
+    return <Text style={[styles.infoText, { color: colors.textTertiary }]}>No hay lecturas recientes.</Text>;
   }
 
   const lastDataPoint = data[data.length - 1];
   const firstDataPoint = data[0];
 
   return (
-    <View style={styles.summaryContainer}>
-      <Text style={styles.summaryTitle}>
+    <View style={[styles.summaryContainer, { backgroundColor: colors.summaryBg }]}>
+      <Text style={[styles.summaryTitle, { color: colors.textSecondary }]}>
         Resumen del Período ({format(parseISO(lastDataPoint.fecha_registro), 'dd MMM, HH:mm', { locale: es })}h)
       </Text>
       <View style={styles.summaryGrid}>
@@ -133,8 +134,8 @@ const DetailedSummary = ({ data }: { data: Lectura[] }) => {
           if (lastValue === null || lastValue === undefined || firstValue === null || firstValue === undefined) {
             return (
               <View key={dataKey} style={styles.summaryItem}>
-                <Text style={styles.summaryItemTitle}>{title}</Text>
-                <Text style={styles.summaryItemValue}>--</Text>
+                <Text style={[styles.summaryItemTitle, { color: colors.textTertiary }]}>{title}</Text>
+                <Text style={[styles.summaryItemValue, { color: colors.text }]}>--</Text>
               </View>
             );
           }
@@ -145,8 +146,8 @@ const DetailedSummary = ({ data }: { data: Lectura[] }) => {
 
           return (
             <View key={dataKey} style={styles.summaryItem}>
-              <Text style={styles.summaryItemTitle}>{title}</Text>
-              <Text style={styles.summaryItemValue}>{`${lastValue.toFixed(1)} ${unit}`}</Text>
+              <Text style={[styles.summaryItemTitle, { color: colors.textTertiary }]}>{title}</Text>
+              <Text style={[styles.summaryItemValue, { color: colors.text }]}>{`${lastValue.toFixed(1)} ${unit}`}</Text>
               <Text style={[styles.summaryItemDelta, { color: deltaColor }]}>
                 {`(${deltaSign}${totalDelta.toFixed(1)}%)`}
               </Text>
@@ -162,6 +163,7 @@ const DetailedSummary = ({ data }: { data: Lectura[] }) => {
 export default function ColmenaDetailScreen() {
   const { colmenaId, nombre } = useLocalSearchParams<{ colmenaId: string; nombre: string }>();
   const { authState } = useAuth();
+  const colors = useAppColors();
   const [lecturas, setLecturas] = useState<Lectura[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -253,28 +255,28 @@ export default function ColmenaDetailScreen() {
 
 
   if (loading) {
-    return <ActivityIndicator size="large" color="#0000ff" style={styles.centered} />;
+    return <ActivityIndicator size="large" color={colors.accent} style={[styles.centered, { backgroundColor: colors.background }]} />;
   }
 
   if (error) {
-    return <Text style={styles.errorText}>{error}</Text>;
+    return <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>;
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Detalle de la Colmena</Text>
-      <Text style={styles.subtitle}>{nombre}</Text>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Detalle de la Colmena</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{nombre}</Text>
 
-      <DetailedSummary data={chartPreviewData} />
+      <DetailedSummary data={chartPreviewData} colors={colors} />
 
-      <View style={styles.timeRangeContainer}>
+      <View style={[styles.timeRangeContainer, { backgroundColor: colors.timeRangeBg }]}>
         {(['day', 'week', 'month'] as TimeRange[]).map((range) => (
           <TouchableOpacity
             key={range}
-            style={[styles.timeRangeButton, timeRange === range && styles.timeRangeButtonSelected]}
+            style={[styles.timeRangeButton, timeRange === range && [styles.timeRangeButtonSelected, { backgroundColor: colors.timeRangeSelectedBg }]]}
             onPress={() => setTimeRange(range)}
           >
-            <Text style={[styles.timeRangeButtonText, timeRange === range && styles.timeRangeButtonTextSelected]}>
+            <Text style={[styles.timeRangeButtonText, { color: colors.timeRangeText }, timeRange === range && { color: colors.timeRangeSelectedText }]}>
               {range === 'day' ? 'Día' : range === 'week' ? 'Semana' : 'Mes'}
             </Text>
           </TouchableOpacity>
@@ -312,6 +314,7 @@ interface InteractiveChartProps {
 }
 
 const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, selectedPoint, onSetSelectedPoint }: InteractiveChartProps) => {
+  const colors = useAppColors();
   const processedData = useMemo(() => processDataForPreview(lecturas, timeRange), [lecturas, timeRange]);
 
   const firstValues = useMemo(() => {
@@ -381,9 +384,9 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
   const renderSelectedPointInfo = () => {
     if (!selectedPoint) {
       return (
-        <View style={styles.selectedPointPlaceholder}>
-          <Text style={styles.selectedPointPlaceholderText}>
-            👆 Toca un punto en el gráfico para ver sus detalles
+        <View style={[styles.selectedPointPlaceholder, { backgroundColor: colors.selectedPointPlaceholderBg, borderColor: colors.selectedPointPlaceholderBorder }]}>
+          <Text style={[styles.selectedPointPlaceholderText, { color: colors.textTertiary }]}>
+            Toca un punto en el gráfico para ver sus detalles
           </Text>
         </View>
       );
@@ -395,10 +398,10 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
     if (!currentData) return null;
 
     return (
-      <View style={styles.selectedPointContainer}>
+      <View style={[styles.selectedPointContainer, { backgroundColor: colors.card }]}>
         <View style={styles.selectedPointHeader}>
           <Text style={styles.selectedPointDate}>
-            📅 {formatLabel(currentData.fecha_registro)}
+            {formatLabel(currentData.fecha_registro)}
           </Text>
         </View>
         <View style={styles.selectedPointDataContainer}>
@@ -412,12 +415,12 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
             const deltaColor = delta >= 0 ? '#4caf50' : '#f44336';
             
             return (
-              <View key={key} style={styles.selectedPointRow}>
+              <View key={key} style={[styles.selectedPointRow, { backgroundColor: colors.selectedPointBg }]}>
                 <View style={[styles.selectedPointColorBar, { backgroundColor: colorMap[key] }]} />
                 <View style={styles.selectedPointContent}>
                   <View style={styles.selectedPointTopRow}>
-                    <Text style={styles.selectedPointLabel}>{labelMap[key]}</Text>
-                    <Text style={styles.selectedPointValue}>{value.toFixed(1)} {unitMap[key]}</Text>
+                    <Text style={[styles.selectedPointLabel, { color: colors.text }]}>{labelMap[key]}</Text>
+                    <Text style={[styles.selectedPointValue, { color: colors.text }]}>{value.toFixed(1)} {unitMap[key]}</Text>
                   </View>
                   <View style={styles.selectedPointBottomRow}>
                     <Text style={[styles.selectedPointDelta, { color: deltaColor }]}>
@@ -449,11 +452,11 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
   };
 
   return (
-    <View style={styles.chartContainer}>
+    <View style={[styles.chartContainer, { backgroundColor: colors.chartContainerBg }]}>
        <View style={styles.chipRow}>
           {(Object.keys(labelMap) as SensorDataKey[]).map(k => (
-            <Pressable key={k} style={[styles.chip, activeKeys.includes(k) && styles.chipActive]} onPress={() => onToggleKey(k)}>
-              <Text style={activeKeys.includes(k) ? styles.chipActiveText : styles.chipText}>{labelMap[k]}</Text>
+            <Pressable key={k} style={[styles.chip, { backgroundColor: colors.chipBg }, activeKeys.includes(k) && { backgroundColor: colors.chipActiveBg }]} onPress={() => onToggleKey(k)}>
+              <Text style={{ color: activeKeys.includes(k) ? colors.chipActiveText : colors.chipText, fontWeight: '500' }}>{labelMap[k]}</Text>
             </Pressable>
           ))}
         </View>
@@ -470,8 +473,8 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
             />
           }
         >
-                    <VictoryAxis dependentAxis tickFormat={(t) => `${t.toFixed(0)}`} />
-          <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start' } }} />
+                    <VictoryAxis dependentAxis tickFormat={(t) => `${t.toFixed(0)}`} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
+          <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start', fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
 
           {activeKeys.some(k => k in SENSOR_THRESHOLDS) && (
             <VictoryGroup>
@@ -509,8 +512,8 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
           )}
         </VictoryChart>
       ) : (
-        <View style={styles.chartPlaceholder}>
-          <Text style={styles.chartPlaceholderText}>No hay datos para mostrar.</Text>
+        <View style={[styles.chartPlaceholder, { backgroundColor: colors.borderLight }]}>
+          <Text style={[styles.chartPlaceholderText, { color: colors.textTertiary }]}>No hay datos para mostrar.</Text>
         </View>
       )}
       {renderThresholdLegend()}

@@ -3,6 +3,11 @@
 // Script para poblar la base de datos con datos de UN SOLO SENSOR simulado
 // que envía un paquete completo de datos cada 15 minutos durante un mes.
 // ADAPTADO PARA POSTGRESQL.
+//
+// ⚠️ ATENCIÓN: LA MANERA MÁS SEGURA Y RECOMENDADA DE EJECUTAR ESTO ES MEDIANTE EL ENDPOINT:
+// ⚠️ Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST
+// ⚠️ (Ejecutar este script localmente requiere que el .env tenga las credenciales de Render
+// ⚠️ y puede fallar en Windows por conflictos con las rutas de los módulos ES)
 // =================================================================
 
 import dotenv from 'dotenv';

@@ -5,21 +5,22 @@ import { Drawer } from 'expo-router/drawer';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useAppColors } from '@/hooks/useAppColors';
 
 // Contenido personalizado para el menú desplegable del usuario
 function CustomDrawerContent(props: any) {
   const { logout } = useAuth();
+  const colors = useAppColors();
 
   const handleLogout = async () => {
-    // Log de diagnóstico para confirmar si esta función se llama por error
     console.log(`--- LOGOUT TRIGGERED AT ${new Date().toISOString()} ---`);
     await logout();
   };
 
   return (
-    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1, flexDirection: 'column' }}>
+    <DrawerContentScrollView {...props} contentContainerStyle={{ flex: 1, flexDirection: 'column' }} style={{ backgroundColor: colors.drawerBackground }}>
       {/* Contenedor del Logo */}
-      <View style={styles.logoContainer}>
+      <View style={[styles.logoContainer, { backgroundColor: colors.logoContainerBg, borderBottomColor: colors.drawerDivider }]}>
         <Image
           source={require('../../assets/images/abejanet.png')}
           style={styles.logo}
@@ -33,7 +34,7 @@ function CustomDrawerContent(props: any) {
       <View style={{ flex: 1 }} />
 
       {/* Contenedor del Botón de Logout */}
-      <View style={styles.logoutContainer}>
+      <View style={[styles.logoutContainer, { borderTopColor: colors.drawerDivider }]}>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Ionicons name="log-out-outline" size={22} color="#d32f2f" />
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
@@ -46,20 +47,24 @@ function CustomDrawerContent(props: any) {
 // Layout principal del usuario usando Drawer
 export default function UserLayout() {
   const router = useRouter();
+  const colors = useAppColors();
 
   return (
     <Drawer
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#1976d2',
+          backgroundColor: colors.headerBackground,
         },
-        headerTintColor: '#fff',
+        headerTintColor: colors.headerText,
         headerTitleStyle: {
           fontWeight: 'bold',
         },
-        drawerActiveTintColor: '#1976d2',
-        drawerInactiveTintColor: '#333',
+        drawerActiveTintColor: colors.drawerActiveText,
+        drawerInactiveTintColor: colors.drawerInactiveText,
+        drawerStyle: {
+          backgroundColor: colors.drawerBackground,
+        },
         drawerLabelStyle: {
           fontSize: 15,
         },
@@ -143,9 +148,7 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f0f0f0',
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
   },
   logo: {
     width: 80,
@@ -154,16 +157,15 @@ const styles = StyleSheet.create({
   },
   logoutContainer: {
     paddingVertical: 10,
-    paddingBottom: 20, // Un poco más de espacio abajo
+    paddingBottom: 20,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 15,
     paddingHorizontal: 20,
-    zIndex: 1, // Evita la superposición del área de touch
+    zIndex: 1,
   },
   logoutText: {
     marginLeft: 15,

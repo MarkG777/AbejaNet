@@ -19,12 +19,11 @@ import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-si
 import { useAuth } from '../../context/AuthContext';
 import Constants from 'expo-constants';
 import { getApiUrl } from '../../utils/ip_config';
-
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import { useAppColors } from '@/hooks/useAppColors';
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const colors = useAppColors();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [email, setEmail] = useState('');
@@ -125,39 +124,41 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.titleContainer}>
           <Image source={require('../../assets/images/abejanet.png')} style={styles.logo} />
-          <ThemedText type="title">Bienvenido a AbejaNet</ThemedText>
+          <Text style={[styles.titleText, { color: colors.text }]}>Bienvenido a AbejaNet</Text>
         </View>
 
         <View style={styles.formContainer}>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.inputText }]}
               placeholder="Correo Electrónico"
+              placeholderTextColor={colors.placeholder}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
           </View>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.inputText }]}
               placeholder="Contraseña"
+              placeholderTextColor={colors.placeholder}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!isPasswordVisible}
             />
             <TouchableOpacity onPress={() => setIsPasswordVisible(!isPasswordVisible)} style={styles.eyeIcon}>
-              <Ionicons name={isPasswordVisible ? 'eye-off' : 'eye'} size={24} color="gray" />
+              <Ionicons name={isPasswordVisible ? 'eye-off' : 'eye'} size={24} color={colors.textTertiary} />
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoading || isGoogleLoading}>
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleLogin} disabled={isLoading || isGoogleLoading}>
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
@@ -166,29 +167,29 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.separatorContainer}>
-            <View style={styles.separatorLine} />
-            <Text style={styles.separatorText}>o</Text>
-            <View style={styles.separatorLine} />
+            <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.separatorText, { color: colors.textTertiary }]}>o</Text>
+            <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
           </View>
 
-          <TouchableOpacity style={[styles.button, styles.googleButton]} onPress={handleGoogleSignIn} disabled={isLoading || isGoogleLoading}>
+          <TouchableOpacity style={[styles.button, styles.googleButton, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={handleGoogleSignIn} disabled={isLoading || isGoogleLoading}>
             {isGoogleLoading ? (
-                <ActivityIndicator color="#333" />
+                <ActivityIndicator color={colors.textSecondary} />
             ) : (
               <>
                 <Image source={require('../../assets/images/google-logo.jpg')} style={styles.googleIcon} />
-                <Text style={[styles.buttonText, styles.googleButtonText]}>Continuar con Google</Text>
+                <Text style={[styles.buttonText, { color: colors.text }]}>Continuar con Google</Text>
               </>
             )}
           </TouchableOpacity>
 
           <Pressable onPress={() => router.push('/(auth)/register')} disabled={isLoading || isGoogleLoading}>
-            <ThemedText type="link" style={styles.linkText}>
+            <Text style={[styles.linkText, { color: colors.primary }]}>
               ¿No tienes una cuenta? <Text style={styles.boldLink}>Regístrate aquí</Text>
-            </ThemedText>
+            </Text>
           </Pressable>
           <Pressable onPress={() => router.push('/(auth)/forgot-password' as any)} disabled={isLoading || isGoogleLoading}>
-            <ThemedText type="link" style={styles.linkText}>¿Olvidaste tu contraseña?</ThemedText>
+            <Text style={[styles.linkText, { color: colors.primary }]}>¿Olvidaste tu contraseña?</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -199,7 +200,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -210,12 +210,15 @@ const styles = StyleSheet.create({
   titleContainer: {
     alignItems: 'center',
     marginBottom: 30,
-    backgroundColor: 'transparent',
+  },
+  titleText: {
+    fontSize: 28,
+    fontWeight: 'bold',
   },
   logo: {
     width: 120,
     height: 120,
-    borderRadius: 60, // make it circular
+    borderRadius: 60,
     overflow: 'hidden',
     resizeMode: 'cover',
     marginBottom: 20,
@@ -223,23 +226,21 @@ const styles = StyleSheet.create({
   formContainer: {
     width: '100%',
     alignItems: 'center',
-    backgroundColor: 'transparent',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '90%',
     height: 50,
-    borderColor: '#CCC',
     borderWidth: 1,
     borderRadius: 10,
     marginBottom: 15,
     paddingHorizontal: 10,
-    backgroundColor: '#FFF',
   },
   input: {
     flex: 1,
     height: '100%',
+    fontSize: 16,
   },
   eyeIcon: {
     padding: 5,
@@ -247,13 +248,12 @@ const styles = StyleSheet.create({
   button: {
     width: '90%',
     padding: 15,
-    backgroundColor: '#007AFF',
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 10,
     height: 50,
-    minHeight: 50, // Ensure button has a minimum height
+    minHeight: 50,
   },
   buttonText: {
     color: '#fff',
@@ -261,9 +261,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   googleButton: {
-    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
-    borderColor: '#DDD',
     borderWidth: 1,
   },
   googleIcon: {
@@ -271,28 +269,22 @@ const styles = StyleSheet.create({
     height: 24,
     marginRight: 10,
   },
-  googleButtonText: {
-    color: '#333',
-  },
   separatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     width: '90%',
     marginVertical: 20,
-    backgroundColor: 'transparent',
   },
   separatorLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#CCC',
   },
   separatorText: {
     marginHorizontal: 10,
-    color: '#888',
   },
   linkText: {
     marginTop: 15,
-    color: '#007AFF',
+    fontSize: 16,
   },
   boldLink: {
     fontWeight: 'bold',

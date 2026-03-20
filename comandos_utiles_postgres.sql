@@ -4,6 +4,33 @@
 -- Este archivo contiene una colección de scripts y comandos comunes
 -- adaptados para la base de datos PostgreSQL.
 -- ====================================================================
+--
+-- ===================== GUÍA RÁPIDA DE USO =====================
+--
+-- REQUISITO: psql (ya instalado en C:\Program Files\PostgreSQL\17\bin)
+--            Ya está en el PATH del sistema, no necesitas instalarlo.
+--
+-- PASO 1: Abre PowerShell
+--
+-- PASO 2: Conéctate a la BD de Render con la EXTERNAL Database URL:
+--
+--   psql "postgresql://abeja_user:PASSWORD@HOST-a.oregon-postgres.render.com/DB_NAME"
+--
+--   Ejemplo real (copia tu External URL desde Render Dashboard > tu BD > Info):
+--   psql "postgresql://abeja_user:kXsLJzHn9n0bCJWHMoLqkcBfUWYkCyXr@dpg-d6u5lls50q8c73frrr6g-a.oregon-postgres.render.com/abeja_net_v3_q3xx"
+--
+-- PASO 3: Ya estás dentro de psql. Copia y pega los comandos SQL de abajo.
+--
+-- TIPS:
+--   - Para salir de psql:              \q
+--   - Para ver tablas:                 \dt
+--   - Para ver columnas de una tabla:  \d nombre_tabla
+--   - Para ejecutar un archivo .sql:   \i ruta/archivo.sql
+--   - O desde PowerShell directo:      psql "URL" -f archivo.sql
+--
+-- NOTA: Usa la EXTERNAL URL (no la Internal) desde tu PC.
+--       La Internal solo funciona dentro de Render.
+-- ===============================================================
 
 
 -- ====================================================================
@@ -13,7 +40,7 @@
 DO $$
 DECLARE
     -- ¡SOLO NECESITAS MODIFICAR ESTAS TRES LÍNEAS!
-    correo_usuario_a_asignar TEXT := 'silvia_og16@hotmail.com'; -- <-- Reemplaza con el correo del usuario
+    correo_usuario_a_asignar TEXT := 'marcogolvera777@gmail.com'; -- <-- Reemplaza con el correo del usuario
     nombre_apiario_a_asignar TEXT := 'Apiario Secundario del Laboratorio';   -- <-- Reemplaza con el nombre del apiario
     correo_admin_que_asigna  TEXT := 'admin@abejanet.com';     -- <-- Reemplaza con el correo del admin
 
@@ -124,14 +151,25 @@ curl -X POST https://abejanet-backend.onrender.com/api/alertas \
 
 
 
---GENERAR LOS DATOS DIRECTAMENTE DESDE EL SERVIDOR DE GENERATE_MODCK_DATA.JS COMO EXTENCIÓN DE INDEX.JS
--- Internet
-https://abejanet-backend.onrender.com/debug/populate-data
---Poweershell
- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST
- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST
+-- ====================================================================
+-- GENERAR DATOS SIMULADOS (MOCK DATA) PARA GRÁFICAS
+-- ====================================================================
+-- ⚠️ IMPORTANTE: No ejecutes 'node generate_mock_data.js' localmente.
+-- Ese script requiere configuración local y variables de entorno específicas.
+-- 
+-- ✅ LA FORMA CORRECTA Y SEGURA es usar el endpoint de tu backend en Render:
+-- Solo abre otra ventana de PowerShell y ejecuta este comando:
 
---Generar una notificación llamando al modulo de C:\Users\marco\AbejaNet\backend\test_notification.js desde index.js
+Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST
+
+-- Esto generará 30 días de datos (1 lectura cada 15 min) para la "Colmena Beta Lab"
+-- directamente en tu base de datos de producción.
+-- ====================================================================
+
+-- ====================================================================
+-- PROBAR NOTIFICACIONES PUSH
+-- ====================================================================
+-- Generar una notificación llamando al modulo de test_notification.js desde index.js
  Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/api/test-notification" -Method POST
 
 

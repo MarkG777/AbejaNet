@@ -1,22 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect } from 'react';
-import { View, TextInput, StyleSheet, Pressable, Alert, Text } from 'react-native';
+import { View, TextInput, StyleSheet, Pressable, Alert, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { Link, router } from 'expo-router';
-
-import { ThemedView } from '@/components/ThemedView';
-import { ThemedText } from '@/components/ThemedText';
 import { getApiUrl } from '../../utils/ip_config';
+import { useAppColors } from '@/hooks/useAppColors';
 
 // --- Componente para mostrar un requisito de la contraseña ---
 const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
   <View style={styles.requirementContainer}>
     <Ionicons name={met ? 'checkmark-circle' : 'close-circle-outline'} size={20} color={met ? '#22C55E' : '#EF4444'} />
-    <Text style={[styles.requirementText, { color: met ? '#22C55E' : '#6B7280' }]}>{text}</Text>
+    <Text style={[styles.requirementText, { color: met ? '#22C55E' : '#9CA3AF' }]}>{text}</Text>
   </View>
 );
 
 export default function RegisterScreen() {
+  const colors = useAppColors();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -106,86 +105,96 @@ export default function RegisterScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedView style={{ alignItems: 'center' }}>
-        <Image
-          source={require('@/assets/images/abejanet.png')}
-          style={styles.logo}
-        />
-      </ThemedView>
-      <ThemedText type="title">Crea tu cuenta</ThemedText>
-      <TextInput
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        style={styles.input}
-      />
-      
-      {/* Campo de Contraseña con ícono y checklist */}
-      <View style={styles.passwordContainer}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={{ alignItems: 'center' }}>
+          <Image
+            source={require('@/assets/images/abejanet.png')}
+            style={styles.logo}
+          />
+        </View>
+        <Text style={[styles.title, { color: colors.text }]}>Crea tu cuenta</Text>
         <TextInput
-          placeholder="Contraseña"
-          value={password}
-          onChangeText={handlePasswordChange}
-          secureTextEntry={!showPassword}
-          style={styles.passwordInput}
+          placeholder="Correo electrónico"
+          placeholderTextColor={colors.placeholder}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          style={[styles.input, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.inputText }]}
         />
-        <Pressable 
-          onPressIn={() => setShowPassword(true)} 
-          onPressOut={() => setShowPassword(false)} 
-          style={styles.eyeIconContainer}
-        >
-          <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={24} color="#888" />
+        
+        {/* Campo de Contraseña con ícono y checklist */}
+        <View style={[styles.passwordContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
+          <TextInput
+            placeholder="Contraseña"
+            placeholderTextColor={colors.placeholder}
+            value={password}
+            onChangeText={handlePasswordChange}
+            secureTextEntry={!showPassword}
+            style={[styles.passwordInput, { color: colors.inputText }]}
+          />
+          <Pressable 
+            onPressIn={() => setShowPassword(true)} 
+            onPressOut={() => setShowPassword(false)} 
+            style={styles.eyeIconContainer}
+          >
+            <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={24} color={colors.textTertiary} />
+          </Pressable>
+        </View>
+
+        {/* Checklist de requisitos */}
+        {password.length > 0 && (
+            <View style={styles.requirementsList}>
+              <PasswordRequirement met={hasLength} text="Al menos 8 caracteres" />
+              <PasswordRequirement met={hasLowerCase} text="Al menos una letra minúscula" />
+              <PasswordRequirement met={hasUpperCase} text="Al menos una letra mayúscula" />
+              <PasswordRequirement met={hasNumber} text="Al menos un número" />
+              <PasswordRequirement met={hasSpecialChar} text="Al menos un carácter especial" />
+           </View>
+        )}
+
+        {/* Campo de Confirmar Contraseña con ícono */}
+        <View style={[styles.passwordContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
+          <TextInput
+            placeholder="Confirmar Contraseña"
+            placeholderTextColor={colors.placeholder}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry={!showConfirmPassword}
+            style={[styles.passwordInput, { color: colors.inputText }]}
+          />
+          <Pressable 
+            onPressIn={() => setShowConfirmPassword(true)} 
+            onPressOut={() => setShowConfirmPassword(false)} 
+            style={styles.eyeIconContainer}
+          >
+            <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={24} color={colors.textTertiary} />
+          </Pressable>
+        </View>
+
+        <Pressable style={[styles.button, { backgroundColor: colors.accent }]} onPress={handleRegister}>
+          <Text style={styles.buttonText}>Crear cuenta</Text>
         </Pressable>
-      </View>
-
-      {/* Checklist de requisitos */}
-      {password.length > 0 && (
-          <View style={styles.requirementsList}>
-            <PasswordRequirement met={hasLength} text="Al menos 8 caracteres" />
-            <PasswordRequirement met={hasLowerCase} text="Al menos una letra minúscula" />
-            <PasswordRequirement met={hasUpperCase} text="Al menos una letra mayúscula" />
-            <PasswordRequirement met={hasNumber} text="Al menos un número" />
-            <PasswordRequirement met={hasSpecialChar} text="Al menos un carácter especial" />
-         </View>
-      )}
-
-      {/* Campo de Confirmar Contraseña con ícono */}
-      <View style={styles.passwordContainer}>
-        <TextInput
-          placeholder="Confirmar Contraseña"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry={!showConfirmPassword}
-          style={styles.passwordInput}
-        />
-        <Pressable 
-          onPressIn={() => setShowConfirmPassword(true)} 
-          onPressOut={() => setShowConfirmPassword(false)} 
-          style={styles.eyeIconContainer}
-        >
-          <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={24} color="#888" />
+        <Pressable onPress={() => router.push('/login')} style={styles.loginLink}>
+          <Text style={[styles.linkText, { color: colors.primary }]}>¿Ya tienes una cuenta? Inicia sesión</Text>
         </Pressable>
-      </View>
-
-      <Pressable style={styles.button} onPress={handleRegister}>
-        <ThemedText type="defaultSemiBold" style={styles.buttonText}>Crear cuenta</ThemedText>
-      </Pressable>
-      <Link href="/login" style={styles.loginLink}>
-        <ThemedText type="link">¿Ya tienes una cuenta? Inicia sesión</ThemedText>
-      </Link>
-    </ThemedView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#fff',
   },
   logo: {
     width: 150,
@@ -193,9 +202,14 @@ const styles = StyleSheet.create({
     borderRadius: 75,
     marginBottom: 20,
   },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
   input: {
     height: 50,
-    borderColor: '#ccc',
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 15,
@@ -205,11 +219,9 @@ const styles = StyleSheet.create({
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderColor: '#ccc',
     borderWidth: 1,
     borderRadius: 8,
-    backgroundColor: '#fff',
-    marginBottom: 15, // Restauramos el margen inferior para un espaciado consistente
+    marginBottom: 15,
   },
   passwordInput: {
     flex: 1,
@@ -222,8 +234,8 @@ const styles = StyleSheet.create({
   },
   // Checklist
   requirementsList: {
-    marginTop: -5, // Reducimos el margen superior para acercarlo al campo de contraseña
-    marginBottom: 15, // Aseguramos que haya espacio antes del siguiente campo
+    marginTop: -5,
+    marginBottom: 15,
     paddingLeft: 10,
     gap: 5,
   },
@@ -236,11 +248,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   button: {
-    backgroundColor: '#F59E0B',
     padding: 15,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 10, // Added margin top for spacing
+    marginTop: 10,
   },
   buttonText: {
     color: '#fff',
@@ -250,5 +261,8 @@ const styles = StyleSheet.create({
   loginLink: {
     marginTop: 20,
     alignSelf: 'center',
+  },
+  linkText: {
+    fontSize: 16,
   },
 });

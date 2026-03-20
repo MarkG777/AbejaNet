@@ -1,5 +1,5 @@
 // app/_layout.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
@@ -10,6 +10,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { AuthProvider, useAuth } from '../context/AuthContext'; // Importa el AuthProvider y useAuth
 import { NotificationsProvider } from './context/NotificationsContext';
 import * as Notifications from 'expo-notifications';
+import { AnimatedSplash } from '@/components/AnimatedSplash';
 
 // Exporta el ErrorBoundary de Expo Router para manejar errores en rutas
 export { ErrorBoundary } from 'expo-router';
@@ -37,6 +38,7 @@ function AppLayout() {
   const segments = useSegments();
   const router = useRouter();
   const colorScheme = useColorScheme();
+  const [isSplashAnimationComplete, setSplashAnimationComplete] = useState(false);
 
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -107,7 +109,7 @@ function AppLayout() {
   // El useEffect se encarga de la visibilidad del contenido mediante la SplashScreen y las redirecciones.
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
         {/* 
           Expo Router manejará automáticamente qué grupo de rutas mostrar 
           basado en la URL a la que se redirige.
@@ -115,6 +117,9 @@ function AppLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      {!isSplashAnimationComplete && (
+        <AnimatedSplash onAnimationComplete={() => setSplashAnimationComplete(true)} />
+      )}
     </ThemeProvider>
   );
 }

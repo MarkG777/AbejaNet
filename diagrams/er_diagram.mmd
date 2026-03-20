@@ -1,0 +1,82 @@
+erDiagram
+    roles {
+        SMALLSERIAL id PK
+        VARCHAR nombre UK "administrador | usuario"
+    }
+
+    usuarios {
+        SERIAL id PK
+        VARCHAR nombre "NULL permitido"
+        VARCHAR apellido_paterno
+        VARCHAR apellido_materno
+        VARCHAR correo_electronico UK
+        VARCHAR contrasena "bcrypt hash"
+        VARCHAR push_token "Expo push"
+        SMALLINT rol_id FK
+        BOOLEAN esta_activo "default TRUE"
+        TIMESTAMP fecha_creacion
+    }
+
+    apiarios {
+        SERIAL id PK
+        VARCHAR nombre UK
+        TEXT descripcion_general
+        VARCHAR direccion_o_coordenadas
+        TIMESTAMP fecha_creacion
+        INTEGER creado_por_usuario_id FK
+    }
+
+    colmenas {
+        SERIAL id PK
+        INTEGER apiario_id FK
+        VARCHAR nombre UK
+        TEXT descripcion_especifica
+        TIMESTAMP fecha_creacion
+    }
+
+    usuarios_apiarios {
+        INTEGER usuario_id PK_FK
+        INTEGER apiario_id PK_FK
+        TIMESTAMP fecha_asignacion
+        INTEGER asignado_por_admin_id FK
+    }
+
+    sensores {
+        SERIAL id PK
+        VARCHAR mac_address UK "ESP32 MAC"
+        INTEGER colmena_id FK
+        VARCHAR tipo_sensor "General | Temp | Peso"
+        ENUM estado "activo | inactivo"
+        TIMESTAMP fecha_instalacion
+        TIMESTAMP ultima_lectura_en
+    }
+
+    lecturas_ambientales {
+        BIGSERIAL id PK
+        INTEGER sensor_id FK
+        DECIMAL humedad
+        DECIMAL temperatura
+        DECIMAL peso
+        DECIMAL sonido
+        BOOLEAN lluvia
+        TIMESTAMP fecha_registro
+    }
+
+    alertas {
+        SERIAL id PK
+        INTEGER colmena_id FK
+        VARCHAR tipo_alerta
+        VARCHAR valor_registrado
+        VARCHAR mensaje
+        BOOLEAN leida "default FALSE"
+        TIMESTAMP fecha_alerta
+    }
+
+    roles ||--o{ usuarios : "define rol"
+    usuarios ||--o{ apiarios : "crea"
+    usuarios ||--o{ usuarios_apiarios : "accede a"
+    apiarios ||--o{ usuarios_apiarios : "asignado a"
+    apiarios ||--o{ colmenas : "contiene"
+    colmenas ||--o{ sensores : "tiene"
+    colmenas ||--o{ alertas : "genera"
+    sensores ||--o{ lecturas_ambientales : "registra"

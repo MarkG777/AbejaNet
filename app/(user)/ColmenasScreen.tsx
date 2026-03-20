@@ -2,12 +2,13 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, SafeAreaView, ActivityIndicator, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, Stack } from 'expo-router';
-import { useAuth } from '../../context/AuthContext'; // Importar el hook de autenticación
-
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { isAxiosError } from 'axios';
+import { useAppColors } from '@/hooks/useAppColors';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 
-// Define la estructura de un objeto Apiario (debe coincidir con lo que envía el backend)
+// Define la estructura de un objeto Apiario
 interface Apiario {
   id: number;
   nombre: string;
@@ -17,11 +18,8 @@ interface Apiario {
 }
 
 // Componente para renderizar cada tarjeta de Apiario
-const ApiarioCard: React.FC<{ item: Apiario }> = ({ item }) => {
-  // Función para manejar el clic en una tarjeta
+const ApiarioCard: React.FC<{ item: Apiario; colors: any }> = ({ item, colors }) => {
   const handlePress = () => {
-    // Navegamos a una futura pantalla de detalles del apiario
-    // pasando el id y el nombre como parámetros.
     router.push({ 
       pathname: `/(user)/ApiarioDetailScreen`, 
       params: { apiarioId: item.id, apiarioNombre: item.nombre }
@@ -29,36 +27,35 @@ const ApiarioCard: React.FC<{ item: Apiario }> = ({ item }) => {
   };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={handlePress}>
-      <View style={styles.cardIconContainer}>
-        <Ionicons name="business-outline" size={32} color="#8A652D" />
+    <TouchableOpacity style={[styles.card, { backgroundColor: colors.card }]} onPress={handlePress}>
+      <View style={[styles.cardIconContainer, { backgroundColor: colors.borderLight }]}>
+        <Ionicons name="business-outline" size={32} color={colors.accent} />
       </View>
       <View style={styles.cardTextContainer}>
-        <Text style={styles.cardTitle}>{item.nombre}</Text>
-        <Text style={styles.cardDescription} numberOfLines={2}>{item.descripcion_general}</Text>
+        <Text style={[styles.cardTitle, { color: colors.text }]}>{item.nombre}</Text>
+        <Text style={[styles.cardDescription, { color: colors.textSecondary }]} numberOfLines={2}>{item.descripcion_general}</Text>
       </View>
-      <Ionicons name="chevron-forward-outline" size={24} color="#C7C7CC" />
+      <Ionicons name="chevron-forward-outline" size={24} color={colors.textTertiary} />
     </TouchableOpacity>
   );
 };
 
 // Pantalla principal que muestra la lista de Apiarios
 export default function ColmenasScreen() {
+  const colors = useAppColors();
   const handleBack = () => router.back();
-  const { authState } = useAuth(); // Usar el contexto para obtener el estado de autenticación
+  const { authState } = useAuth();
   const [apiarios, setApiarios] = useState<Apiario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchApiarios = async () => {
-    setError(null); // Limpiamos errores previos
+    setError(null);
     try {
-      // Nuestro 'api' se encarga del token y la URL base.
       const response = await api.get<{ apiarios: Apiario[] }>('/api/apiarios');
       setApiarios(response.data.apiarios);
     } catch (err) {
-      // El interceptor se encarga del logout. Aquí solo mostramos el error.
       console.error("Error fetching apiarios:", err);
       if (isAxiosError(err) && err.response) {
         setError(err.response.data.message || 'No se pudieron cargar los apiarios.');
@@ -85,20 +82,21 @@ export default function ColmenasScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color="#F59E0B" />
-        <Text style={styles.loadingText}>Cargando tus apiarios...</Text>
+      <View style={[{ flex: 1, padding: 20 }, { backgroundColor: colors.background }]}>
+        {[1, 2, 3, 4].map((i) => (
+          <SkeletonLoader key={i} width="100%" height={100} borderRadius={16} style={{ marginBottom: 16 }} />
+        ))}
       </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.centeredContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
-            <Text style={styles.errorText}>Error: {error}</Text>
-            <TouchableOpacity style={styles.button} onPress={onRefresh}>
+            <Ionicons name="alert-circle-outline" size={48} color={colors.danger} />
+            <Text style={[styles.errorText, { color: colors.danger }]}>Error: {error}</Text>
+            <TouchableOpacity style={[styles.button, { backgroundColor: colors.accent }]} onPress={onRefresh}>
                 <Text style={styles.buttonText}>Reintentar</Text>
             </TouchableOpacity>
         </View>
@@ -107,13 +105,13 @@ export default function ColmenasScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
           title: 'Mis Apiarios',
           headerLeft: () => (
             <TouchableOpacity onPress={handleBack} style={{ marginLeft: 10 }}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={colors.headerText} />
             </TouchableOpacity>
           ),
         }}
@@ -121,16 +119,16 @@ export default function ColmenasScreen() {
       <FlatList
         data={apiarios}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => <ApiarioCard item={item} />}
+        renderItem={({ item }) => <ApiarioCard item={item} colors={colors} />}
         ListEmptyComponent={() => (
           <View style={styles.centeredContainer}>
-            <Ionicons name="information-circle-outline" size={48} color="#888" />
-            <Text style={styles.emptyText}>No tienes apiarios asignados.</Text>
-            <Text style={styles.emptySubText}>Contacta a un administrador para obtener acceso.</Text>
+            <Ionicons name="information-circle-outline" size={48} color={colors.textTertiary} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tienes apiarios asignados.</Text>
+            <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>Contacta a un administrador para obtener acceso.</Text>
           </View>
         )}
         contentContainerStyle={{ flexGrow: 1 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#F59E0B"]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.accent]} tintColor={colors.accent} />}
       />
     </SafeAreaView>
   );
@@ -139,7 +137,6 @@ export default function ColmenasScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F4F4',
   },
   centeredContainer: {
     flex: 1,
@@ -150,18 +147,15 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
   },
   errorText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#EF4444',
     textAlign: 'center',
     marginBottom: 20,
   },
   button: {
     marginTop: 15,
-    backgroundColor: '#F59E0B',
     paddingVertical: 10,
     paddingHorizontal: 25,
     borderRadius: 8,
@@ -175,19 +169,15 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#555',
   },
   emptySubText: {
     marginTop: 5,
     fontSize: 14,
-    color: '#888',
     textAlign: 'center',
   },
-
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 15,
     marginHorizontal: 20,
@@ -199,7 +189,6 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   cardIconContainer: {
-    backgroundColor: '#F5EEDC',
     borderRadius: 50,
     padding: 12,
     marginRight: 15,
@@ -210,10 +199,8 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
   },
   cardDescription: {
     fontSize: 14,
-    color: '#666',
   },
 });

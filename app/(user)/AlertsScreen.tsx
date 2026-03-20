@@ -9,6 +9,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppColors } from '@/hooks/useAppColors';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 
 // Definimos el tipo para una alerta individual
 interface Alerta {
@@ -17,7 +19,7 @@ interface Alerta {
   tipo_alerta: string;
   valor_registrado: string;
   mensaje: string;
-  fecha_alerta: string; // Corregido para coincidir con el backend
+  fecha_alerta: string;
   leida: boolean;
   colmena_nombre?: string;
   apiario_nombre?: string;
@@ -25,6 +27,7 @@ interface Alerta {
 
 const AlertsScreen = () => {
   const router = useRouter();
+  const colors = useAppColors();
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,13 +57,11 @@ const AlertsScreen = () => {
 
   useEffect(() => {
     fetchAlertas();
-  }, []); // El array vacío es correcto aquí
+  }, []);
 
-  // Cargar alertas cada vez que se enfoca la pantalla
   useFocusEffect(
     useCallback(() => {
       fetchAlertas();
-      // Cuando el usuario salga de la pantalla, marcamos las alertas como leídas
       return () => {
         api.post('/api/alertas/marcar-como-leidas').catch(err => console.error('Error marcando alertas leídas', err));
       };
@@ -73,7 +74,6 @@ const AlertsScreen = () => {
   }, []);
 
   const getAlertIcon = (tipo: string): { name: keyof typeof Ionicons.glyphMap; color: string } => {
-    // ... (la función getAlertIcon se mantiene igual)
     switch (tipo) {
       case 'TEMPERATURA_ALTA':
       case 'TEMPERATURA_BAJA':
@@ -97,15 +97,19 @@ const AlertsScreen = () => {
   const renderItem = ({ item }: { item: Alerta }) => {
     const icon = getAlertIcon(item.tipo_alerta);
     return (
-      <View style={[styles.alertCard, !item.leida && styles.alertUnread]}>
+      <View style={[
+        styles.alertCard,
+        { backgroundColor: colors.alertCardBg, borderColor: colors.alertReadBorder },
+        !item.leida && { backgroundColor: colors.alertUnreadBg, borderColor: colors.alertUnreadBorder }
+      ]}>
         <Ionicons name={icon.name} size={28} color={icon.color} style={styles.icon} />
         <View style={styles.alertContent}>
-          <Text style={styles.alertTitle}>{item.tipo_alerta.replace(/_/g, ' ')}</Text>
-          <Text style={styles.alertMessage}>{item.mensaje}</Text>
-          <Text style={styles.alertDetails}>
+          <Text style={[styles.alertTitle, { color: colors.text }]}>{item.tipo_alerta.replace(/_/g, ' ')}</Text>
+          <Text style={[styles.alertMessage, { color: colors.textSecondary }]}>{item.mensaje}</Text>
+          <Text style={[styles.alertDetails, { color: colors.textTertiary }]}>
             {item.apiario_nombre} / {item.colmena_nombre}
           </Text>
-          <Text style={styles.alertDate}>
+          <Text style={[styles.alertDate, { color: colors.textTertiary }]}>
             {format(new Date(item.fecha_alerta), "d 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}
           </Text>
         </View>
@@ -115,17 +119,17 @@ const AlertsScreen = () => {
 
   const renderContent = () => {
     if (loading && !refreshing) {
-      return <ActivityIndicator size="large" color="#F7B731" style={styles.centeredMessageContainer} />;
+      return <ActivityIndicator size="large" color={colors.accent} style={styles.centeredMessageContainer} />;
     }
 
     if (error) {
       return (
-        <View style={styles.centeredMessageContainer}>
-          <Ionicons name="cloud-offline-outline" size={60} color="#8A8A8E" />
-          <Text style={styles.messageText}>Ocurrió un error</Text>
-          <Text style={styles.subMessageText}>{error}</Text>
-          <TouchableOpacity onPress={() => fetchAlertas()} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Reintentar</Text>
+        <View style={[styles.centeredMessageContainer, { backgroundColor: colors.background }]}>
+          <Ionicons name="cloud-offline-outline" size={60} color={colors.textTertiary} />
+          <Text style={[styles.messageText, { color: colors.text }]}>Ocurrió un error</Text>
+          <Text style={[styles.subMessageText, { color: colors.textTertiary }]}>{error}</Text>
+          <TouchableOpacity onPress={() => fetchAlertas()} style={[styles.retryButton, { backgroundColor: colors.accent }]}>
+            <Text style={[styles.retryButtonText, { color: colors.text }]}>Reintentar</Text>
           </TouchableOpacity>
         </View>
       );
@@ -133,10 +137,10 @@ const AlertsScreen = () => {
 
     if (alertas.length === 0) {
       return (
-        <View style={styles.centeredMessageContainer}>
-          <Ionicons name="shield-checkmark-outline" size={60} color="#4CAF50" />
-          <Text style={styles.messageText}>¡Todo en orden!</Text>
-          <Text style={styles.subMessageText}>No hay alertas que mostrar.</Text>
+        <View style={[styles.centeredMessageContainer, { backgroundColor: colors.background }]}>
+          <Ionicons name="shield-checkmark-outline" size={60} color={colors.success} />
+          <Text style={[styles.messageText, { color: colors.text }]}>¡Todo en orden!</Text>
+          <Text style={[styles.subMessageText, { color: colors.textTertiary }]}>No hay alertas que mostrar.</Text>
         </View>
       );
     }
@@ -147,22 +151,22 @@ const AlertsScreen = () => {
         renderItem={renderItem}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#F7B731"]} tintColor="#F7B731"/>}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.accent]} tintColor={colors.accent}/>}
       />
     );
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
           title: 'Historial de Alertas',
-          headerStyle: { backgroundColor: '#1976d2' },
-          headerTintColor: '#fff',
+          headerStyle: { backgroundColor: colors.headerBackground },
+          headerTintColor: colors.headerText,
           headerTitleStyle: { fontWeight: 'bold' },
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 10 }}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="arrow-back" size={24} color={colors.headerText} />
             </TouchableOpacity>
           ),
         }}
@@ -175,7 +179,6 @@ const AlertsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F4F7', // Coincide con el dashboard
   },
   list: {
     paddingHorizontal: 20,
@@ -184,23 +187,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   alertCard: {
-    backgroundColor: '#FFFFFF', // Coincide con el dashboard
-    borderRadius: 16, // Coincide con el dashboard
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05, // Coincide con el dashboard
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 3,
     borderLeftWidth: 5,
-    borderColor: '#E0E0E0', // Borde neutral para alertas leídas
-  },
-  alertUnread: {
-    borderColor: '#FF7043', // naranja-rojizo para destacar
-    backgroundColor: '#FFF3E0', // fondo crema anaranjado suave
   },
   icon: {
     marginRight: 16,
@@ -211,22 +208,18 @@ const styles = StyleSheet.create({
   alertTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1F2937', // Color de título del dashboard
     textTransform: 'capitalize',
   },
   alertMessage: {
     fontSize: 14,
-    color: '#4B5563', // Color de subtítulo del dashboard
     marginTop: 4,
   },
   alertDetails: {
     fontSize: 12,
-    color: '#6B7280', // Color de texto secundario del dashboard
     marginTop: 8,
   },
   alertDate: {
     fontSize: 12,
-    color: '#6B7280', // Color de texto secundario del dashboard
     marginTop: 4,
   },
   centeredMessageContainer: {
@@ -234,29 +227,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#F0F4F7',
   },
   messageText: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1F2937',
     marginTop: 16,
   },
   subMessageText: {
     fontSize: 16,
-    color: '#6B7280',
     textAlign: 'center',
     marginTop: 8,
   },
   retryButton: {
     marginTop: 24,
-    backgroundColor: '#FFC107', // Amarillo/dorado del dashboard
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 25,
   },
   retryButtonText: {
-    color: '#1F2937',
     fontSize: 16,
     fontWeight: 'bold',
   },

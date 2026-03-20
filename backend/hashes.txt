@@ -1,0 +1,4 @@
+admin123|$2b$10$qSab3b1mfy2j.Kwo4aOecuJ9c0vCIf7U4ALbWuArx2g.iq7.kiarW
+otro_admin_pass|$2b$10$umbEO7ZifM9THuLlmgEmdeu2Ezmbc/RymxnEQfaMAnAFhGFYd/VIu
+ana123|$2b$10$c26mygaY7Pm18Z6pBuHLT.lO2Hum3ECOx263UX7WIGffylur/iUAu
+inactivo123|$2b$10$rFV2psn699BWdezZgq/a9ebS82k8gjifYE.v0.F7bkGKcgIVsPcZu

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Button, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import { useAppColors } from '@/hooks/useAppColors';
 
 export default function ForgotPasswordScreen() {
+  const colors = useAppColors();
   const [email, setEmail] = useState('');
 
   const handlePasswordReset = () => {
@@ -20,21 +22,26 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Recuperar Contraseña</Text>
-      <Text style={styles.subtitle}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.text }]}>Recuperar Contraseña</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
         Introduce tu correo electrónico y te enviaremos un enlace para resetear tu contraseña.
       </Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.inputText }]}
         placeholder="tu@email.com"
+        placeholderTextColor={colors.placeholder}
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
       />
-      <Button title="Enviar Solicitud" onPress={handlePasswordReset} />
-      <Button title="Volver a Inicio de Sesión" onPress={() => router.back()} />
+      <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handlePasswordReset}>
+        <Text style={styles.buttonText}>Enviar Solicitud</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.buttonSecondary, { borderColor: colors.border }]} onPress={() => router.back()}>
+        <Text style={[styles.buttonSecondaryText, { color: colors.primary }]}>Volver a Inicio de Sesión</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -44,7 +51,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#F5F5F5',
   },
   title: {
     fontSize: 24,
@@ -55,16 +61,35 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     textAlign: 'center',
-    color: '#666',
     marginBottom: 30,
   },
   input: {
     height: 50,
-    borderColor: '#CCC',
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 15,
-    backgroundColor: '#FFF',
     marginBottom: 20,
+    fontSize: 16,
+  },
+  button: {
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  buttonSecondary: {
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  buttonSecondaryText: {
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

@@ -78,16 +78,46 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const userString = await AsyncStorage.getItem('user');
         const user = userString ? JSON.parse(userString) : null;
 
-        console.log('AuthContext: Loaded from AsyncStorage - Token:', token, 'Role:', role);
+        console.log('AuthContext: Loaded from AsyncStorage - Token:', token ? 'Exists' : 'Null');
+        
         if (token && role && user) {
-          setAuthToken(token); // <-- AÑADIDO: Configuramos el token en axios
+          // Validar expiración ANTES de autenticar al usuario
+          try {
+            const decodedToken = jwtDecode<{ exp: number }>(token);
+            const isTokenExpired = (decodedToken.exp * 1000) <= Date.now();
+            
+            if (isTokenExpired) {
+              console.log('AuthContext: El token guardado ya expiró. Requiere inicio de sesión.');
+              await AsyncStorage.multiRemove(['accessToken', 'userRole', 'user']);
+              setAuthState({
+                accessToken: null,
+                authenticated: false,
+                userRole: null,
+                user: null,
+              });
+              return; // Salir aquí, no continuar con la autenticación
+            }
+          } catch (error) {
+            console.error('AuthContext: Error validando token guardado:', error);
+            await AsyncStorage.multiRemove(['accessToken', 'userRole', 'user']);
+            setAuthState({
+              accessToken: null,
+              authenticated: false,
+              userRole: null,
+              user: null,
+            });
+            return;
+          }
+
+          // Si el token es válido, procedemos a autenticar
+          setAuthToken(token);
           setAuthState({
             accessToken: token,
             authenticated: true,
             userRole: role,
             user: user,
           });
-          console.log('AuthContext: User is authenticated based on stored data.');
+          console.log('AuthContext: User is authenticated based on valid stored token.');
           scheduleAutoLogout(token);
 
           // Asegurarse de registrar para notificaciones al cargar la app

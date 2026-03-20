@@ -11,6 +11,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { useNotifications } from '../context/NotificationsContext';
 import Constants from 'expo-constants';
+import { useAppColors } from '@/hooks/useAppColors';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
 
 // --- INTERFACES ---
 interface SummaryData {
@@ -32,15 +34,18 @@ interface StatCardProps {
   label: string;
   value: number | string;
   color: string;
+  cardBg: string;
+  textColor: string;
+  labelColor: string;
 }
 
 // --- COMPONENTES ---
-const StatCard: React.FC<StatCardProps & { onPress?: () => void }> = ({ icon, label, value, color, onPress }) => (
+const StatCard: React.FC<StatCardProps & { onPress?: () => void }> = ({ icon, label, value, color, cardBg, textColor, labelColor, onPress }) => (
   <Pressable onPress={onPress} style={({ pressed }) => [{ width: '48%' }, pressed && styles.pressed]}>
-      <View style={styles.statCard}>
+      <View style={[styles.statCard, { backgroundColor: cardBg }]}>
     <Ionicons name={icon} size={28} color={color} />
-    <Text style={styles.statValue}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
+    <Text style={[styles.statValue, { color: textColor }]}>{value}</Text>
+    <Text style={[styles.statLabel, { color: labelColor }]}>{label}</Text>
       </View>
   </Pressable>
 );
@@ -50,24 +55,24 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString('es-ES', options);
 };
 
-const NewsCard: React.FC<{ article: NewsArticle }> = ({ article }) => {
+const NewsCard: React.FC<{ article: NewsArticle; cardBg: string; titleColor: string; sourceColor: string }> = ({ article, cardBg, titleColor, sourceColor }) => {
   const [imageError, setImageError] = useState(false);
   const handlePress = () => Linking.openURL(article.url).catch(err => console.error("Couldn't load page", err));
 
   return (
-    <Pressable onPress={handlePress} style={({ pressed }) => [styles.newsCard, { opacity: pressed ? 0.9 : 1 }]}>
+    <Pressable onPress={handlePress} style={({ pressed }) => [styles.newsCard, { backgroundColor: cardBg, opacity: pressed ? 0.9 : 1 }]}>
       {imageError || !article.urlToImage || !article.urlToImage.startsWith('http') ? (
-        <View style={styles.newsImagePlaceholder}>
+        <View style={[styles.newsImagePlaceholder, { backgroundColor: cardBg }]}>
           <Ionicons name="image-outline" size={40} color="#B0BEC5" />
         </View>
       ) : (
         <Image source={{ uri: article.urlToImage }} style={styles.newsImage} resizeMode="cover" onError={() => setImageError(true)} />
       )}
       <View style={styles.newsTextContainer}>
-        <Text style={styles.newsTitle} numberOfLines={3}>{article.title}</Text>
+        <Text style={[styles.newsTitle, { color: titleColor }]} numberOfLines={3}>{article.title}</Text>
         <View style={styles.newsFooter}>
-          <Text style={styles.newsSource}>{article.source.name}</Text>
-          <Text style={styles.newsDate}>{formatDate(article.publishedAt)}</Text>
+          <Text style={[styles.newsSource, { color: sourceColor }]}>{article.source.name}</Text>
+          <Text style={[styles.newsDate, { color: sourceColor }]}>{formatDate(article.publishedAt)}</Text>
         </View>
       </View>
     </Pressable>
@@ -80,6 +85,7 @@ const UserDashboardScreen = () => {
   const router = useRouter();
   const navigation = useNavigation();
   const { authState } = useAuth();
+  const colors = useAppColors();
   
   // Estados para el resumen
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -189,9 +195,9 @@ const UserDashboardScreen = () => {
             setTimeout(() => fetchData(), 500);
           }}
         >
-          <Ionicons name="notifications-outline" size={26} color="#FFFFFF" />
+          <Ionicons name="notifications-outline" size={26} color={colors.headerText} />
           {!hideBadge && unread > 0 && (
-            <View style={styles.notificationBadge}>
+            <View style={[styles.notificationBadge, { borderColor: colors.headerBackground }]}>
               <Text style={styles.notificationText}>
                 {unread > 9 ? '9+' : unread}
               </Text>
@@ -200,7 +206,7 @@ const UserDashboardScreen = () => {
         </Pressable>
       ),
     });
-  }, [navigation, summary, hideBadge, unread]);
+  }, [navigation, summary, hideBadge, unread, colors]);
 
   // Efecto para el auto-scroll del carrusel de noticias
   useEffect(() => {
@@ -209,15 +215,20 @@ const UserDashboardScreen = () => {
         const nextIndex = (activeIndex + 1) % news.length;
         flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true });
         setActiveIndex(nextIndex);
-      }, 3000); // Cambiado a 3 segundos para mejor legibilidad
+      }, 3000);
 
       return () => clearInterval(interval);
     }
   }, [activeIndex, news]);
 
   const renderSummarySection = () => {
-    if (loadingSummary) return <ActivityIndicator size="large" color="#F59E0B" style={{ marginVertical: 20 }} />;
-    if (errorSummary) return <Text style={styles.errorText}>{errorSummary}</Text>;
+    if (loadingSummary) return (
+      <View style={styles.statsContainer}>
+        <SkeletonLoader width="48%" height={100} borderRadius={16} />
+        <SkeletonLoader width="48%" height={100} borderRadius={16} />
+      </View>
+    );
+    if (errorSummary) return <Text style={[styles.errorText, { color: colors.danger }]}>{errorSummary}</Text>;
     if (!summary) return null;
 
     return (
@@ -227,13 +238,19 @@ const UserDashboardScreen = () => {
           label="Apiarios" 
           value={summary.apiariosCount} 
           color="#3B82F6" 
+          cardBg={colors.statCardBg}
+          textColor={colors.statValue}
+          labelColor={colors.statLabel}
           onPress={() => router.push('/(user)/ColmenasScreen')}
         />
         <StatCard 
           icon="bug-outline" 
           label="Colmenas" 
           value={summary.colmenasCount} 
-          color="#10B981" 
+          color="#10B981"
+          cardBg={colors.statCardBg}
+          textColor={colors.statValue}
+          labelColor={colors.statLabel}
           onPress={() => router.push('/(user)/ColmenasScreen')}
         />
       </View>
@@ -247,14 +264,18 @@ const UserDashboardScreen = () => {
   }), []);
 
   const renderNewsSection = () => {
-    if (loadingNews) return <ActivityIndicator size="large" color="#F59E0B" style={{ marginVertical: 20 }} />;
-    if (errorNews) return <Text style={styles.errorText}>{errorNews}</Text>;
+    if (loadingNews) return (
+      <View style={{ marginTop: 20 }}>
+        <SkeletonLoader width="100%" height={200} borderRadius={16} />
+      </View>
+    );
+    if (errorNews) return <Text style={[styles.errorText, { color: colors.danger }]}>{errorNews}</Text>;
     
     return (
       <FlatList
         ref={flatListRef}
         data={news}
-        renderItem={({ item }) => <NewsCard article={item} />}
+        renderItem={({ item }) => <NewsCard article={item} cardBg={colors.newsCardBg} titleColor={colors.newsTitle} sourceColor={colors.newsSource} />}
         keyExtractor={(item, index) => `${item.url}-${index}`}
         horizontal
         pagingEnabled
@@ -271,22 +292,21 @@ const UserDashboardScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* El header ahora se controla desde el layout a través de setOptions */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        <View style={styles.header}>
-          <Ionicons name="sunny-outline" size={50} color="#FFC107" />
-          <Text style={styles.title}>¡Bienvenido a AbejaNet!</Text>
-          <Text style={styles.subtitle}>Hola, {authState.user?.nombre || 'apicultor'}. Un gusto tenerte de vuelta.</Text>
+        <View style={[styles.header, { backgroundColor: colors.card }]}>
+          <Ionicons name="sunny-outline" size={50} color={colors.accent} />
+          <Text style={[styles.title, { color: colors.text }]}>¡Bienvenido a AbejaNet!</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Hola, {authState.user?.nombre || 'apicultor'}. Un gusto tenerte de vuelta.</Text>
         </View>
 
         <View style={styles.contentSection}>
-          <Text style={styles.sectionTitle}>Resumen General</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Resumen General</Text>
           {renderSummarySection()}
         </View>
 
         <View style={styles.contentSection}>
-          <Text style={styles.sectionTitle}>Noticias del Sector</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias del Sector</Text>
           {renderNewsSection()}
         </View>
       </ScrollView>
@@ -295,10 +315,9 @@ const UserDashboardScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F0F4F7' },
+  container: { flex: 1 },
   scrollViewContent: { paddingBottom: 20 },
   header: {
-    backgroundColor: '#FFFFFF',
     paddingVertical: 30, paddingHorizontal: 20,
     alignItems: 'center',
     borderBottomLeftRadius: 30, borderBottomRightRadius: 30,
@@ -306,45 +325,44 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 4,
   },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginTop: 15 },
-  subtitle: { fontSize: 16, color: '#4B5563', marginTop: 5, textAlign: 'center' },
+  title: { fontSize: 28, fontWeight: 'bold', marginTop: 15 },
+  subtitle: { fontSize: 16, marginTop: 5, textAlign: 'center' },
   contentSection: { padding: 20 },
-  sectionTitle: { fontSize: 22, fontWeight: 'bold', color: '#1F2937', marginBottom: 20 },
+  sectionTitle: { fontSize: 22, fontWeight: 'bold', marginBottom: 20 },
   statsContainer: { flexDirection: 'row', justifyContent: 'space-around' },
   statCard: {
-    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 15,
+    borderRadius: 16, padding: 15,
     alignItems: 'center', justifyContent: 'center',
-    // width: '32%', // Ajustado para que quepan 3 tarjetas
     elevation: 2, shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 2,
   },
-  statValue: { fontSize: 28, fontWeight: 'bold', color: '#1F2937', marginTop: 8 },
-  statLabel: { fontSize: 12, color: '#6B7280', marginTop: 4, textAlign: 'center' },
-  errorText: { textAlign: 'center', color: '#EF4444', marginTop: 20, fontSize: 16 },
+  statValue: { fontSize: 28, fontWeight: 'bold', marginTop: 8 },
+  statLabel: { fontSize: 12, marginTop: 4, textAlign: 'center' },
+  errorText: { textAlign: 'center', marginTop: 20, fontSize: 16 },
   // News Styles
   newsCard: {
-    backgroundColor: 'white', borderRadius: 16,
+    borderRadius: 16,
     elevation: 3, shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 4,
     overflow: 'hidden',
-    width: CARD_WIDTH, // Ancho completo menos el padding
-    height: 300, // Altura fija para el carrusel
+    width: CARD_WIDTH,
+    height: 300,
   },
   newsImage: { width: '100%', height: 180 },
   newsImagePlaceholder: {
-    width: '100%', height: 180, backgroundColor: '#F5F5F5',
+    width: '100%', height: 180,
     justifyContent: 'center', alignItems: 'center',
   },
   newsTextContainer: {
     padding: 15, height: 130,
     justifyContent: 'space-between',
   },
-  newsTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
+  newsTitle: { fontSize: 16, fontWeight: '600' },
   newsFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  newsSource: { fontSize: 12, color: '#888', fontWeight: '500' },
-  newsDate: { fontSize: 12, color: '#888' },
+  newsSource: { fontSize: 12, fontWeight: '500' },
+  newsDate: { fontSize: 12 },
   pressed: {
     opacity: 0.8,
     transform: [{ scale: 0.98 }],
@@ -354,14 +372,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     right: 0,
-    backgroundColor: '#EF4444', // Rojo de alerta
+    backgroundColor: '#EF4444',
     borderRadius: 9,
     width: 18,
     height: 18,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#3B82F6', // Color del header para un borde sutil
   },
   notificationText: {
     color: 'white',

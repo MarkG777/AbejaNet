@@ -1,0 +1,69 @@
+flowchart TB
+    subgraph HARDWARE["HARDWARE - ESP32"]
+        ESP32["ESP32 con Sensores\nTemp | Humedad | Peso | Sonido | Lluvia"]
+    end
+
+    subgraph CLOUD["NUBE - Render"]
+        subgraph BACKEND["Backend Node.js + Express"]
+            API["API REST\nPuerto 3000"]
+            AUTH["Autenticacion\nJWT + bcrypt"]
+            GOOGLE["Google OAuth 2.0"]
+            ALERTS["Motor de Alertas\nUmbrales automaticos"]
+            PUSH["Expo Push\nNotifications"]
+        end
+        DB[("PostgreSQL\nRender Free Tier\n8 tablas")]
+    end
+
+    subgraph EXTERNAL["SERVICIOS EXTERNOS"]
+        NEWS["News API\nNoticias apicolas"]
+        GAUTH["Google Auth\nServers"]
+    end
+
+    subgraph MOBILE["APP MOVIL - React Native + Expo"]
+        subgraph AUTH_SCREENS["Autenticacion"]
+            LOGIN["Login\nEmail + Google"]
+            REGISTER["Registro"]
+            FORGOT["Recuperar Pass"]
+        end
+        subgraph USER_SCREENS["Vista Usuario"]
+            DASH["Dashboard\nResumen + Noticias"]
+            APIARIOS["Mis Apiarios"]
+            COLMENAS["Detalle Colmena\nGraficas interactivas"]
+            ALERTAS["Historial Alertas"]
+            PERFIL["Mi Perfil"]
+        end
+        subgraph ADMIN_SCREENS["Vista Admin"]
+            ADMIN_DASH["Panel Admin"]
+            ADMIN_USERS["Gestion Usuarios"]
+            ADMIN_SENS["Gestion Sensores"]
+        end
+    end
+
+    ESP32 -- "HTTP POST /api/lecturas" --> API
+    API <--> DB
+    API --> ALERTS
+    ALERTS -- "Umbral superado" --> PUSH
+    PUSH -- "Notificacion push" --> MOBILE
+    AUTH <--> GAUTH
+    GOOGLE <--> GAUTH
+    NEWS -- "Articulos" --> DASH
+
+    LOGIN --> AUTH
+    REGISTER --> AUTH
+    AUTH -- "JWT Token" --> USER_SCREENS
+    AUTH -- "JWT Token rol admin" --> ADMIN_SCREENS
+    DASH -- "GET /api/apiarios" --> API
+    APIARIOS -- "GET /api/colmenas" --> API
+    COLMENAS -- "GET /api/lecturas" --> API
+    ALERTAS -- "GET /api/alertas" --> API
+    PERFIL -- "PUT /api/profile" --> API
+
+    style HARDWARE fill:#FF9800,color:#fff
+    style CLOUD fill:#2196F3,color:#fff
+    style BACKEND fill:#1565C0,color:#fff
+    style DB fill:#4CAF50,color:#fff
+    style MOBILE fill:#9C27B0,color:#fff
+    style EXTERNAL fill:#607D8B,color:#fff
+    style AUTH_SCREENS fill:#7B1FA2,color:#fff
+    style USER_SCREENS fill:#7B1FA2,color:#fff
+    style ADMIN_SCREENS fill:#7B1FA2,color:#fff
