@@ -46,6 +46,16 @@ const verificarToken = (req, res, next) => {
 // =================================================================
 app.get('/', (req, res) => res.send('API de AbejaNet online.'));
 
+// ENDPOINT TEMPORAL PARA MIGRACIÓN SILENCIOSA DE BD RENDER
+app.get('/debug/migrate-refresh-token', async (req, res) => {
+  try {
+    await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS refresh_token TEXT;');
+    res.send('Migración exitosa: Columna refresh_token habilitada en Render DB.');
+  } catch(err) {
+    res.status(500).send('Error DB: ' + err.message);
+  }
+});
+
 app.get('/test-db', async (req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -215,11 +225,21 @@ app.post('/api/login', async (req, res) => {
     }
 
     const secretKey = process.env.JWT_SECRET;
-    const token = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '1h' }); // Expiración de 1 hora para producción
+    const token = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '1h' }); // Expiración de 1 hora
+    // NUEVO: Llave Maestra (Fase 2.4 - Tokens Persistentes Mobile)
+    const refreshToken = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '7d' });
+    
+    // Anclar Llave Maestra en BD de forma tolerante a errores temporales
+    try {
+      await pool.query('UPDATE usuarios SET refresh_token = $1 WHERE id = $2', [refreshToken, user.id]);
+    } catch(dbErr) {
+      console.warn("Advertencia DB: No se pudo guardar refresh_token. ", dbErr.message);
+    }
 
     res.json({
       success: true,
       token,
+      refreshToken, // Token fantasma (Web lo ignorará según Ley Postel)
       user: {
         id: user.id,
         nombre: user.nombre,
@@ -232,6 +252,40 @@ app.post('/api/login', async (req, res) => {
   } catch (err) {
     console.error('Error en /api/login:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+  }
+});
+
+// =================================================================
+// ENDPOINT PARA RENOVAR TOKEN (Fase 2.4 - Mobile Persistent Sessions)
+// =================================================================
+app.post('/api/refresh-token', async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) return res.status(401).json({ success: false, message: 'Falta Refresh Token' });
+
+  try {
+    // 1. Verificar firma encriptada JWT
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    
+    // 2. Comprobar que el token exista y siga vigente en BD (Mitigación robo de tokens)
+    const { rows } = await pool.query('SELECT id, rol, refresh_token, esta_activo FROM usuarios WHERE id = $1', [decoded.userId]);
+    if (rows.length === 0 || rows[0].refresh_token !== refreshToken || !rows[0].esta_activo) {
+      return res.status(403).json({ success: false, message: 'Refresh Token revocado/inválido' });
+    }
+
+    const secretKey = process.env.JWT_SECRET;
+    // 3. Fabricar par de llaves nuevas
+    const newToken = jwt.sign({ userId: rows[0].id, rol: rows[0].rol }, secretKey, { expiresIn: '1h' });
+    const newRefreshToken = jwt.sign({ userId: rows[0].id, rol: rows[0].rol }, secretKey, { expiresIn: '7d' });
+
+    // 4. Rotación de llave maestra
+    await pool.query('UPDATE usuarios SET refresh_token = $1 WHERE id = $2', [newRefreshToken, rows[0].id]);
+
+    res.json({ success: true, token: newToken, refreshToken: newRefreshToken });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, message: 'El periodo extendido de 7 días expiró. Vuelva a Iniciar Sesión.' });
+    }
+    return res.status(403).json({ success: false, message: 'Refresh token corrupto.' });
   }
 });
 
@@ -290,15 +344,23 @@ app.post('/api/auth/google', async (req, res) => {
       await client.query('COMMIT');
 
       // 3. Crear y firmar el token JWT de nuestra aplicación
+      const secretKey = process.env.JWT_SECRET;
       const appToken = jwt.sign(
         { userId: user.id, rol: user.rol },
-        process.env.JWT_SECRET,
-        { expiresIn: '24h' }
+        secretKey,
+        { expiresIn: '1h' } // Estandarizado a 1h
       );
+      // Fabricar la Llave Maestra también para Logins Sociales
+      const refreshToken = jwt.sign({ userId: user.id, rol: user.rol }, secretKey, { expiresIn: '7d' });
+      
+      try {
+        await client.query('UPDATE usuarios SET refresh_token = $1 WHERE id = $2', [refreshToken, user.id]);
+      } catch(dbErr) {}
 
       res.json({
         success: true,
         token: appToken,
+        refreshToken, // Añadido dinámico
         user: {
           id: user.id,
           nombre: user.nombre,
