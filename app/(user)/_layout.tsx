@@ -6,11 +6,13 @@ import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useAppColors } from '@/hooks/useAppColors';
+import { useTranslation } from 'react-i18next';
 
 // Contenido personalizado para el menú desplegable del usuario
 function CustomDrawerContent(props: any) {
   const { logout } = useAuth();
   const colors = useAppColors();
+  const { t } = useTranslation();
 
   const handleLogout = async () => {
     console.log(`--- LOGOUT TRIGGERED AT ${new Date().toISOString()} ---`);
@@ -37,7 +39,7 @@ function CustomDrawerContent(props: any) {
       <View style={[styles.logoutContainer, { borderTopColor: colors.drawerDivider }]}>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <Ionicons name="log-out-outline" size={22} color="#d32f2f" />
-          <Text style={styles.logoutText}>Cerrar Sesión</Text>
+          <Text style={styles.logoutText}>{t('logout', 'Cerrar Sesión')}</Text>
         </TouchableOpacity>
       </View>
     </DrawerContentScrollView>
@@ -48,6 +50,7 @@ function CustomDrawerContent(props: any) {
 export default function UserLayout() {
   const router = useRouter();
   const colors = useAppColors();
+  const { t } = useTranslation();
 
   return (
     <Drawer
@@ -73,7 +76,7 @@ export default function UserLayout() {
       <Drawer.Screen
         name="dashboard"
         options={{
-          title: 'Bienvenido',
+          title: t('dashboard_title', 'Bienvenido'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -82,7 +85,7 @@ export default function UserLayout() {
       <Drawer.Screen
         name="ColmenasScreen"
         options={{
-          title: 'Mis Apiarios',
+          title: t('my_apiaries', 'Mis Apiarios'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="archive-outline" size={size} color={color} />
           ),
@@ -91,7 +94,7 @@ export default function UserLayout() {
       <Drawer.Screen
         name="profile" // Esto buscará el archivo app/(user)/profile.tsx
         options={{
-          title: 'Mi Perfil',
+          title: t('my_profile', 'Mi Perfil'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="person-circle-outline" size={size} color={color} />
           ),
@@ -100,7 +103,7 @@ export default function UserLayout() {
       <Drawer.Screen
         name="AlertsScreen"
         options={{
-          title: 'Historial de Alertas',
+          title: t('alerts_history', 'Historial de Alertas'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="notifications-outline" size={size} color={color} />
           ),

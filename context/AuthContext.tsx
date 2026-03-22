@@ -1,5 +1,5 @@
-// c:/Proyectos/AbejaNet/context/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { jwtDecode } from 'jwt-decode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api, { setAuthToken, setupLogoutOnSessionExpired } from '../utils/api'; // IMPORTAMOS NUESTRO GUARDIÁN
@@ -267,6 +267,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // NUEVO: Validar el token automáticamente al volver de segundo plano (Doze OS suspension)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && authState.accessToken) {
+        try {
+          const decodedToken = jwtDecode<{ exp: number }>(authState.accessToken);
+          if ((decodedToken.exp * 1000) <= Date.now()) {
+            console.log('AuthContext: El token expiró mientas la app dormía en segundo plano. Forzando cierre de sesión.');
+            logout();
+          }
+        } catch (error) {
+          console.error('AuthContext: Error validando expiración al despertar el estado App.', error);
+        }
+      }
+    };
+    
+    // Suscribir al evento de cambio de estado de la aplicación
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
+  }, [authState.accessToken]);
+
   // El valor que provee el contexto a sus hijos
   const value = {
     authState,
@@ -275,7 +298,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateUser, // Exponemos la nueva función
     setHasSeenOnboarding,
   };
-
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

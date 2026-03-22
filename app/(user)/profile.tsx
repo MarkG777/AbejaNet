@@ -11,12 +11,20 @@ import { router, Stack } from 'expo-router';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
 import { useAppTheme, ThemePreference } from '@/context/ThemeContext';
+import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ProfileScreen = () => {
   const { authState, updateUser } = useAuth();
   const { themePreference, setThemePreference } = useAppTheme();
   const user = authState.user;
   const colors = useAppColors();
+  const { t, i18n } = useTranslation();
+
+  const changeLanguage = async (lng: string) => {
+    await AsyncStorage.setItem('@app_language', lng);
+    i18n.changeLanguage(lng);
+  };
 
   const [isEditing, setIsEditing] = useState(false);
   const [nombre, setNombre] = useState('');
@@ -33,18 +41,18 @@ const ProfileScreen = () => {
 
   const handleSaveChanges = () => {
     Alert.alert(
-      "Confirmar Cambios",
-      "¿Estás seguro de que quieres modificar tus datos?",
+      t('confirm_changes', 'Confirmar Cambios'),
+      t('confirm_changes_msg', '¿Estás seguro de que quieres modificar tus datos?'),
       [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Confirmar", onPress: () => executeUpdate() }
+        { text: t('cancel', 'Cancelar'), style: "cancel" },
+        { text: t('save', 'Guardar'), onPress: () => executeUpdate() }
       ]
     );
   };
 
   const executeUpdate = async () => {
     if (!nombre.trim()) {
-      Alert.alert('Campo requerido', 'El nombre no puede estar vacío.');
+      Alert.alert(t('required_field', 'Campo requerido'), t('name_empty', 'El nombre no puede estar vacío.'));
       return;
     }
     setIsLoading(true);
@@ -59,17 +67,17 @@ const ProfileScreen = () => {
 
       if (response.data.success) {
         await updateUser(updatedData);
-        Alert.alert('Éxito', 'Tu perfil ha sido actualizado.');
+        Alert.alert(t('success', 'Éxito'), t('profile_updated', 'Tu perfil ha sido actualizado.'));
         setIsEditing(false);
       } else {
-        Alert.alert('Error', response.data.message || 'No se pudo actualizar el perfil.');
+        Alert.alert(t('error', 'Error'), response.data.message || t('error', 'Error'));
       }
     } catch (err) {
       console.error('Error al guardar el perfil:', err);
       if (isAxiosError(err) && err.response) {
-        Alert.alert('Error', err.response.data.message || 'No se pudo actualizar el perfil.');
+        Alert.alert(t('error', 'Error'), err.response.data.message || t('error', 'Error'));
       } else {
-        Alert.alert('Error de Red', 'No se pudo conectar con el servidor.');
+        Alert.alert(t('error_network', 'Error de Red'), t('error_server', 'No se pudo conectar con el servidor.'));
       }
     } finally {
       setIsLoading(false);
@@ -127,22 +135,22 @@ const ProfileScreen = () => {
         {isEditing ? (
           // --- MODO EDICIÓN ---
           <View style={styles.formContainer}>
-            <Text style={[styles.title, { color: colors.text }]}>Editar Perfil</Text>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Nombre</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]} value={nombre} onChangeText={setNombre} placeholder="Tu nombre" placeholderTextColor={colors.placeholder} autoCapitalize="words" />
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Apellido Paterno</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]} value={apellidoPaterno} onChangeText={setApellidoPaterno} placeholder="(Opcional)" placeholderTextColor={colors.placeholder} autoCapitalize="words" />
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Apellido Materno</Text>
-            <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]} value={apellidoMaterno} onChangeText={setApellidoMaterno} placeholder="(Opcional)" placeholderTextColor={colors.placeholder} autoCapitalize="words" />
+            <Text style={[styles.title, { color: colors.text }]}>{t('edit_profile', 'Editar Perfil')}</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('first_name', 'Nombre')}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]} value={nombre} onChangeText={setNombre} placeholder={t('first_name', 'Tu nombre')} placeholderTextColor={colors.placeholder} autoCapitalize="words" />
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('last_name', 'Apellido Paterno')}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]} value={apellidoPaterno} onChangeText={setApellidoPaterno} placeholder={t('optional', '(Opcional)')} placeholderTextColor={colors.placeholder} autoCapitalize="words" />
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('last_name_2', 'Apellido Materno')}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]} value={apellidoMaterno} onChangeText={setApellidoMaterno} placeholder={t('optional', '(Opcional)')} placeholderTextColor={colors.placeholder} autoCapitalize="words" />
             {isLoading ? (
               <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />
             ) : (
               <View style={styles.buttonGroup}>
                 <TouchableOpacity style={[styles.cancelButton, { borderColor: colors.border }]} onPress={handleCancel}>
-                  <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancelar</Text>
+                  <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>{t('cancel', 'Cancelar')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary, opacity: !isChanged || isLoading ? 0.5 : 1 }]} onPress={handleSaveChanges} disabled={!isChanged || isLoading}>
-                  <Text style={styles.saveButtonText}>Guardar</Text>
+                  <Text style={styles.saveButtonText}>{t('save', 'Guardar')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -151,12 +159,12 @@ const ProfileScreen = () => {
           // --- MODO VISUALIZACIÓN ---
           <View style={[styles.card, { backgroundColor: colors.profileCardBg }]}>
             <Ionicons name="person-circle-outline" size={100} color={colors.profileIconColor} style={{ marginBottom: 15 }} />
-            <Text style={[styles.cardFullName, { color: colors.text }]}>{fullName || 'Completa tu perfil'}</Text>
+            <Text style={[styles.cardFullName, { color: colors.text }]}>{fullName || t('complete_profile', 'Completa tu perfil')}</Text>
             <Text style={[styles.cardEmail, { color: colors.textSecondary }]}>{user.correo_electronico}</Text>
             
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Apariencia</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('appearance', 'Apariencia')}</Text>
             <View style={styles.themeToggleContainer}>
               {(['system', 'light', 'dark'] as ThemePreference[]).map((theme) => (
                 <TouchableOpacity
@@ -176,16 +184,46 @@ const ProfileScreen = () => {
                     styles.themeButtonText, 
                     { color: themePreference === theme ? '#fff' : colors.textSecondary }
                   ]}>
-                    {theme === 'system' ? 'Auto' : theme === 'light' ? 'Claro' : 'Oscuro'}
+                    {theme === 'system' ? t('system', 'Auto') : theme === 'light' ? t('light', 'Claro') : t('dark', 'Oscuro')}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
+            <View style={[styles.divider, { backgroundColor: colors.border, marginVertical: 10 }]} />
+
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('language', 'Idioma')}</Text>
+            <View style={styles.themeToggleContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.themeButton,
+                  i18n.language.startsWith('es') ? { backgroundColor: colors.primary } : { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }
+                ]}
+                onPress={() => changeLanguage('es')}
+              >
+                <Text style={{ fontSize: 16, marginRight: 5 }}>🇲🇽</Text>
+                <Text style={[styles.themeButtonText, { color: i18n.language.startsWith('es') ? '#fff' : colors.textSecondary }]}>
+                  {t('spanish', 'Español')}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.themeButton,
+                  i18n.language.startsWith('en') ? { backgroundColor: colors.primary } : { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }
+                ]}
+                onPress={() => changeLanguage('en')}
+              >
+                <Text style={{ fontSize: 16, marginRight: 5 }}>🇺🇸</Text>
+                <Text style={[styles.themeButtonText, { color: i18n.language.startsWith('en') ? '#fff' : colors.textSecondary }]}>
+                  {t('english', 'Inglés')}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <TouchableOpacity style={[styles.editButton, { backgroundColor: colors.primary }]} onPress={() => setIsEditing(true)}>
               <Ionicons name="pencil" size={18} color="#fff" />
-              <Text style={styles.editButtonText}>Editar Perfil</Text>
+              <Text style={styles.editButtonText}>{t('edit_profile', 'Editar Perfil')}</Text>
             </TouchableOpacity>
           </View>
         )}

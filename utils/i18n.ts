@@ -37,7 +37,6 @@ const initI18n = async () => {
       interpolation: {
         escapeValue: false, // React ya previene XSS
       },
-      compatibilityJSON: 'v3', // Requerido para dispositivos móviles/React Native antiguos
     });
 };
 

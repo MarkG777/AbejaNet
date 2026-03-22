@@ -13,6 +13,7 @@ import { useNotifications } from '../context/NotificationsContext';
 import Constants from 'expo-constants';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { useTranslation } from 'react-i18next';
 
 // --- INTERFACES ---
 interface SummaryData {
@@ -86,6 +87,7 @@ const UserDashboardScreen = () => {
   const navigation = useNavigation();
   const { authState } = useAuth();
   const colors = useAppColors();
+  const { t } = useTranslation();
   
   // Estados para el resumen
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -234,7 +236,7 @@ const UserDashboardScreen = () => {
       <View style={styles.statsContainer}>
         <StatCard 
           icon="business-outline" 
-          label="Apiarios" 
+          label={t('apiaries', 'Apiarios')} 
           value={summary.apiariosCount} 
           color="#3B82F6" 
           cardBg={colors.statCardBg}
@@ -244,7 +246,7 @@ const UserDashboardScreen = () => {
         />
         <StatCard 
           icon="bug-outline" 
-          label="Colmenas" 
+          label={t('hives', 'Colmenas')} 
           value={summary.colmenasCount} 
           color="#10B981"
           cardBg={colors.statCardBg}
@@ -295,17 +297,19 @@ const UserDashboardScreen = () => {
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={[styles.header, { backgroundColor: colors.card }]}>
           <Ionicons name="sunny-outline" size={50} color={colors.accent} />
-          <Text style={[styles.title, { color: colors.text }]}>¡Bienvenido a AbejaNet!</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Hola, {authState.user?.nombre || 'apicultor'}. Un gusto tenerte de vuelta.</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{t('welcome', '¡Bienvenido a AbejaNet!')}</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            {t('greeting', 'Hola, {{name}}. Un gusto tenerte de vuelta.', { name: authState.user?.nombre || 'apicultor' })}
+          </Text>
         </View>
 
         <View style={styles.contentSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Resumen General</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('general_summary', 'Resumen General')}</Text>
           {renderSummarySection()}
         </View>
 
         <View style={styles.contentSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Noticias del Sector</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('industry_news', 'Noticias del Sector')}</Text>
           {renderNewsSection()}
         </View>
       </ScrollView>

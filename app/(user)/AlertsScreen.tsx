@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
 import * as Notifications from 'expo-notifications';
+import { useTranslation } from 'react-i18next';
 
 // Definimos el tipo para una alerta individual
 interface Alerta {
@@ -29,6 +30,7 @@ interface Alerta {
 const AlertsScreen = () => {
   const router = useRouter();
   const colors = useAppColors();
+  const { t } = useTranslation();
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +120,7 @@ const AlertsScreen = () => {
       ]}>
         <Ionicons name={icon.name} size={28} color={icon.color} style={styles.icon} />
         <View style={styles.alertContent}>
-          <Text style={[styles.alertTitle, { color: colors.text }]}>{item.tipo_alerta.replace(/_/g, ' ')}</Text>
+          <Text style={[styles.alertTitle, { color: colors.text }]}>{t(`alert_types.${item.tipo_alerta}`, item.tipo_alerta.replace(/_/g, ' '))}</Text>
           <Text style={[styles.alertMessage, { color: colors.textSecondary }]}>{item.mensaje}</Text>
           <Text style={[styles.alertDetails, { color: colors.textTertiary }]}>
             {item.apiario_nombre} / {item.colmena_nombre}
@@ -140,10 +142,10 @@ const AlertsScreen = () => {
       return (
         <View style={[styles.centeredMessageContainer, { backgroundColor: colors.background }]}>
           <Ionicons name="cloud-offline-outline" size={60} color={colors.textTertiary} />
-          <Text style={[styles.messageText, { color: colors.text }]}>Ocurrió un error</Text>
+          <Text style={[styles.messageText, { color: colors.text }]}>{t('error_loading', 'Ocurrió un error')}</Text>
           <Text style={[styles.subMessageText, { color: colors.textTertiary }]}>{error}</Text>
           <TouchableOpacity onPress={() => fetchAlertas()} style={[styles.retryButton, { backgroundColor: colors.accent }]}>
-            <Text style={[styles.retryButtonText, { color: colors.text }]}>Reintentar</Text>
+            <Text style={[styles.retryButtonText, { color: colors.text }]}>{t('retry', 'Reintentar')}</Text>
           </TouchableOpacity>
         </View>
       );
@@ -174,7 +176,7 @@ const AlertsScreen = () => {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
-          title: 'Historial de Alertas',
+          title: t('alerts_history', 'Historial de Alertas'),
           headerStyle: { backgroundColor: colors.headerBackground },
           headerTintColor: colors.headerText,
           headerTitleStyle: { fontWeight: 'bold' },
@@ -195,7 +197,7 @@ const AlertsScreen = () => {
             onPress={handleMarcarLeidas}
           >
             <Ionicons name="checkmark-done-circle-outline" size={24} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.floatingButtonText}>Marcar todas como leídas</Text>
+            <Text style={styles.floatingButtonText}>{t('mark_all_read', 'Marcar todas como leídas')}</Text>
           </TouchableOpacity>
         </View>
       )}

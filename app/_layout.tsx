@@ -6,6 +6,9 @@ import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
+// Importar configuración de i18n para multi-idioma
+import '../utils/i18n';
+
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ThemeProvider as AppThemeProvider } from '@/context/ThemeContext';
