@@ -7,6 +7,7 @@ import api from '../../utils/api';
 import { isAxiosError } from 'axios';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { useTranslation } from 'react-i18next';
 
 // Definimos un tipo para las colmenas para mayor seguridad de código
 type Colmena = {
@@ -19,6 +20,7 @@ export default function ApiarioDetailScreen() {
   const { authState } = useAuth();
   const router = useRouter();
   const colors = useAppColors();
+  const { t } = useTranslation();
 
   const [colmenas, setColmenas] = useState<Colmena[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,9 +37,9 @@ export default function ApiarioDetailScreen() {
       } catch (err) {
         console.error('Error fetching colmenas:', err);
         if (isAxiosError(err) && err.response) {
-          setError(err.response.data.message || 'No se pudieron cargar las colmenas.');
+          setError(err.response.data.message || t('error_hives', 'No se pudieron cargar las colmenas.'));
         } else {
-          setError('Ocurrió un error inesperado.');
+          setError(t('error_network', 'Ocurrió un error inesperado.'));
         }
       } finally {
         setLoading(false);
@@ -75,7 +77,7 @@ export default function ApiarioDetailScreen() {
     }
 
     if (colmenas.length === 0) {
-      return <Text style={[styles.textPlaceholder, { color: colors.textTertiary }]}>No hay colmenas en este apiario.</Text>;
+      return <Text style={[styles.textPlaceholder, { color: colors.textTertiary }]}>{t('no_hives', 'No hay colmenas en este apiario.')}</Text>;
     }
 
     return (

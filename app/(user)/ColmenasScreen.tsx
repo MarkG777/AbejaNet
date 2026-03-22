@@ -7,6 +7,7 @@ import api from '../../utils/api';
 import { isAxiosError } from 'axios';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { useTranslation } from 'react-i18next';
 
 // Define la estructura de un objeto Apiario
 interface Apiario {
@@ -43,6 +44,7 @@ const ApiarioCard: React.FC<{ item: Apiario; colors: any }> = ({ item, colors })
 // Pantalla principal que muestra la lista de Apiarios
 export default function ColmenasScreen() {
   const colors = useAppColors();
+  const { t } = useTranslation();
   const handleBack = () => router.back();
   const { authState } = useAuth();
   const [apiarios, setApiarios] = useState<Apiario[]>([]);
@@ -58,9 +60,9 @@ export default function ColmenasScreen() {
     } catch (err) {
       console.error("Error fetching apiarios:", err);
       if (isAxiosError(err) && err.response) {
-        setError(err.response.data.message || 'No se pudieron cargar los apiarios.');
+        setError(err.response.data.message || t('error_loading', 'No se pudieron cargar los apiarios.'));
       } else {
-        setError('Ocurrió un error inesperado. Revisa tu conexión.');
+        setError(t('error_network', 'Ocurrió un error inesperado. Revisa tu conexión.'));
       }
     } finally {
       setLoading(false);
@@ -97,7 +99,7 @@ export default function ColmenasScreen() {
             <Ionicons name="alert-circle-outline" size={48} color={colors.danger} />
             <Text style={[styles.errorText, { color: colors.danger }]}>Error: {error}</Text>
             <TouchableOpacity style={[styles.button, { backgroundColor: colors.accent }]} onPress={onRefresh}>
-                <Text style={styles.buttonText}>Reintentar</Text>
+                <Text style={styles.buttonText}>{t('retry', 'Reintentar')}</Text>
             </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -108,7 +110,7 @@ export default function ColmenasScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <Stack.Screen
         options={{
-          title: 'Mis Apiarios',
+          title: t('my_apiaries', 'Mis Apiarios'),
           headerLeft: () => (
             <TouchableOpacity onPress={handleBack} style={{ marginLeft: 10 }}>
               <Ionicons name="arrow-back" size={24} color={colors.headerText} />
@@ -123,8 +125,8 @@ export default function ColmenasScreen() {
         ListEmptyComponent={() => (
           <View style={styles.centeredContainer}>
             <Ionicons name="information-circle-outline" size={48} color={colors.textTertiary} />
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No tienes apiarios asignados.</Text>
-            <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>Contacta a un administrador para obtener acceso.</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('no_apiaries', 'No tienes apiarios asignados.')}</Text>
+            <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>{t('contact_admin', 'Contacta a administrador para obtener acceso.')}</Text>
           </View>
         )}
         contentContainerStyle={{ flexGrow: 1 }}

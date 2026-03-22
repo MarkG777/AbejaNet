@@ -87,7 +87,7 @@ const UserDashboardScreen = () => {
   const navigation = useNavigation();
   const { authState } = useAuth();
   const colors = useAppColors();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   
   // Estados para el resumen
   const [summary, setSummary] = useState<SummaryData | null>(null);
@@ -134,8 +134,13 @@ const UserDashboardScreen = () => {
       setErrorNews('Falta la configuración para cargar noticias.');
       setLoadingNews(false);
     } else {
-      const query = '(apicultura OR abejas OR colmenas OR "producción de miel" OR apicultor OR polinización) NOT (Acteal OR política OR fábula OR izquierda OR corrupción)';
-      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=es&sortBy=publishedAt&apiKey=${apiKey}`;
+      const currentLang = i18n.language.startsWith('en') ? 'en' : 'es';
+      
+      const query = currentLang === 'en'
+        ? '(beekeeping OR "honey production" OR (bees AND (science OR insect OR honey OR agriculture))) NOT (team OR clothing OR baby OR game OR sports OR movie OR shoes)'
+        : '(apicultura OR "producción de miel" OR (abejas AND (ciencia OR insecto OR miel OR agricultura))) NOT (equipo OR ropa OR bebé OR juego OR deportes OR película OR tenis)';
+      
+      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=${currentLang}&sortBy=publishedAt&apiKey=${apiKey}`;
 
       // Usamos el 'api' (instancia de Axios) para hacer la petición directa
       api.get(url)
@@ -149,7 +154,7 @@ const UserDashboardScreen = () => {
         })
         .finally(() => setLoadingNews(false));
     }
-  }, []); // useCallback con dependencias vacías para que la función no se recree
+  }, [i18n.language]); // Dependencia clave para re-descargar noticias si el usuario cambia el idioma
 
   // Usar useFocusEffect para recargar los datos cada vez que la pantalla se enfoca.
   // Esto es crucial para actualizar el contador de notificaciones después de ver las alertas.
