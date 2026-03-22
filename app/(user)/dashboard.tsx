@@ -98,7 +98,6 @@ const UserDashboardScreen = () => {
   const [errorNews, setErrorNews] = useState<string | null>(null);
 
   const { unread, setUnread } = useNotifications();
-  const [hideBadge, setHideBadge] = useState(false);
 
   // Refs y estado para el carrusel
   const flatListRef = useRef<FlatList<NewsArticle>>(null);
@@ -179,7 +178,7 @@ const UserDashboardScreen = () => {
     return () => {
       Notifications.removeNotificationSubscription(notificationListener);
     };
-  }, [fetchData]);
+  }, [fetchData, unread, setUnread]);
 
   // 4. Efecto para actualizar la cabecera con el icono de notificación
   useEffect(() => {
@@ -188,15 +187,15 @@ const UserDashboardScreen = () => {
         <Pressable 
           style={{ marginRight: 15, padding: 5 }} 
           onPress={() => {
-            setHideBadge(true);
+            // Optimistic update
             setUnread(0);
             router.push({ pathname: '/(user)/AlertsScreen' });
-            // Cuando regrese, refrescar el resumen para actualizar el contador
+            // Cuando regrese, refrescar el resumen para actualizar el contador real
             setTimeout(() => fetchData(), 500);
           }}
         >
           <Ionicons name="notifications-outline" size={26} color={colors.headerText} />
-          {!hideBadge && unread > 0 && (
+          {unread > 0 && (
             <View style={[styles.notificationBadge, { borderColor: colors.headerBackground }]}>
               <Text style={styles.notificationText}>
                 {unread > 9 ? '9+' : unread}
@@ -206,7 +205,7 @@ const UserDashboardScreen = () => {
         </Pressable>
       ),
     });
-  }, [navigation, summary, hideBadge, unread, colors]);
+  }, [navigation, summary, unread, colors, setUnread, router, fetchData]);
 
   // Efecto para el auto-scroll del carrusel de noticias
   useEffect(() => {

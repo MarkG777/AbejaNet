@@ -1,0 +1,31 @@
+{
+  "welcome": "¡Bienvenido a AbejaNet!",
+  "greeting": "Hola, {{name}}. Un gusto tenerte de vuelta.",
+  "general_summary": "Resumen General",
+  "apiaries": "Apiarios",
+  "hives": "Colmenas",
+  "industry_news": "Noticias del Sector",
+  "settings": "Ajustes",
+  "profile": "Perfil",
+  "logout": "Cerrar Sesión",
+  "theme": "Tema",
+  "language": "Idioma",
+  "system": "Sistema",
+  "light": "Claro",
+  "dark": "Oscuro",
+  "spanish": "Español",
+  "english": "Inglés",
+  "alerts_history": "Historial de Alertas",
+  "mark_all_read": "Marcar todas como leídas",
+  "error_loading": "Ocurrió un error",
+  "retry": "Reintentar",
+  "alert_types": {
+    "TEMPERATURA_ALTA": "Temperatura Alta",
+    "TEMPERATURA_BAJA": "Temperatura Baja",
+    "HUMEDAD_ALTA": "Humedad Alta",
+    "HUMEDAD_BAJA": "Humedad Baja",
+    "PESO_BAJO": "Peso Bajo",
+    "BATERIA_BAJA": "Batería Baja",
+    "PERDIDA_CONEXION": "Pérdida de Conexión"
+  }
+}

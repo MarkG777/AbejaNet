@@ -1,0 +1,31 @@
+{
+  "welcome": "Welcome to AbejaNet!",
+  "greeting": "Hello, {{name}}. Good to have you back.",
+  "general_summary": "General Summary",
+  "apiaries": "Apiaries",
+  "hives": "Hives",
+  "industry_news": "Industry News",
+  "settings": "Settings",
+  "profile": "Profile",
+  "logout": "Log Out",
+  "theme": "Theme",
+  "language": "Language",
+  "system": "System",
+  "light": "Light",
+  "dark": "Dark",
+  "spanish": "Spanish",
+  "english": "English",
+  "alerts_history": "Alerts History",
+  "mark_all_read": "Mark all as read",
+  "error_loading": "An error occurred",
+  "retry": "Retry",
+  "alert_types": {
+    "TEMPERATURA_ALTA": "High Temperature",
+    "TEMPERATURA_BAJA": "Low Temperature",
+    "HUMEDAD_ALTA": "High Humidity",
+    "HUMEDAD_BAJA": "Low Humidity",
+    "PESO_BAJO": "Low Weight",
+    "BATERIA_BAJA": "Low Battery",
+    "PERDIDA_CONEXION": "Connection Lost"
+  }
+}
