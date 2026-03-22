@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
 import { jwtDecode } from 'jwt-decode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api, { setAuthToken, setupLogoutOnSessionExpired } from '../utils/api'; // IMPORTAMOS NUESTRO GUARDIÁN
+import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
+import api, { setAuthToken, setupErrorInterceptor } from '../utils/api';
 import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-// Definimos la forma del estado de autenticación y las funciones que proveerá el contexto
-// Definimos la forma de los datos del usuario
 interface User {
   id: number;
   nombre: string | null;
@@ -16,235 +16,197 @@ interface User {
   correo_electronico: string;
 }
 
-// Definimos la forma del estado de autenticación y las funciones que proveerá el contexto
 interface AuthContextData {
   authState: { 
     accessToken: string | null;
-    authenticated: boolean | null; // null mientras se verifica, luego true o false
-    userRole: 'administrador' | 'usuario' | null; // Roles que manejes
+    refreshToken: string | null;
+    authenticated: boolean | null;
+    userRole: 'administrador' | 'usuario' | null;
     user: User | null;
     hasSeenOnboarding: boolean | null;
   };
-  login: (token: string, role: 'administrador' | 'usuario', user: User) => Promise<void>;
+  login: (token: string, refreshToken: string, role: 'administrador' | 'usuario', user: User) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (newUserData: Partial<User>) => Promise<void>; // NUEVO: Para actualizar el perfil
+  updateUser: (newUserData: Partial<User>) => Promise<void>;
   setHasSeenOnboarding: () => Promise<void>;
 }
 
-// Creamos el contexto con un valor inicial undefined, ya que se proveerá más adelante
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
 
-// Creamos el componente Proveedor del Contexto
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [authState, setAuthState] = useState<AuthContextData['authState']>({
     accessToken: null,
-    authenticated: null, // Inicia como null hasta que se verifique desde AsyncStorage
+    refreshToken: null,
+    authenticated: null,
     userRole: null,
     user: null,
     hasSeenOnboarding: null,
   });
 
-  const scheduleAutoLogout = (token: string) => {
-    if (sessionTimeoutRef.current) {
-      clearTimeout(sessionTimeoutRef.current);
-    }
-
-    try {
-      const decodedToken = jwtDecode<{ exp: number }>(token);
-      const expirationTime = decodedToken.exp * 1000;
-      const currentTime = Date.now();
-      const timeoutDuration = expirationTime - currentTime;
-
-      if (timeoutDuration > 0) {
-        console.log(`AuthContext: Programando logout automático en ${(timeoutDuration / 1000).toFixed(0)} segundos.`);
-        sessionTimeoutRef.current = setTimeout(() => {
-          console.log('AuthContext: ¡Sesión expirada! Ejecutando logout automático proactivo.');
-          logout();
-        }, timeoutDuration);
-      } else {
-        console.log('AuthContext: El token cargado ya ha expirado. Deslogueando...');
-        logout(); // Llamada directa a logout si el token ya expiró
+  const proveBiometrics = async () => {
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+    
+    if (hasHardware && isEnrolled) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'AbejaNet - Identidad Requerida',
+        fallbackLabel: 'Usar PIN'
+      });
+      if (!result.success) {
+        logout(); 
       }
-    } catch (error) {
-      console.error('AuthContext: Error decodificando el token. No se puede programar el logout.', error);
     }
   };
 
-  // useEffect para cargar el estado de autenticación desde AsyncStorage al iniciar la app
+  const handleRefresh = async () => {
+    try {
+      const storedRefresh = await SecureStore.getItemAsync('refreshToken');
+      if (!storedRefresh) throw new Error('No existe llava maestra localmente');
+      
+      const response = await api.post('/api/refresh-token', { refreshToken: storedRefresh });
+      if (response.data.success) {
+        const newToken = response.data.token;
+        const newRefresh = response.data.refreshToken;
+        
+        await SecureStore.setItemAsync('accessToken', newToken);
+        await SecureStore.setItemAsync('refreshToken', newRefresh);
+        setAuthToken(newToken);
+        
+        setAuthState(prev => ({
+          ...prev,
+          accessToken: newToken,
+          refreshToken: newRefresh
+        }));
+        return newToken;
+      }
+    } catch(e) {
+      throw e;
+    }
+    return null;
+  };
+
   useEffect(() => {
     const loadAuthState = async () => {
       try {
-        console.log('AuthContext: Attempting to load auth state...');
-        const token = await AsyncStorage.getItem('accessToken');
+        console.log('AuthContext: Intentando Recuperación Segura desde SecureStore...');
+        const token = await SecureStore.getItemAsync('accessToken');
+        const refreshToken = await SecureStore.getItemAsync('refreshToken');
+        
         const role = await AsyncStorage.getItem('userRole') as 'administrador' | 'usuario' | null;
         const userString = await AsyncStorage.getItem('user');
         const user = userString ? JSON.parse(userString) : null;
+        
         const onboardingString = await AsyncStorage.getItem('hasSeenOnboarding');
         const hasSeenOnboarding = onboardingString === 'true';
-
-        console.log('AuthContext: Loaded from AsyncStorage - Token:', token ? 'Exists' : 'Null');
         
-        if (token && role && user) {
-          // Validar expiración ANTES de autenticar al usuario
+        if (token && refreshToken && role && user) {
+          let activeToken = token;
           try {
             const decodedToken = jwtDecode<{ exp: number }>(token);
-            const isTokenExpired = (decodedToken.exp * 1000) <= Date.now();
-            
-            if (isTokenExpired) {
-              console.log('AuthContext: El token guardado ya expiró. Requiere inicio de sesión.');
-              await AsyncStorage.multiRemove(['accessToken', 'userRole', 'user']);
-              setAuthState({
-                accessToken: null,
-                authenticated: false,
-                userRole: null,
-                user: null,
-                hasSeenOnboarding,
-              });
-              return; // Salir aquí, no continuar con la autenticación
+            if ((decodedToken.exp * 1000) <= Date.now()) {
+               console.log('AuthContext: AccessToken Expirado Biológicamente. Activando Renobación Maestra en Hardware...');
+               const renewed = await handleRefresh();
+               if (!renewed) throw new Error('Refresh Fallido');
+               activeToken = renewed;
             }
-          } catch (error) {
-            console.error('AuthContext: Error validando token guardado:', error);
-            await AsyncStorage.multiRemove(['accessToken', 'userRole', 'user']);
-            setAuthState({
-              accessToken: null,
-              authenticated: false,
-              userRole: null,
-              user: null,
-              hasSeenOnboarding,
-            });
-            return;
+          } catch(e){
+              throw new Error('Token irrecuperable de la Bóveda');
           }
 
-          // Si el token es válido, procedemos a autenticar
-          setAuthToken(token);
+          // Validación Biométrica Primaria al Descubrir Autenticación
+          await proveBiometrics();
+
+          setAuthToken(activeToken);
           setAuthState({
-            accessToken: token,
+            accessToken: activeToken,
+            refreshToken: await SecureStore.getItemAsync('refreshToken'),
             authenticated: true,
             userRole: role,
             user: user,
             hasSeenOnboarding,
           });
-          console.log('AuthContext: User is authenticated based on valid stored token.');
-          scheduleAutoLogout(token);
 
-          // Asegurarse de registrar para notificaciones al cargar la app
-          console.log('AuthContext: Verificando registro de notificaciones al iniciar...');
           const pushToken = await registerForPushNotificationsAsync();
-          if (pushToken) {
-            console.log('AuthContext: Token de notificación verificado, guardando en backend...');
-            await savePushToken(pushToken);
-          } else {
-            console.log('AuthContext: No se obtuvo token de notificación al iniciar.');
-          }
+          if (pushToken) await savePushToken(pushToken);
+          
         } else {
-          setAuthState({
-            accessToken: null,
-            authenticated: false,
-            userRole: null,
-            user: null,
-            hasSeenOnboarding,
-          });
-          console.log('AuthContext: No valid token/role found, user is not authenticated.');
+          setAuthState(prev => ({ ...prev, authenticated: false, hasSeenOnboarding }));
         }
       } catch (e) {
-        console.error('Failed to load auth state from storage', e);
-        setAuthState({
-          accessToken: null,
-          authenticated: false,
-          userRole: null,
-          user: null,
-          hasSeenOnboarding: false,
-        });
+        console.log('Sesión no recuperable de SecureStore, purgando bóveda...', e);
+        logout();
       }
     };
 
     loadAuthState();
+    setupErrorInterceptor(logout, handleRefresh);
 
-    // Configuramos el interceptor una sola vez cuando el proveedor se monta
-    console.log('AuthContext: Setting up API interceptor...');
-    setupLogoutOnSessionExpired(logout); // Le pasamos la función logout de este contexto
+  }, []);
 
-  }, []); // El array vacío asegura que esto se ejecute solo una vez
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && authState.authenticated) {
+         try {
+           const decodedToken = jwtDecode<{ exp: number }>(authState.accessToken || '');
+           if ((decodedToken.exp * 1000) <= Date.now()) {
+                console.log("App regresó del doze con token muerto. Resucitando vía maestría oscura.");
+                await handleRefresh();
+           }
+         } catch(e) {}
+         
+         await proveBiometrics();
+      }
+    });
+    return () => subscription.remove();
+  }, [authState.authenticated, authState.accessToken]);
 
-  // Función para manejar el inicio de sesión
-  const login = async (token: string, role: 'administrador' | 'usuario', user: User) => {
+  const login = async (token: string, refreshToken: string, role: 'administrador' | 'usuario', user: User) => {
     try {
-      await AsyncStorage.setItem('accessToken', token);
+      await SecureStore.setItemAsync('accessToken', token);
+      await SecureStore.setItemAsync('refreshToken', refreshToken);
       await AsyncStorage.setItem('userRole', role);
       await AsyncStorage.setItem('user', JSON.stringify(user));
-      setAuthToken(token); // <-- AÑADIDO: Configuramos el token en axios
+      setAuthToken(token); 
       setAuthState(prev => ({
         ...prev,
         accessToken: token,
+        refreshToken: refreshToken,
         authenticated: true,
         userRole: role,
         user: user,
       }));
-      scheduleAutoLogout(token);
 
-      // Registrar para notificaciones push después de un login exitoso
-      console.log('AuthContext: Intentando registrar para notificaciones push...');
       const pushToken = await registerForPushNotificationsAsync();
-      if (pushToken) {
-        console.log('AuthContext: Token obtenido, intentando guardarlo en el backend...');
-        await savePushToken(pushToken);
-      } else {
-        console.log('AuthContext: No se obtuvo push token, el usuario podría haber denegado los permisos.');
-      }
+      if (pushToken) await savePushToken(pushToken);
 
     } catch (e) {
-      console.error('Failed to save auth state to storage', e);
-      // Aquí podrías manejar el error, quizás mostrando un mensaje al usuario
+      console.error('Bóveda Rechazó el Guardado Criptográfico', e);
     }
   };
 
-  // Función para manejar el cierre de sesión
   const logout = async () => {
-    if (sessionTimeoutRef.current) {
-      clearTimeout(sessionTimeoutRef.current);
-      sessionTimeoutRef.current = null;
-    }
-        console.log('AuthContext: logout initiated');
     try {
-      // Intentar cerrar la sesión de Google. Es seguro llamarlo incluso si no hay sesión.
       await GoogleSignin.signOut();
-      console.log('AuthContext: Google Sign-In session cleared.');
-    } catch (error: any) {
-      // El error 'SIGN_IN_REQUIRED' es normal si el usuario no estaba logueado con Google.
-      // Lo ignoramos para no detener el flujo de logout normal y continuamos.
-      if (error.code !== 'SIGN_IN_REQUIRED') {
-        console.error('AuthContext: Error during Google SignOut, continuing logout...', error);
-      }
-    }
+    } catch (e) {}
 
     try {
-      // Proceder a limpiar el estado de la aplicación y el almacenamiento local
-      console.log('AuthContext: Clearing app-specific auth state...');
-      await AsyncStorage.multiRemove(['accessToken', 'userRole', 'user']);
-      console.log('AuthContext: AsyncStorage cleared.');
-
-      setAuthToken(null); // Limpiamos el token de axios
-
+      await AsyncStorage.multiRemove(['userRole', 'user']);
+      await SecureStore.deleteItemAsync('accessToken');
+      await SecureStore.deleteItemAsync('refreshToken');
+      setAuthToken(null);
       setAuthState(prev => ({
         ...prev,
         accessToken: null,
+        refreshToken: null,
         authenticated: false,
         userRole: null,
         user: null,
       }));
-      console.log('AuthContext: authState set to unauthenticated.');
-    } catch (e) {
-      console.error('AuthContext: Failed to clear auth state from storage', e);
-    }
+    } catch (e) {}
   };
 
-  // NUEVO: Función para actualizar los datos del usuario en el estado y AsyncStorage
   const updateUser = async (newUserData: Partial<User>) => {
-    if (!authState.user) {
-      console.error("AuthContext: No se puede actualizar, no hay un usuario logueado.");
-      return;
-    }
+    if (!authState.user) return;
     try {
       const updatedUser = { ...authState.user, ...newUserData };
       await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
@@ -252,61 +214,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ...prevState,
         user: updatedUser as User,
       }));
-      console.log('AuthContext: Datos del usuario actualizados correctamente.');
-    } catch (e) {
-      console.error('AuthContext: Falló al actualizar los datos del usuario', e);
-    }
+    } catch (e) {}
   };
 
   const setHasSeenOnboarding = async () => {
     try {
       await AsyncStorage.setItem('hasSeenOnboarding', 'true');
       setAuthState(prev => ({ ...prev, hasSeenOnboarding: true }));
-    } catch (e) {
-      console.error('AuthContext: Falló al guardar hasSeenOnboarding', e);
-    }
+    } catch (e) {}
   };
 
-  // NUEVO: Validar el token automáticamente al volver de segundo plano (Doze OS suspension)
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (nextAppState === 'active' && authState.accessToken) {
-        try {
-          const decodedToken = jwtDecode<{ exp: number }>(authState.accessToken);
-          if ((decodedToken.exp * 1000) <= Date.now()) {
-            console.log('AuthContext: El token expiró mientas la app dormía en segundo plano. Forzando cierre de sesión.');
-            logout();
-          }
-        } catch (error) {
-          console.error('AuthContext: Error validando expiración al despertar el estado App.', error);
-        }
-      }
-    };
-    
-    // Suscribir al evento de cambio de estado de la aplicación
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => {
-      subscription.remove();
-    };
-  }, [authState.accessToken]);
-
-  // El valor que provee el contexto a sus hijos
-  const value = {
-    authState,
-    login,
-    logout,
-    updateUser, // Exponemos la nueva función
-    setHasSeenOnboarding,
-  };
+  const value = { authState, login, logout, updateUser, setHasSeenOnboarding };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Hook personalizado para usar el AuthContext fácilmente en otros componentes
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };

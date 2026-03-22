@@ -76,7 +76,7 @@ export default function LoginScreen() {
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          await login(data.token, data.user.rol, data.user);
+          await login(data.token, data.refreshToken, data.user.rol, data.user);
         } else {
           Alert.alert('Error de autenticación', data.message || 'No se pudo iniciar sesión con Google.');
         }
@@ -110,7 +110,7 @@ export default function LoginScreen() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        await login(data.token, data.user.rol, data.user);
+        await login(data.token, data.refreshToken, data.user.rol, data.user);
       } else {
         Alert.alert('Error de autenticación', data.message || 'Credenciales incorrectas');
       }
