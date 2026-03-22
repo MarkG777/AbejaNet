@@ -114,15 +114,13 @@ SELECT id, nombre FROM colmenas WHERE nombre = 'Colmena Beta Lab';
 -- ====================================================================
 -- PROBAR ALERTA CON NOTIFICACIÓN PUSH (DESDE TU TERMINAL)
 -- ====================================================================
--- IMPORTANTE: Reemplaza 'https://abejanet-backend.onrender.com' con la URL real de tu servicio en Render.
-curl -X POST https://abejanet-backend.onrender.com/api/alertas \
--H "Content-Type: application/json" \
--d '{
-  "colmena_id": 3,
-  "tipo_alerta": "HUMEDAD_BAJA",
-  "valor_registrado": "45%",
-  "mensaje": "¡La humedad ha caído por debajo del 50%. Riesgo de deshidratación!"
-}'
+-- IMPORTANTE: Reemplaza la URL si cambia tu servicio en Render.
+-- 
+-- OPCIÓN A) COMANDO PARA BASH (Linux / Mac):
+-- curl -X POST https://abejanet-backend.onrender.com/api/alertas -H "Content-Type: application/json" -d '{"colmena_id": 3, "tipo_alerta": "HUMEDAD_BAJA", "valor_registrado": "45%", "mensaje": "¡Humedad crítica!"}'
+--
+-- OPCIÓN B) COMANDO PARA POWERSHELL (Windows):
+-- Invoke-RestMethod -Uri "https://abejanet-backend.onrender.com/api/alertas" -Method POST -ContentType "application/json" -Body '{"colmena_id": 3, "tipo_alerta": "HUMEDAD_BAJA", "valor_registrado": "45%", "mensaje": "¡La humedad ha caído por debajo del 50%. Riesgo de deshidratación!"}'
 
 
 -- ====================================================================
@@ -167,10 +165,16 @@ Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-dat
 -- ====================================================================
 
 -- ====================================================================
--- PROBAR NOTIFICACIONES PUSH
+-- PROBAR NOTIFICACIONES PUSH RÁPIDAS (SIN INSERTAR EN LA BD)
 -- ====================================================================
--- Generar una notificación llamando al modulo de test_notification.js desde index.js
- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/api/test-notification" -Method POST
+-- Este endpoint simplemente hace "timbrar" tu celular para verificar
+-- que los tokens Push que tiene guardados el backend funcionan, sin
+-- ensuciar la tabla de Alertas.
+-- 
+-- EJECUTA ESTO EN POWERSHELL (Ojo: Es method GET, no POST):
+-- (Para dirigirlo a una colmena, añade la variable al final de la URL)
+--
+-- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/api/test-notification?colmena=Colmena%20Beta%20Lab" -Method GET
 
 
 

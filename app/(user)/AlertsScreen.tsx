@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import * as Notifications from 'expo-notifications';
 
 // Definimos el tipo para una alerta individual
 interface Alerta {
@@ -62,11 +63,24 @@ const AlertsScreen = () => {
   useFocusEffect(
     useCallback(() => {
       fetchAlertas();
-      return () => {
-        api.post('/api/alertas/marcar-como-leidas').catch(err => console.error('Error marcando alertas leídas', err));
-      };
-    }, [])
+    }, [fetchAlertas])
   );
+
+  const handleMarcarLeidas = async () => {
+    // Si ya no hay no leídas, no hacemos nada
+    if (!alertas.some(a => !a.leida)) return;
+    
+    try {
+      await api.post('/api/alertas/marcar-como-leidas');
+      // Actualización optimista de la UI al instante
+      setAlertas(prevAlertas => prevAlertas.map(a => ({ ...a, leida: true })));
+      
+      // Limpiar el globo (badge) rojo del icono de la aplicación en el celular
+      await Notifications.setBadgeCountAsync(0);
+    } catch (err) {
+      console.error('Error marcando alertas como leídas:', err);
+    }
+  };
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -172,6 +186,19 @@ const AlertsScreen = () => {
         }}
       />
       {renderContent()}
+
+      {/* Botón flotante para marcar todas como leídas (solo visible si hay no leídas) */}
+      {alertas.some(a => !a.leida) && (
+        <View style={styles.floatingButtonContainer}>
+          <TouchableOpacity 
+            style={[styles.floatingButton, { backgroundColor: colors.primary }]}
+            onPress={handleMarcarLeidas}
+          >
+            <Ionicons name="checkmark-done-circle-outline" size={24} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.floatingButtonText}>Marcar todas como leídas</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -245,6 +272,32 @@ const styles = StyleSheet.create({
     borderRadius: 25,
   },
   retryButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  floatingButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
