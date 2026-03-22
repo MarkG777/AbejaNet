@@ -137,8 +137,8 @@ const UserDashboardScreen = () => {
       const currentLang = i18n.language.startsWith('en') ? 'en' : 'es';
       
       const query = currentLang === 'en'
-        ? '(beekeeping OR "honey production" OR (bees AND (science OR insect OR honey OR agriculture))) NOT (team OR clothing OR baby OR game OR sports OR movie OR shoes)'
-        : '(apicultura OR "producción de miel" OR (abejas AND (ciencia OR insecto OR miel OR agricultura))) NOT (equipo OR ropa OR bebé OR juego OR deportes OR película OR tenis)';
+        ? '(beekeeping OR beekeeper OR "honey production" OR (bees AND (science OR insect OR honey OR agriculture OR climate OR accident OR environment))) NOT (team OR clothing OR baby OR game OR sports OR movie)'
+        : '(apicultura OR apicultor OR "producción de miel" OR (abejas AND (ciencia OR insecto OR miel OR agricultura OR clima OR accidente OR medioambiente))) NOT (equipo OR ropa OR bebé OR juego OR deportes OR película)';
       
       const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=${currentLang}&sortBy=publishedAt&apiKey=${apiKey}`;
 
