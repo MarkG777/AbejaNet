@@ -10,9 +10,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { useAppTheme, ThemePreference } from '@/context/ThemeContext';
 
 const ProfileScreen = () => {
   const { authState, updateUser } = useAuth();
+  const { themePreference, setThemePreference } = useAppTheme();
   const user = authState.user;
   const colors = useAppColors();
 
@@ -151,6 +153,35 @@ const ProfileScreen = () => {
             <Ionicons name="person-circle-outline" size={100} color={colors.profileIconColor} style={{ marginBottom: 15 }} />
             <Text style={[styles.cardFullName, { color: colors.text }]}>{fullName || 'Completa tu perfil'}</Text>
             <Text style={[styles.cardEmail, { color: colors.textSecondary }]}>{user.correo_electronico}</Text>
+            
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Apariencia</Text>
+            <View style={styles.themeToggleContainer}>
+              {(['system', 'light', 'dark'] as ThemePreference[]).map((theme) => (
+                <TouchableOpacity
+                  key={theme}
+                  style={[
+                    styles.themeButton,
+                    themePreference === theme ? { backgroundColor: colors.primary } : { backgroundColor: colors.background, borderColor: colors.border, borderWidth: 1 }
+                  ]}
+                  onPress={() => setThemePreference(theme)}
+                >
+                  <Ionicons 
+                    name={theme === 'system' ? 'phone-portrait-outline' : theme === 'light' ? 'sunny-outline' : 'moon-outline'} 
+                    size={16} 
+                    color={themePreference === theme ? '#fff' : colors.textSecondary} 
+                  />
+                  <Text style={[
+                    styles.themeButtonText, 
+                    { color: themePreference === theme ? '#fff' : colors.textSecondary }
+                  ]}>
+                    {theme === 'system' ? 'Auto' : theme === 'light' ? 'Claro' : 'Oscuro'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <TouchableOpacity style={[styles.editButton, { backgroundColor: colors.primary }]} onPress={() => setIsEditing(true)}>
               <Ionicons name="pencil" size={18} color="#fff" />
@@ -181,8 +212,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   cardFullName: { fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
-  cardEmail: { fontSize: 16, marginTop: 5, marginBottom: 20 },
-  divider: { width: '100%', height: 1, marginVertical: 20 },
+  cardEmail: { fontSize: 16, marginTop: 5, marginBottom: 10 },
+  divider: { width: '100%', height: 1, marginVertical: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15, alignSelf: 'flex-start' },
+  themeToggleContainer: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 10 },
+  themeButton: { flex: 1, paddingVertical: 10, marginHorizontal: 4, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 5 },
+  themeButtonText: { fontSize: 13, fontWeight: '600' },
   editButton: {
     flexDirection: 'row',
     paddingVertical: 12,

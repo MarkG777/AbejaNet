@@ -7,7 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { AuthProvider, useAuth } from '../context/AuthContext'; // Importa el AuthProvider y useAuth
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { ThemeProvider as AppThemeProvider } from '@/context/ThemeContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import * as Notifications from 'expo-notifications';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
@@ -60,9 +61,15 @@ function AppLayout() {
     const inAuthGroup = segments[0] === '(auth)';
     let performRedirect = false;
 
-    if (!authState.authenticated && !inAuthGroup) {
-      router.replace('/(auth)/login');
-      performRedirect = true;
+    if (!authState.authenticated) {
+      if (!authState.hasSeenOnboarding && segments[1] !== 'onboarding') {
+        router.replace('/(auth)/onboarding');
+        performRedirect = true;
+      } else if (authState.hasSeenOnboarding && !inAuthGroup) {
+        // Solo redirigimos a login si están en un área protegida
+        router.replace('/(auth)/login');
+        performRedirect = true;
+      }
     } else if (authState.authenticated) {
       if (authState.userRole === 'administrador' && (inAuthGroup || segments[0] !== '(admin)')) {
         router.replace('/(admin)/adminDashboard');
@@ -129,11 +136,13 @@ function AppLayout() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <NotificationsProvider>
-        <AppLayout />
-      </NotificationsProvider>
-    </AuthProvider>
+    <AppThemeProvider>
+      <AuthProvider>
+        <NotificationsProvider>
+          <AppLayout />
+        </NotificationsProvider>
+      </AuthProvider>
+    </AppThemeProvider>
   );
 }
 

@@ -23,10 +23,12 @@ interface AuthContextData {
     authenticated: boolean | null; // null mientras se verifica, luego true o false
     userRole: 'administrador' | 'usuario' | null; // Roles que manejes
     user: User | null;
+    hasSeenOnboarding: boolean | null;
   };
   login: (token: string, role: 'administrador' | 'usuario', user: User) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (newUserData: Partial<User>) => Promise<void>; // NUEVO: Para actualizar el perfil
+  setHasSeenOnboarding: () => Promise<void>;
 }
 
 // Creamos el contexto con un valor inicial undefined, ya que se proveerá más adelante
@@ -40,6 +42,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     authenticated: null, // Inicia como null hasta que se verifique desde AsyncStorage
     userRole: null,
     user: null,
+    hasSeenOnboarding: null,
   });
 
   const scheduleAutoLogout = (token: string) => {
@@ -77,6 +80,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const role = await AsyncStorage.getItem('userRole') as 'administrador' | 'usuario' | null;
         const userString = await AsyncStorage.getItem('user');
         const user = userString ? JSON.parse(userString) : null;
+        const onboardingString = await AsyncStorage.getItem('hasSeenOnboarding');
+        const hasSeenOnboarding = onboardingString === 'true';
 
         console.log('AuthContext: Loaded from AsyncStorage - Token:', token ? 'Exists' : 'Null');
         
@@ -94,6 +99,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 authenticated: false,
                 userRole: null,
                 user: null,
+                hasSeenOnboarding,
               });
               return; // Salir aquí, no continuar con la autenticación
             }
@@ -105,6 +111,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               authenticated: false,
               userRole: null,
               user: null,
+              hasSeenOnboarding,
             });
             return;
           }
@@ -116,6 +123,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             authenticated: true,
             userRole: role,
             user: user,
+            hasSeenOnboarding,
           });
           console.log('AuthContext: User is authenticated based on valid stored token.');
           scheduleAutoLogout(token);
@@ -135,6 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             authenticated: false,
             userRole: null,
             user: null,
+            hasSeenOnboarding,
           });
           console.log('AuthContext: No valid token/role found, user is not authenticated.');
         }
@@ -145,6 +154,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           authenticated: false,
           userRole: null,
           user: null,
+          hasSeenOnboarding: false,
         });
       }
     };
@@ -164,12 +174,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await AsyncStorage.setItem('userRole', role);
       await AsyncStorage.setItem('user', JSON.stringify(user));
       setAuthToken(token); // <-- AÑADIDO: Configuramos el token en axios
-      setAuthState({
+      setAuthState(prev => ({
+        ...prev,
         accessToken: token,
         authenticated: true,
         userRole: role,
         user: user,
-      });
+      }));
       scheduleAutoLogout(token);
 
       // Registrar para notificaciones push después de un login exitoso
@@ -215,12 +226,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setAuthToken(null); // Limpiamos el token de axios
 
-      setAuthState({
+      setAuthState(prev => ({
+        ...prev,
         accessToken: null,
         authenticated: false,
         userRole: null,
         user: null,
-      });
+      }));
       console.log('AuthContext: authState set to unauthenticated.');
     } catch (e) {
       console.error('AuthContext: Failed to clear auth state from storage', e);
@@ -246,12 +258,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const setHasSeenOnboarding = async () => {
+    try {
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+      setAuthState(prev => ({ ...prev, hasSeenOnboarding: true }));
+    } catch (e) {
+      console.error('AuthContext: Falló al guardar hasSeenOnboarding', e);
+    }
+  };
+
   // El valor que provee el contexto a sus hijos
   const value = {
     authState,
     login,
     logout,
     updateUser, // Exponemos la nueva función
+    setHasSeenOnboarding,
   };
 
 
