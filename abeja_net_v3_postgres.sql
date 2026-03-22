@@ -1,5 +1,5 @@
 -- ======================================================
--- BASE DE DATOS: AbejaNet v3 (Versión para PostgreSQL)
+-- BASE DE DATOS: AbejaNet v3 (Versión para PostgreSQL) USADA ANTES DE LA ID HUELLA DACTILAR EN RENDER
 -- ======================================================
 
 -- Limpiamos las tablas si existen para poder re-ejecutar el script
