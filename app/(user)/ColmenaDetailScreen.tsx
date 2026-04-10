@@ -7,7 +7,7 @@ import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme } from 'victory-native';
+import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLine, VictoryScatter, VictoryTheme } from 'victory-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
 
 // Tipos para las props de la gráfica de comparación
@@ -488,8 +488,8 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
 
               <VictoryScatter
                 data={buildSeries(k)}
-                size={12}
-                style={{ data: { fill: 'transparent' } }}
+                size={8}
+                style={{ data: { fill: 'transparent', stroke: 'transparent' } }}
                 events={[{
                   target: 'data',
                   eventHandlers: {
@@ -509,12 +509,10 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
               )}
             </VictoryChart>
             {k === 'peso' && (
-              <View style={{ alignItems: 'center', marginTop: 2, marginBottom: 2 }}>
-                <VictoryLegend centerTitle orientation="horizontal" gutter={20} style={{ border: { stroke: "#c4c4c4" }, title: { fontSize: 14, fontWeight: 'bold' } }} data={[
-                  { name: "Normal", symbol: { fill: "green", type: "circle" } },
-                  { name: "Alerta", symbol: { fill: "orange", type: "triangleUp" } },
-                  { name: "Peligro", symbol: { fill: "red", type: "star" } },
-                ]} />
+              <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 6, gap: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'green' }} /><Text style={{ fontSize: 12, color: colors.textTertiary }}>Normal</Text></View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ fontSize: 14, color: 'orange' }}>▲</Text><Text style={{ fontSize: 12, color: colors.textTertiary }}>Alerta</Text></View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ fontSize: 14, color: 'red' }}>★</Text><Text style={{ fontSize: 12, color: colors.textTertiary }}>Peligro</Text></View>
               </View>
             )}
           </View>
