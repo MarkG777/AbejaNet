@@ -436,21 +436,6 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
     );
   };
 
-  const renderThresholdLegend = () => {
-    const legendDataWeight = [
-      { name: "Normal", symbol: { fill: "green", type: "circle" } },
-      { name: "Alerta", symbol: { fill: "orange", type: "triangleUp" } },
-      { name: "Peligro", symbol: { fill: "red", type: "star" } }
-    ];
-    if (!activeKeys.includes('peso')) return null;
-
-    return (
-      <View style={{ alignItems: 'center', marginTop: 5, marginBottom: 5 }}>
-        <VictoryLegend centerTitle orientation="horizontal" gutter={20} style={{ border: { stroke: "#c4c4c4" }, title: { fontSize: 14, fontWeight: 'bold' } }} data={legendDataWeight} />
-      </View>
-    );
-  };
-
   return (
     <View style={[styles.chartContainer, { backgroundColor: colors.chartContainerBg }]}>
        <View style={styles.chipRow}>
@@ -462,61 +447,61 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
         </View>
 
       {processedData.length > 0 ? (
-        <VictoryChart
-          width={Dimensions.get('window').width - 20}
-          height={300}
-          theme={VictoryTheme.material}
-          domainPadding={{ y: 20, x: 30 }}
-          containerComponent={
-            <VictoryVoronoiContainer
-              onActivated={(pts) => onSetSelectedPoint(pts && pts[0] ? pts[0] : null)}
-            />
-          }
-        >
-                    <VictoryAxis dependentAxis tickFormat={(t) => `${t.toFixed(0)}`} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
-          <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start', fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
+        activeKeys.map(k => (
+          <View key={k} style={{ marginBottom: 12 }}>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>{labelMap[k]} ({unitMap[k]})</Text>
+            <VictoryChart
+              width={Dimensions.get('window').width - 20}
+              height={220}
+              theme={VictoryTheme.material}
+              domainPadding={{ y: 20, x: 30 }}
+              containerComponent={
+                <VictoryVoronoiContainer
+                  onActivated={(pts) => onSetSelectedPoint(pts && pts[0] ? { ...pts[0], metricKey: k } : null)}
+                />
+              }
+            >
+              <VictoryAxis dependentAxis tickFormat={(t) => `${t.toFixed(0)}`} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
+              <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start', fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
 
-          {activeKeys.length > 0 && activeKeys.every(k => k in SENSOR_THRESHOLDS) && (
-            <VictoryGroup>
-              {activeKeys.filter(k => k in SENSOR_THRESHOLDS).map(key => 
-                Object.entries(SENSOR_THRESHOLDS[key as keyof typeof SENSOR_THRESHOLDS]).map(([thresholdKey, range]) => {
-                  let color = '';
-                  if (thresholdKey.startsWith('danger')) {
-                    color = THRESHOLD_COLORS.danger;
-                  } else if (thresholdKey === 'warning') {
-                    color = THRESHOLD_COLORS.warning;
-                  } else if (thresholdKey === 'optimal') {
-                    color = THRESHOLD_COLORS.optimal;
-                  }
-
-                  return <VictoryArea
-                    key={`${key}-${thresholdKey}`}
-                    data={[{ x: 0, y0: range[0], y: range[1] }, { x: processedData.length - 1, y0: range[0], y: range[1] }]}
-                    style={{ data: { fill: color } }}
-                  />
-                })
+              {k in SENSOR_THRESHOLDS && (
+                <VictoryGroup>
+                  {Object.entries(SENSOR_THRESHOLDS[k as keyof typeof SENSOR_THRESHOLDS]).map(([thresholdKey, range]) => {
+                    let thColor = '';
+                    if (thresholdKey.startsWith('danger')) thColor = THRESHOLD_COLORS.danger;
+                    else if (thresholdKey === 'warning') thColor = THRESHOLD_COLORS.warning;
+                    else if (thresholdKey === 'optimal') thColor = THRESHOLD_COLORS.optimal;
+                    return <VictoryArea key={`${k}-${thresholdKey}`} data={[{ x: 0, y0: range[0], y: range[1] }, { x: processedData.length - 1, y0: range[0], y: range[1] }]} style={{ data: { fill: thColor } }} />;
+                  })}
+                </VictoryGroup>
               )}
-            </VictoryGroup>
-          )}
-          
-          {activeKeys.map(k => (
-            <VictoryLine key={k} data={buildSeries(k)} style={{ data: { stroke: colorMap[k], strokeWidth: 2 } }} />
-          ))}
 
-          {activeKeys.includes('peso') && (
-            <VictoryScatter data={buildWeightSeries()} style={{ data: { fill: ({ datum }) => datum.color } }} size={({ datum }) => datum.size} symbol={({ datum }) => datum.symbol} />
-          )}
+              <VictoryLine data={buildSeries(k)} style={{ data: { stroke: colorMap[k], strokeWidth: 2 } }} />
 
-          {selectedPoint && (
-            <VictoryScatter data={[selectedPoint]} size={6} style={{ data: { fill: colorMap[selectedPoint.metricKey as SensorDataKey] } }} />
-          )}
-        </VictoryChart>
+              {k === 'peso' && (
+                <VictoryScatter data={buildWeightSeries()} style={{ data: { fill: ({ datum }) => datum.color } }} size={({ datum }) => datum.size} symbol={({ datum }) => datum.symbol} />
+              )}
+
+              {selectedPoint && selectedPoint.x !== undefined && selectedPoint.x < processedData.length && (
+                <VictoryScatter data={[{ x: selectedPoint.x, y: processedData[selectedPoint.x]?.[k] || 0 }]} size={6} style={{ data: { fill: colorMap[k] } }} />
+              )}
+            </VictoryChart>
+            {k === 'peso' && (
+              <View style={{ alignItems: 'center', marginTop: 2, marginBottom: 2 }}>
+                <VictoryLegend centerTitle orientation="horizontal" gutter={20} style={{ border: { stroke: "#c4c4c4" }, title: { fontSize: 14, fontWeight: 'bold' } }} data={[
+                  { name: "Normal", symbol: { fill: "green", type: "circle" } },
+                  { name: "Alerta", symbol: { fill: "orange", type: "triangleUp" } },
+                  { name: "Peligro", symbol: { fill: "red", type: "star" } },
+                ]} />
+              </View>
+            )}
+          </View>
+        ))
       ) : (
         <View style={[styles.chartPlaceholder, { backgroundColor: colors.borderLight }]}>
           <Text style={[styles.chartPlaceholderText, { color: colors.textTertiary }]}>No hay datos para mostrar.</Text>
         </View>
       )}
-      {renderThresholdLegend()}
       
       {/* Información del punto seleccionado - Fija debajo del gráfico */}
       {renderSelectedPointInfo()}
