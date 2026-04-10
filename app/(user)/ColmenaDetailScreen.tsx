@@ -5,9 +5,9 @@ import { isAxiosError } from 'axios';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme, VictoryVoronoiContainer } from 'victory-native';
+import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme } from 'victory-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
 
 // Tipos para las props de la gráfica de comparación
@@ -316,6 +316,14 @@ interface InteractiveChartProps {
 const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, selectedPoint, onSetSelectedPoint }: InteractiveChartProps) => {
   const colors = useAppColors();
   const processedData = useMemo(() => processDataForPreview(lecturas, timeRange), [lecturas, timeRange]);
+  const scrollRef = useRef(false);
+
+  const handlePointPress = useCallback((metricKey: SensorDataKey, index: number) => {
+    if (scrollRef.current) return;
+    const d = processedData[index];
+    if (!d) return;
+    onSetSelectedPoint({ x: index, y: d[metricKey] || 0, metricKey });
+  }, [processedData, onSetSelectedPoint]);
 
   const firstValues = useMemo(() => {
     if (processedData.length === 0) {
@@ -448,18 +456,14 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
 
       {processedData.length > 0 ? (
         activeKeys.map(k => (
-          <View key={k} style={{ marginBottom: 12 }}>
+          <View key={k} style={{ marginBottom: 4 }}>
             <Text style={[styles.chartTitle, { color: colors.text }]}>{labelMap[k]} ({unitMap[k]})</Text>
             <VictoryChart
               width={Dimensions.get('window').width - 20}
               height={220}
               theme={VictoryTheme.material}
+              padding={{ top: 10, bottom: 50, left: 50, right: 20 }}
               domainPadding={{ y: 20, x: 30 }}
-              containerComponent={
-                <VictoryVoronoiContainer
-                  onActivated={(pts) => onSetSelectedPoint(pts && pts[0] ? { ...pts[0], metricKey: k } : null)}
-                />
-              }
             >
               <VictoryAxis dependentAxis tickFormat={(t) => `${t.toFixed(0)}`} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
               <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start', fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
@@ -482,8 +486,26 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
                 <VictoryScatter data={buildWeightSeries()} style={{ data: { fill: ({ datum }) => datum.color } }} size={({ datum }) => datum.size} symbol={({ datum }) => datum.symbol} />
               )}
 
+              <VictoryScatter
+                data={buildSeries(k)}
+                size={12}
+                style={{ data: { fill: 'transparent' } }}
+                events={[{
+                  target: 'data',
+                  eventHandlers: {
+                    onPressIn: () => [{
+                      target: 'data',
+                      mutation: (props: any) => {
+                        handlePointPress(k, props.datum.x);
+                        return null;
+                      }
+                    }]
+                  }
+                }]}
+              />
+
               {selectedPoint && selectedPoint.x !== undefined && selectedPoint.x < processedData.length && (
-                <VictoryScatter data={[{ x: selectedPoint.x, y: processedData[selectedPoint.x]?.[k] || 0 }]} size={6} style={{ data: { fill: colorMap[k] } }} />
+                <VictoryScatter data={[{ x: selectedPoint.x, y: processedData[selectedPoint.x]?.[k] || 0 }]} size={7} style={{ data: { fill: colorMap[k], stroke: '#fff', strokeWidth: 2 } }} />
               )}
             </VictoryChart>
             {k === 'peso' && (
