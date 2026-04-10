@@ -174,7 +174,7 @@ Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-dat
 -- EJECUTA ESTO EN POWERSHELL (Ojo: Es method GET, no POST):
 -- (Para dirigirlo a una colmena, añade la variable al final de la URL)
 --
--- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/api/test-notification?colmena=Colmena%20Beta%20Lab" -Method GET
+Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/api/test-notification?colmena=Colmena%20Beta%20Lab" -Method GET
 
 
 
