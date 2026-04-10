@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
+import { useAppColors } from '@/hooks/useAppColors';
 import api from '@/utils/api';
 import { isAxiosError } from 'axios';
 import { format, parseISO } from 'date-fns';
@@ -6,7 +7,6 @@ import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useAppColors } from '@/hooks/useAppColors';
 import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme, VictoryVoronoiContainer } from 'victory-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
 
@@ -476,7 +476,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
                     <VictoryAxis dependentAxis tickFormat={(t) => `${t.toFixed(0)}`} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
           <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start', fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
 
-          {activeKeys.some(k => k in SENSOR_THRESHOLDS) && (
+          {activeKeys.length > 0 && activeKeys.every(k => k in SENSOR_THRESHOLDS) && (
             <VictoryGroup>
               {activeKeys.filter(k => k in SENSOR_THRESHOLDS).map(key => 
                 Object.entries(SENSOR_THRESHOLDS[key as keyof typeof SENSOR_THRESHOLDS]).map(([thresholdKey, range]) => {
