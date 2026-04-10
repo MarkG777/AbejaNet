@@ -100,9 +100,13 @@ app.get('/debug/data', async (req, res) => {
 // Endpoint para poblar datos de sensores (llama al módulo generate_mock_data.js)
 app.post('/debug/populate-data', async (req, res) => {
   try {
-    console.log('Iniciando generación de datos de sensores...');
-    await generarDatos(false); // NO cerrar el pool cuando se llama desde aquí
-    res.json({ success: true, message: 'Datos generados exitosamente' });
+    // Acepta parámetros opcionales del body para configurar la generación
+    // Ejemplo body: { "colmena": "Colmena Alfa Ppal", "mac": "XX:XX:XX:XX:XX:XX", "dias": 15, "lecturasPorHora": 2 }
+    // Si no se envía body, usa los valores por defecto del script.
+    const opciones = req.body || {};
+    console.log('Iniciando generación de datos de sensores con opciones:', JSON.stringify(opciones));
+    await generarDatos(false, opciones); // NO cerrar el pool cuando se llama desde aquí
+    res.json({ success: true, message: 'Datos generados exitosamente', opciones });
   } catch (error) {
     console.error('Error al generar datos:', error);
     res.status(500).json({ success: false, error: error.message });

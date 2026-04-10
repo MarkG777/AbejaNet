@@ -24,13 +24,11 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 
-// --- Configuración de la Simulación ---
-const COLMENA_NOMBRE = 'Colmena Beta Lab';
-const SENSOR_MAC = 'A2:04:2A:B9:C1:D9'; // MAC del ESP32 simulado
-const DIAS_A_GENERAR = 30; // Generar datos para un mes
-const LECTURAS_POR_HORA = 4; // Una lectura cada 15 minutos
-const FECHA_INICIO = new Date();
-FECHA_INICIO.setDate(FECHA_INICIO.getDate() - DIAS_A_GENERAR);
+// --- Configuración de la Simulación (valores por defecto) ---
+const DEFAULT_COLMENA_NOMBRE = 'Colmena Beta Lab';
+const DEFAULT_SENSOR_MAC = 'A2:04:2A:B9:C1:D9';
+const DEFAULT_DIAS_A_GENERAR = 30;
+const DEFAULT_LECTURAS_POR_HORA = 4;
 
 
 // --- Funciones de Simulación de Datos (sin cambios) ---
@@ -65,7 +63,14 @@ const simularSonido = (date) => {
 
 // --- Script Principal (Adaptado para PostgreSQL) ---
 
-const generarDatos = async (cerrarPool = true) => {
+const generarDatos = async (cerrarPool = true, opciones = {}) => {
+  const COLMENA_NOMBRE = opciones.colmena || DEFAULT_COLMENA_NOMBRE;
+  const SENSOR_MAC = opciones.mac || DEFAULT_SENSOR_MAC;
+  const DIAS_A_GENERAR = opciones.dias || DEFAULT_DIAS_A_GENERAR;
+  const LECTURAS_POR_HORA = opciones.lecturasPorHora || DEFAULT_LECTURAS_POR_HORA;
+  const FECHA_INICIO = new Date();
+  FECHA_INICIO.setDate(FECHA_INICIO.getDate() - DIAS_A_GENERAR);
+
   let client;
   try {
     console.log('Conectando a la base de datos PostgreSQL...');
