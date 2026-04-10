@@ -1,4 +1,4 @@
--- ====================================================================
+﻿-- ====================================================================
 -- Comandos Útiles para PostgreSQL - AbejaNet en Render
 -- ====================================================================
 -- Este archivo contiene una colección de scripts y comandos comunes
@@ -184,3 +184,143 @@ cd C:\Users\marco\AbejaNet
 # Reemplaza PASSWORD_COMPLETO con el password real
 $env:PGPASSWORD="8oPtc2jkVBnE4gEL1ZBG3BasCbBjgPmA"
 psql -h dpg-d4hqgl75r7bs73c1vk90-a.oregon-postgres.render.com -U abeja_user -d abeja_net_v3_jwlcx -f abeja_net_v3_postgres.sql
+
+-- ====================================================================
+-- GENERAR DATOS SIMULADOS - MODO DINÁMICO (ACTUALIZADO)
+-- ====================================================================
+-- El endpoint /debug/populate-data ahora acepta parámetros dinámicos.
+-- Ya NO necesitas hacer commit + push para cambiar la colmena destino.
+--
+-- SINTAXIS GENERAL (PowerShell):
+-- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" `
+--   -Method POST -UseBasicParsing -ContentType "application/json" `
+--   -Body '{"colmena": "NOMBRE_COLMENA", "mac": "XX:XX:XX:XX:XX:XX", "dias": 30, "lecturasPorHora": 4}'
+--
+-- PARÁMETROS DISPONIBLES (todos son opcionales):
+-- | Parámetro       | Default                | Descripción                          |
+-- |-----------------|------------------------|--------------------------------------|
+-- | colmena         | "Colmena Beta Lab"     | Nombre exacto de la colmena en BD    |
+-- | mac             | "A2:04:2A:B9:C1:D9"   | MAC del sensor simulado              |
+-- | dias            | 30                     | Cuántos días de datos generar        |
+-- | lecturasPorHora | 4                      | Lecturas por hora (4 = cada 15 min)  |
+--
+-- IMPORTANTE: Agrega siempre -UseBasicParsing para evitar errores de seguridad en PowerShell.
+--
+-- === EJEMPLOS (copia y pega en PowerShell) ===
+
+-- 1) Valores por defecto (Colmena Beta Lab, 30 días):
+Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST -UseBasicParsing
+
+-- 2) Llenar "Colmena Alfa Ppal" con 15 días de datos:
+Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST -UseBasicParsing -ContentType "application/json" -Body '{"colmena": "Colmena Alfa Ppal", "mac": "B1:B2:B3:B4:B5:B6", "dias": 15}'
+
+-- 3) Llenar "Colmena Gamma Ppal" con 7 días, lecturas cada 30 min:
+Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST -UseBasicParsing -ContentType "application/json" -Body '{"colmena": "Colmena Gamma Ppal", "mac": "C1:C2:C3:C4:C5:C6", "dias": 7, "lecturasPorHora": 2}'
+
+-- NOTA: Si la colmena no existe en la BD, el script dará error.
+--       Verifica nombres exactos con:
+SELECT id, nombre FROM colmenas;
+-- ====================================================================
+
+
+-- ====================================================================
+-- CÓMO FUNCIONA LA APLICACIÓN ABEJANET - RESUMEN TÉCNICO
+-- ====================================================================
+--
+-- === ARQUITECTURA GENERAL ===
+--
+-- [ESP32 Sensores] --HTTP POST--> [Backend Node.js en Render] <--HTTP--> [App Móvil Expo/React Native]
+--                                        |
+--                                 [PostgreSQL en Render]
+--
+-- === STACK TECNOLÓGICO ===
+-- Frontend:  React Native + Expo SDK 51 + TypeScript + expo-router
+-- Backend:   Node.js + Express (ESM modules) desplegado en Render
+-- BD:        PostgreSQL hospedada en Render
+-- IoT:      ESP32 (Arduino C++) con sensores de temperatura, humedad, peso, sonido, lluvia
+--
+-- === FLUJO DE DATOS DEL ESP32 ===
+-- 1. ESP32 lee sensores cada 10 minutos
+-- 2. Envía POST a /api/sensor-data con header X-API-Key
+-- 3. Backend busca el sensor por MAC address
+-- 4. Si no existe, lo auto-registra como 'no_asignado'
+-- 5. Inserta lectura en tabla lecturas_ambientales
+-- 6. Actualiza ultima_lectura_en del sensor
+--
+-- === SISTEMA DE AUTENTICACIÓN ===
+-- - Login por email/contraseña (bcrypt) o Google Sign-In
+-- - Access Token JWT: expira en 1 hora
+-- - Refresh Token JWT: expira en 7 días, almacenado en BD y en SecureStore del dispositivo
+-- - Interceptor Axios: refresco automático silencioso en errores 401
+-- - Autenticación biométrica: se valida al regresar la app desde background
+-- - Rotación de tokens: cada refresh genera un nuevo par
+--
+-- === PANTALLAS DE LA APP ===
+-- (auth)/login.tsx          → Login (email + Google)
+-- (auth)/register.tsx       → Registro de nuevos usuarios
+-- (auth)/onboarding.tsx     → Bienvenida inicial (solo 1 vez)
+-- (user)/dashboard.tsx      → Panel principal (resumen apiarios, colmenas, alertas)
+-- (user)/ColmenasScreen.tsx  → Lista de colmenas del usuario
+-- (user)/ColmenaDetailScreen.tsx → Detalle con gráficas de sensores (temp, humedad, peso, sonido)
+-- (user)/AlertsScreen.tsx   → Alertas recibidas
+-- (user)/profile.tsx        → Perfil del usuario
+-- (admin)/adminDashboard.tsx → Dashboard de administrador
+--
+-- === ENDPOINTS PRINCIPALES DEL BACKEND ===
+-- POST /api/login                          → Autenticación
+-- POST /api/register                       → Registro
+-- POST /api/auth/google                    → Login con Google
+-- POST /api/refresh-token                  → Renovar tokens
+-- GET  /api/dashboard-summary              → Resumen para el dashboard (requiere token)
+-- GET  /api/apiarios                       → Listar apiarios del usuario (requiere token)
+-- GET  /api/apiarios/:id/colmenas          → Colmenas de un apiario (requiere token)
+-- GET  /api/colmenas/:id/lecturas?range=   → Lecturas con filtro: day/week/month (requiere token)
+-- PUT  /api/profile                        → Actualizar perfil (requiere token)
+-- POST /api/sensor-data                    → Recibir datos ESP32 (requiere X-API-Key)
+-- POST /api/lecturas                       → Recibir datos ESP32 (endpoint alternativo)
+-- GET  /api/alertas                        → Obtener alertas del usuario (requiere token)
+-- POST /api/alertas                        → Registrar alerta + enviar push notification
+-- POST /api/alertas/marcar-como-leidas     → Marcar todas las alertas como leídas
+-- POST /api/save-push-token                → Guardar token de notificaciones push
+--
+-- === ENDPOINTS DE DEBUG (solo desarrollo) ===
+-- GET  /debug/data                         → Ver totales de todas las tablas
+-- POST /debug/populate-data                → Generar datos simulados (acepta JSON con parámetros)
+-- POST /debug/assign-users                 → Asignar usuarios a apiarios
+-- POST /debug/setup-database               → Recrear esquema BD (requiere SETUP_SECRET)
+-- GET  /api/test-notification              → Probar push notification sin tocar BD
+--
+-- === SISTEMA DE NOTIFICACIONES PUSH ===
+-- 1. Al hacer login, la app registra su push token (Expo Push) en la BD
+-- 2. Cuando se crea una alerta (POST /api/alertas), el backend:
+--    a) Inserta la alerta en la tabla alertas
+--    b) Busca todos los usuarios asociados a esa colmena
+--    c) Envía notificación push via Expo a cada usuario con token
+--    d) El badge muestra el conteo de alertas no leídas
+--
+-- === VARIABLES DE ENTORNO REQUERIDAS (backend/.env) ===
+-- DATABASE_URL                → Conexión PostgreSQL (External URL de Render)
+-- JWT_SECRET                  → Secreto para firmar tokens JWT
+-- SETUP_SECRET                → Clave para el endpoint de setup de BD
+-- GOOGLE_WEB_CLIENT_ID        → OAuth Google (web)
+-- GOOGLE_ANDROID_CLIENT_ID    → OAuth Google (Android release)
+-- GOOGLE_ANDROID_CLIENT_ID_DEBUG → OAuth Google (Android debug)
+-- ESP32_API_KEY               → Autenticación de dispositivos IoT
+-- PORT                        → Puerto del servidor (default: 3000)
+-- DB_SSL                      → "true" para SSL con PostgreSQL
+--
+-- === USUARIOS DE PRUEBA ===
+-- Administrador: admin@abejanet.com / admin123
+-- Usuario:       ana_cliente@abejanet.com / ana123
+--
+-- === CÓMO CORRER LA APP EN ANDROID ===
+-- 1. Conectar celular por USB con Depuración USB activada
+-- 2. Autorizar la PC en el diálogo del celular
+-- 3. Verificar conexión: adb devices (debe aparecer como "device", no "unauthorized")
+-- 4. Instalar dependencias: npm install
+-- 5. Ejecutar: npx expo run:android
+--
+-- === DESPLIEGUE ===
+-- Backend: Render (https://abejanet-backend.onrender.com) - autodeploy desde GitHub
+-- App:     EAS Build (Expo Application Services) - paquete com.markg777.AbejaNet
+-- ====================================================================
