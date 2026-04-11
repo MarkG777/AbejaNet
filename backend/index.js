@@ -5,10 +5,15 @@ import { Expo } from 'expo-server-sdk';
 import express from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 import asignarUsuariosAApiario from './assign_users.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
 import enviarNotificacionPrueba from './test_notification.js';
+
+// Almacenamiento temporal de códigos de reseteo de contraseña
+// Formato: { email: { code, expiresAt } }
+const resetCodes = new Map();
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -650,6 +655,147 @@ app.put('/api/profile', verificarToken, async (req, res) => {
   }
 });
 
+app.post('/api/change-password', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Se requieren la contraseña actual y la nueva contraseña.' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT contrasena, proveedor_auth FROM usuarios WHERE id = $1', [userId]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
+    }
+
+    const user = rows[0];
+
+    if (user.proveedor_auth === 'google') {
+      return res.status(400).json({ success: false, message: 'Las cuentas de Google no pueden cambiar la contraseña desde aquí.' });
+    }
+
+    const contrasenaValida = await bcrypt.compare(currentPassword, user.contrasena);
+    if (!contrasenaValida) {
+      return res.status(401).json({ success: false, message: 'La contraseña actual es incorrecta.' });
+    }
+
+    const nuevaContrasenaHasheada = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE usuarios SET contrasena = $1 WHERE id = $2', [nuevaContrasenaHasheada, userId]);
+
+    res.json({ success: true, message: 'Contraseña actualizada correctamente.' });
+  } catch (error) {
+    console.error('Error al cambiar la contraseña:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+  }
+});
+
+app.post('/api/forgot-password', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'El correo electrónico es requerido.' });
+  }
+
+  try {
+    const { rows } = await pool.query('SELECT id, proveedor_auth FROM usuarios WHERE correo_electronico = $1', [email]);
+
+    if (rows.length === 0 || rows[0].proveedor_auth === 'google') {
+      return res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+
+    resetCodes.set(email.toLowerCase(), { code, expiresAt });
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"AbejaNet" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: 'Código de recuperación - AbejaNet',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2E7D32; text-align: center;">🐝 AbejaNet</h2>
+          <p>Hola,</p>
+          <p>Recibimos una solicitud para restablecer tu contraseña. Usa el siguiente código:</p>
+          <div style="background: #f5f5f5; border-radius: 10px; padding: 20px; text-align: center; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #333;">${code}</span>
+          </div>
+          <p style="color: #666; font-size: 14px;">Este código expira en <strong>15 minutos</strong>.</p>
+          <p style="color: #666; font-size: 14px;">Si no solicitaste este cambio, puedes ignorar este correo.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="color: #999; font-size: 12px; text-align: center;">AbejaNet - Sistema de Monitoreo Apícola</p>
+        </div>
+      `,
+    });
+
+    console.log(`Código de recuperación enviado a ${email}`);
+    res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
+
+  } catch (error) {
+    console.error('Error en /api/forgot-password:', error);
+    res.status(500).json({ success: false, message: 'Error al procesar la solicitud.' });
+  }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { email, code, newPassword } = req.body;
+
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Correo, código y nueva contraseña son requeridos.' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+  }
+
+  const stored = resetCodes.get(email.toLowerCase());
+
+  if (!stored) {
+    return res.status(400).json({ success: false, message: 'No hay una solicitud de recuperación activa para este correo.' });
+  }
+
+  if (Date.now() > stored.expiresAt) {
+    resetCodes.delete(email.toLowerCase());
+    return res.status(400).json({ success: false, message: 'El código ha expirado. Solicita uno nuevo.' });
+  }
+
+  if (stored.code !== code) {
+    return res.status(400).json({ success: false, message: 'El código de verificación es incorrecto.' });
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const { rowCount } = await pool.query(
+      'UPDATE usuarios SET contrasena = $1 WHERE correo_electronico = $2',
+      [hashedPassword, email]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
+    }
+
+    resetCodes.delete(email.toLowerCase());
+    res.json({ success: true, message: 'Contraseña restablecida correctamente.' });
+  } catch (error) {
+    console.error('Error en /api/reset-password:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+  }
+});
+
 // =================================================================
 // ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
 // =================================================================
@@ -711,63 +857,14 @@ app.post('/api/lecturas', async (req, res) => {
   }
 });
 
-
-/*
-// =================================================================
-// ENDPOINT DE NOTICIAS (DESHABILITADO)
-// La lógica se movió al frontend para evitar el bloqueo de Cloudflare.
-app.get('/api/noticias', async (req, res) => {
-  try {
-    const apiKey = process.env['X-API-Key'];
-    if (!apiKey) {
-      console.error('La clave de API para noticias (X-API-Key) no está configurada en el archivo .env');
-      return res.status(500).json({ message: 'Error de configuración del servidor: falta la clave de API de noticias.' });
-    }
-
-    // Búsqueda más precisa: solo en títulos y con términos más específicos.
-    // Búsqueda más precisa, excluyendo términos que generan ruido (política, social, etc.)
-    const query = '(apicultura OR abejas OR colmenas OR "producción de miel" OR apicultor OR polinización) NOT (Acteal OR política OR fábula OR izquierda OR corrupción)';
-    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=es&sortBy=publishedAt&apiKey=${apiKey}`;
-
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      }
-    });
-
-    const articles = response.data.articles
-      .filter(article => article.title && article.title !== "[Removed]")
-      .slice(0, 10);
-
-    res.json({ articles });
-
-  } catch (error) {
-    if (error.response) {
-      console.error('Error al obtener noticias desde la API:', error.response.data);
-      res.status(error.response.status).json({ message: `Error del servicio de noticias: ${error.response.data.message}` });
-    } else if (error.request) {
-      console.error('No se recibió respuesta del servicio de noticias:', error.request);
-      res.status(503).json({ message: 'El servicio de noticias no responde.' });
-    } else {
-      console.error('Error al configurar la solicitud de noticias:', error.message);
-      res.status(500).json({ message: 'Error interno al procesar la solicitud de noticias.' });
-    }
-  }
-});
-*/
-
 // ==============================================
 // ENDPOINT PARA GESTIÓN DE ALERTAS
 // ==============================================
 
-// NOTA: Este endpoint es para que los sensores (ESP32) reporten eventos críticos.
-// En un futuro, debería tener su propio sistema de autenticación (ej. API Key por dispositivo)
-// en lugar de depender del token de usuario, pero para la fase inicial lo dejamos así.
 app.get('/api/alertas', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
 
   try {
-    // La transacción no es necesaria para una consulta SELECT.
     const query = `
       SELECT 
         a.id,
@@ -796,7 +893,6 @@ app.get('/api/alertas', verificarToken, async (req, res) => {
   }
 });
 
-// Endpoint para marcar alertas como leídas al salir de la pantalla
 app.post('/api/alertas/marcar-como-leidas', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   try {

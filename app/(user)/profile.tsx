@@ -1,18 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { ThemePreference, useAppTheme } from '@/context/ThemeContext';
+import { useAppColors } from '@/hooks/useAppColors';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isAxiosError } from 'axios';
+import { router, Stack } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  View, Text, StyleSheet, TextInput, Button, Alert, ActivityIndicator,
-  SafeAreaView, ScrollView, TouchableOpacity
+  ActivityIndicator,
+  Alert,
+  SafeAreaView, ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
-import { isAxiosError } from 'axios';
-import { Ionicons } from '@expo/vector-icons';
-import { router, Stack } from 'expo-router';
-import { useAppColors } from '@/hooks/useAppColors';
-import { SkeletonLoader } from '@/components/SkeletonLoader';
-import { useAppTheme, ThemePreference } from '@/context/ThemeContext';
-import { useTranslation } from 'react-i18next';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const ProfileScreen = () => {
   const { authState, updateUser } = useAuth();
@@ -27,10 +33,16 @@ const ProfileScreen = () => {
   };
 
   const [isEditing, setIsEditing] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [nombre, setNombre] = useState('');
   const [apellidoPaterno, setApellidoPaterno] = useState('');
   const [apellidoMaterno, setApellidoMaterno] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
   useEffect(() => {
     if (isEditing && user) {
       setNombre(user.nombre || '');
@@ -91,6 +103,53 @@ const ProfileScreen = () => {
     setIsEditing(false);
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert(t('error', 'Error'), t('fill_all_fields', 'Completa todos los campos.'));
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert(t('error', 'Error'), t('password_min_length', 'La nueva contraseña debe tener al menos 6 caracteres.'));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert(t('error', 'Error'), t('passwords_dont_match', 'Las contraseñas nuevas no coinciden.'));
+      return;
+    }
+    if (currentPassword === newPassword) {
+      Alert.alert(t('error', 'Error'), t('same_password', 'Esta es tu misma contraseña. Ingresa una diferente.'));
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const response = await api.post('/api/change-password', { currentPassword, newPassword });
+      if (response.data.success) {
+        Alert.alert(t('success', 'Éxito'), t('password_changed', 'Contraseña actualizada correctamente.'));
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setIsChangingPassword(false);
+      } else {
+        Alert.alert(t('error', 'Error'), response.data.message || t('error_generic', 'Ocurrió un error inesperado.'));
+      }
+    } catch (err) {
+      if (isAxiosError(err) && err.response?.data?.message) {
+        Alert.alert(t('error', 'Error'), err.response.data.message);
+      } else {
+        Alert.alert(t('error_network', 'Error de Red'), t('error_server', 'No se pudo conectar con el servidor.'));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelPassword = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setIsChangingPassword(false);
+  };
+
   if (!user) {
     return (
       <SafeAreaView style={[styles.containerCentered, { backgroundColor: colors.background }]}>
@@ -132,7 +191,40 @@ const ProfileScreen = () => {
       
       
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {isEditing ? (
+        {isChangingPassword ? (
+          // --- MODO CAMBIO DE CONTRASEÑA ---
+          <View style={styles.formContainer}>
+            <Text style={[styles.title, { color: colors.text }]}>{t('change_password', 'Cambiar Contraseña')}</Text>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('current_password', 'Contraseña actual')}</Text>
+            <View style={{ position: 'relative' }}>
+              <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText, paddingRight: 50 }]} value={currentPassword} onChangeText={setCurrentPassword} placeholder="••••••" placeholderTextColor={colors.placeholder} secureTextEntry={!showCurrentPw} />
+              <TouchableOpacity onPress={() => setShowCurrentPw(!showCurrentPw)} style={{ position: 'absolute', right: 15, top: 12 }}>
+                <Ionicons name={showCurrentPw ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('new_password', 'Nueva contraseña')}</Text>
+            <View style={{ position: 'relative' }}>
+              <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText, paddingRight: 50 }]} value={newPassword} onChangeText={setNewPassword} placeholder={t('min_6_chars', 'Mínimo 6 caracteres')} placeholderTextColor={colors.placeholder} secureTextEntry={!showNewPw} />
+              <TouchableOpacity onPress={() => setShowNewPw(!showNewPw)} style={{ position: 'absolute', right: 15, top: 12 }}>
+                <Ionicons name={showNewPw ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>{t('confirm_password', 'Confirmar nueva contraseña')}</Text>
+            <TextInput style={[styles.input, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, color: colors.inputText }]} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="••••••" placeholderTextColor={colors.placeholder} secureTextEntry={!showNewPw} />
+            {isLoading ? (
+              <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 20 }} />
+            ) : (
+              <View style={styles.buttonGroup}>
+                <TouchableOpacity style={[styles.cancelButton, { borderColor: colors.border }]} onPress={handleCancelPassword}>
+                  <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>{t('cancel', 'Cancelar')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={handleChangePassword}>
+                  <Text style={styles.saveButtonText}>{t('save', 'Guardar')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : isEditing ? (
           // --- MODO EDICIÓN ---
           <View style={styles.formContainer}>
             <Text style={[styles.title, { color: colors.text }]}>{t('edit_profile', 'Editar Perfil')}</Text>
@@ -224,6 +316,10 @@ const ProfileScreen = () => {
             <TouchableOpacity style={[styles.editButton, { backgroundColor: colors.primary }]} onPress={() => setIsEditing(true)}>
               <Ionicons name="pencil" size={18} color="#fff" />
               <Text style={styles.editButtonText}>{t('edit_profile', 'Editar Perfil')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.editButton, { backgroundColor: colors.textSecondary, marginTop: 10 }]} onPress={() => setIsChangingPassword(true)}>
+              <Ionicons name="lock-closed-outline" size={18} color="#fff" />
+              <Text style={styles.editButtonText}>{t('change_password', 'Cambiar Contraseña')}</Text>
             </TouchableOpacity>
           </View>
         )}
