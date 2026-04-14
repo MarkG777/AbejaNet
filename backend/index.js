@@ -5,7 +5,6 @@ import { Expo } from 'expo-server-sdk';
 import express from 'express';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
-import nodemailer from 'nodemailer';
 import asignarUsuariosAApiario from './assign_users.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
@@ -51,11 +50,23 @@ const verificarToken = (req, res, next) => {
 // =================================================================
 app.get('/', (req, res) => res.send('API de AbejaNet online.'));
 
+// MIGRACIONES AUTOMÁTICAS AL INICIAR
+(async () => {
+  try {
+    await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS refresh_token TEXT;');
+    await pool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_auth VARCHAR(20) DEFAULT 'local';");
+    console.log('Migraciones automáticas aplicadas correctamente.');
+  } catch (err) {
+    console.error('Error en migraciones automáticas:', err.message);
+  }
+})();
+
 // ENDPOINT TEMPORAL PARA MIGRACIÓN SILENCIOSA DE BD RENDER
 app.get('/debug/migrate-refresh-token', async (req, res) => {
   try {
     await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS refresh_token TEXT;');
-    res.send('Migración exitosa: Columna refresh_token habilitada en Render DB.');
+    await pool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_auth VARCHAR(20) DEFAULT 'local';");
+    res.send('Migración exitosa: Columnas refresh_token y proveedor_auth habilitadas en Render DB.');
   } catch(err) {
     res.status(500).send('Error DB: ' + err.message);
   }
@@ -668,7 +679,7 @@ app.post('/api/change-password', verificarToken, async (req, res) => {
   }
 
   try {
-    const { rows } = await pool.query('SELECT contrasena, proveedor_auth FROM usuarios WHERE id = $1', [userId]);
+    const { rows } = await pool.query('SELECT contrasena FROM usuarios WHERE id = $1', [userId]);
 
     if (rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
@@ -676,7 +687,7 @@ app.post('/api/change-password', verificarToken, async (req, res) => {
 
     const user = rows[0];
 
-    if (user.proveedor_auth === 'google') {
+    if (!user.contrasena) {
       return res.status(400).json({ success: false, message: 'Las cuentas de Google no pueden cambiar la contraseña desde aquí.' });
     }
 
@@ -702,10 +713,15 @@ app.post('/api/forgot-password', async (req, res) => {
     return res.status(400).json({ success: false, message: 'El correo electrónico es requerido.' });
   }
 
-  try {
-    const { rows } = await pool.query('SELECT id, proveedor_auth FROM usuarios WHERE correo_electronico = $1', [email]);
+  if (!process.env.RESEND_API_KEY) {
+    console.error('ERROR: Variable RESEND_API_KEY no configurada en el servidor.');
+    return res.status(500).json({ success: false, message: 'El servicio de correo no está configurado en el servidor. Contacta al administrador.' });
+  }
 
-    if (rows.length === 0 || rows[0].proveedor_auth === 'google') {
+  try {
+    const { rows } = await pool.query('SELECT id, contrasena FROM usuarios WHERE correo_electronico = $1', [email]);
+
+    if (rows.length === 0 || !rows[0].contrasena) {
       return res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
     }
 
@@ -714,16 +730,10 @@ app.post('/api/forgot-password', async (req, res) => {
 
     resetCodes.set(email.toLowerCase(), { code, expiresAt });
 
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
-    await transporter.sendMail({
-      from: `"AbejaNet" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+      from: 'AbejaNet <onboarding@resend.dev>',
       to: email,
       subject: 'Código de recuperación - AbejaNet',
       html: `
@@ -746,8 +756,8 @@ app.post('/api/forgot-password', async (req, res) => {
     res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
 
   } catch (error) {
-    console.error('Error en /api/forgot-password:', error);
-    res.status(500).json({ success: false, message: 'Error al procesar la solicitud.' });
+    console.error('Error en /api/forgot-password:', error.message);
+    res.status(500).json({ success: false, message: 'Error al enviar el correo. Verifica que el correo sea válido e intenta de nuevo.' });
   }
 });
 

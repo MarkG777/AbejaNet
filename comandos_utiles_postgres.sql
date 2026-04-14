@@ -1,4 +1,4 @@
-﻿-- ====================================================================
+-- ====================================================================
 -- Comandos Útiles para PostgreSQL - AbejaNet en Render
 -- ====================================================================
 -- Este archivo contiene una colección de scripts y comandos comunes
@@ -41,7 +41,7 @@ DO $$
 DECLARE
     -- ¡SOLO NECESITAS MODIFICAR ESTAS TRES LÍNEAS!
     correo_usuario_a_asignar TEXT := 'marcogolvera777@gmail.com'; -- <-- Reemplaza con el correo del usuario
-    nombre_apiario_a_asignar TEXT := 'Apiario Secundario del Laboratorio';   -- <-- Reemplaza con el nombre del apiario
+    nombre_apiario_a_asignar TEXT := 'Apiario Principal';   -- <-- Reemplaza con el nombre del apiario
     correo_admin_que_asigna  TEXT := 'admin@abejanet.com';     -- <-- Reemplaza con el correo del admin
 
     -- El script obtiene los IDs correspondientes.
@@ -192,7 +192,7 @@ psql -h dpg-d4hqgl75r7bs73c1vk90-a.oregon-postgres.render.com -U abeja_user -d a
 -- Ya NO necesitas hacer commit + push para cambiar la colmena destino.
 --
 -- SINTAXIS GENERAL (PowerShell):
--- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" `
+Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" `
 --   -Method POST -UseBasicParsing -ContentType "application/json" `
 --   -Body '{"colmena": "NOMBRE_COLMENA", "mac": "XX:XX:XX:XX:XX:XX", "dias": 30, "lecturasPorHora": 4}'
 --
@@ -206,20 +206,19 @@ psql -h dpg-d4hqgl75r7bs73c1vk90-a.oregon-postgres.render.com -U abeja_user -d a
 --
 -- IMPORTANTE: Agrega siempre -UseBasicParsing para evitar errores de seguridad en PowerShell.
 --
--- === EJEMPLOS (copia y pega en PowerShell) ===
-
+-- === EJEMPLOS ===
+--
 -- 1) Valores por defecto (Colmena Beta Lab, 30 días):
-Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST -UseBasicParsing
-
+-- Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST -UseBasicParsing
+--
 -- 2) Llenar "Colmena Alfa Ppal" con 15 días de datos:
 Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST -UseBasicParsing -ContentType "application/json" -Body '{"colmena": "Colmena Alfa Ppal", "mac": "B1:B2:B3:B4:B5:B6", "dias": 15}'
-
+--
 -- 3) Llenar "Colmena Gamma Ppal" con 7 días, lecturas cada 30 min:
 Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" -Method POST -UseBasicParsing -ContentType "application/json" -Body '{"colmena": "Colmena Gamma Ppal", "mac": "C1:C2:C3:C4:C5:C6", "dias": 7, "lecturasPorHora": 2}'
-
+--
 -- NOTA: Si la colmena no existe en la BD, el script dará error.
---       Verifica nombres exactos con:
-SELECT id, nombre FROM colmenas;
+--       Verifica nombres exactos con: SELECT id, nombre FROM colmenas;
 -- ====================================================================
 
 

@@ -1,5 +1,5 @@
 -- ======================================================
--- BASE DE DATOS: AbejaNet v3 (Versión para PostgreSQL)
+-- BASE DE DATOS: AbejaNet v4 (Versión para PostgreSQL)
 -- ======================================================
 
 -- Limpiamos las tablas si existen para poder re-ejecutar el script
@@ -31,6 +31,7 @@ CREATE TABLE usuarios (
   contrasena          VARCHAR(255) NULL DEFAULT NULL, -- Permite NULL para usuarios de Google
   push_token          VARCHAR(255) NULL DEFAULT NULL,
   refresh_token       TEXT NULL,                      -- Fase 2.4: Sesiones persistentes Móvil
+  proveedor_auth      VARCHAR(20) DEFAULT 'local',     -- 'local' o 'google'
   rol_id              SMALLINT NOT NULL,
   esta_activo         BOOLEAN DEFAULT TRUE,
   fecha_creacion      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
