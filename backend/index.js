@@ -716,11 +716,11 @@ app.post('/api/forgot-password', async (req, res) => {
     return res.status(400).json({ success: false, message: 'El correo electrónico es requerido.' });
   }
 
-  if (!process.env.RESEND_API_KEY) {
-    console.error('[forgot-password] ERROR: RESEND_API_KEY no está configurada en las variables de entorno.');
+  if (!process.env.BREVO_API_KEY) {
+    console.error('[forgot-password] ERROR: BREVO_API_KEY no está configurada en las variables de entorno.');
     return res.status(500).json({ success: false, message: 'El servicio de correo no está configurado en el servidor. Contacta al administrador.' });
   }
-  console.log('[forgot-password] RESEND_API_KEY detectada correctamente.');
+  console.log('[forgot-password] BREVO_API_KEY detectada correctamente.');
 
   try {
     const { rows } = await pool.query('SELECT id, contrasena FROM usuarios WHERE correo_electronico = $1', [email]);
@@ -737,11 +737,11 @@ app.post('/api/forgot-password', async (req, res) => {
     resetCodes.set(email.toLowerCase(), { code, expiresAt });
     console.log(`[forgot-password] Código generado para ${email}. Intentando enviar email...`);
 
-    await axios.post('https://api.resend.com/emails', {
-      from: 'AbejaNet <onboarding@resend.dev>',
-      to: [email],
+    const brevoResponse = await axios.post('https://api.brevo.com/v3/smtp/email', {
+      sender: { name: 'AbejaNet', email: process.env.BREVO_SENDER_EMAIL || 'noreply@abejanet.com' },
+      to: [{ email }],
       subject: 'Código de recuperación - AbejaNet',
-      html: `
+      htmlContent: `
         <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #2E7D32; text-align: center;">🐝 AbejaNet</h2>
           <p>Hola,</p>
@@ -755,15 +755,16 @@ app.post('/api/forgot-password', async (req, res) => {
           <p style="color: #999; font-size: 12px; text-align: center;">AbejaNet - Sistema de Monitoreo Apícola</p>
         </div>
       `,
-    }, { headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' } });
+    }, { headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', 'accept': 'application/json' } });
+    console.log('[forgot-password] Brevo API response:', JSON.stringify(brevoResponse.data));
 
     console.log(`Código de recuperación enviado a ${email}`);
     res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
 
   } catch (error) {
     if (error.response) {
-      console.error('[forgot-password] Resend API error status:', error.response.status);
-      console.error('[forgot-password] Resend API error data:', JSON.stringify(error.response.data));
+      console.error('[forgot-password] Brevo API error status:', error.response.status);
+      console.error('[forgot-password] Brevo API error data:', JSON.stringify(error.response.data));
     } else {
       console.error('[forgot-password] Error:', error.message);
     }
