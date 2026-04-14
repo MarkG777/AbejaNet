@@ -761,7 +761,12 @@ app.post('/api/forgot-password', async (req, res) => {
     res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
 
   } catch (error) {
-    console.error('Error en /api/forgot-password:', error.message);
+    if (error.response) {
+      console.error('[forgot-password] Resend API error status:', error.response.status);
+      console.error('[forgot-password] Resend API error data:', JSON.stringify(error.response.data));
+    } else {
+      console.error('[forgot-password] Error:', error.message);
+    }
     res.status(500).json({ success: false, message: 'Error al enviar el correo. Verifica que el correo sea válido e intenta de nuevo.' });
   }
 });
