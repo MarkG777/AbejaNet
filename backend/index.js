@@ -616,10 +616,9 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
                  ORDER BY fecha_registro ASC`;
         break;
       default: // 'day'
-        // Para el día, agrupa por bloques de 2 horas y calcula el promedio (versión corregida)
+        // Para el día, agrupa por hora y calcula el promedio
         query = `SELECT 
-                   -- Trunca la fecha al bloque de 2 horas más cercano
-                   date_trunc('hour', l.fecha_registro) - (EXTRACT(hour FROM l.fecha_registro)::int % 2) * interval '1 hour' as fecha_registro,
+                   date_trunc('hour', l.fecha_registro) as fecha_registro,
                    AVG(l.temperatura) as temperatura,
                    AVG(l.humedad) as humedad,
                    AVG(l.peso) as peso,
@@ -627,7 +626,6 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
                  FROM lecturas_ambientales l
                  JOIN sensores s ON l.sensor_id = s.id
                  WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '1 DAY'
-                 -- Agrupa por el bloque de 2 horas
                  GROUP BY fecha_registro
                  ORDER BY fecha_registro ASC`;
         break;

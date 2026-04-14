@@ -323,3 +323,23 @@ Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-dat
 -- Backend: Render (https://abejanet-backend.onrender.com) - autodeploy desde GitHub
 -- App:     EAS Build (Expo Application Services) - paquete com.markg777.AbejaNet
 -- ====================================================================
+
+-- Ver las colmenas disponibles
+SELECT c.id, c.nombre, a.nombre AS apiario FROM colmenas c JOIN apiarios a ON c.apiario_id = a.id;
+
+-- Asignar el sensor a la colmena que elijas (cambia el 1 por el id correcto)
+UPDATE sensores SET colmena_id = 3, estado = 'activo' WHERE mac_address = '78:1C:3C:A5:F9:98';
+
+-- 1. Ver todos los sensores registrados (incluyendo los auto-registrados)
+SELECT id, mac_address, colmena_id, estado, fecha_instalacion, ultima_lectura_en 
+FROM sensores ORDER BY id DESC;
+
+-- 2. Ver las últimas 20 lecturas recibidas
+SELECT la.id, s.mac_address, la.temperatura, la.humedad, la.peso, la.sonido, la.lluvia, la.fecha_registro
+FROM lecturas_ambientales la
+JOIN sensores s ON la.sensor_id = s.id
+ORDER BY la.fecha_registro DESC LIMIT 20;
+
+-- 3. Ver si hay sensores sin asignar (recién auto-registrados por el ESP32)
+SELECT id, mac_address, estado, ultima_lectura_en 
+FROM sensores WHERE estado = 'no_asignado';

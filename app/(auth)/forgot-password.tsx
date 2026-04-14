@@ -114,14 +114,21 @@ export default function ForgotPasswordScreen() {
 
   const renderCodeStep = () => (
     <>
+      <View style={styles.iconContainer}>
+        <Ionicons name="mail-open-outline" size={48} color={colors.primary} />
+      </View>
       <Text style={[styles.title, { color: colors.text }]}>{t('enter_code_title', 'Verificar Código')}</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('enter_code_subtitle', 'Ingresa el código de 6 dígitos que enviamos a tu correo.')}</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+        {t('enter_code_subtitle', 'Ingresa el código de 6 dígitos que enviamos a:')}
+      </Text>
+      <Text style={[styles.emailHighlight, { color: colors.text }]}>{email}</Text>
+      <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{t('code_label', 'Código de verificación')}</Text>
       <TextInput
         style={[styles.input, styles.codeInput, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.inputText }]}
-        placeholder={t('code_placeholder', 'Código de 6 dígitos')}
+        placeholder="000000"
         placeholderTextColor={colors.placeholder}
         value={code}
-        onChangeText={setCode}
+        onChangeText={(text) => setCode(text.replace(/[^0-9]/g, ''))}
         keyboardType="number-pad"
         maxLength={6}
       />
@@ -129,7 +136,7 @@ export default function ForgotPasswordScreen() {
         <Text style={styles.buttonText}>{t('verify_code', 'Verificar')}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={handleSendCode} disabled={isLoading}>
-        <Text style={[styles.resendText, { color: colors.primary }]}>{isLoading ? '...' : t('send_code', 'Reenviar Código')}</Text>
+        <Text style={[styles.resendText, { color: colors.primary }]}>{isLoading ? '...' : t('resend_code', 'Reenviar Código')}</Text>
       </TouchableOpacity>
     </>
   );
@@ -214,8 +221,25 @@ const styles = StyleSheet.create({
   },
   codeInput: {
     textAlign: 'center',
-    fontSize: 24,
-    letterSpacing: 8,
+    fontSize: 28,
+    letterSpacing: 12,
+    height: 60,
+    marginBottom: 24,
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  emailHighlight: {
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 13,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   button: {
     padding: 15,

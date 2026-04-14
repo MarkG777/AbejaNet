@@ -10,8 +10,8 @@
 #include "HX711.h"
 
 // -------- CONFIGURACIÓN WIFI --------
-const char* ssid = "TU_WIFI_AQUI";           // ← CAMBIAR: Nombre de tu red WiFi
-const char* password = "TU_PASSWORD_AQUI";   // ← CAMBIAR: Contraseña de tu WiFi
+const char* ssid = "UTEQ-Alumnos";           // ← CAMBIAR: Nombre de tu red WiFi
+const char* password = "";   // ← CAMBIAR: Contraseña de tu WiFi
 
 // -------- CONFIGURACIÓN BACKEND --------
 const char* serverUrl = "https://abejanet-backend.onrender.com/api/lecturas";
@@ -33,13 +33,13 @@ void setupADC() {
 DHT dht(DHTPIN, DHTTYPE);
 
 // -------- HX711 --------
-#define HX_DT 22     // Data pin
-#define HX_SCK 21    // Clock pin
+#define HX_DT 4      // Data pin
+#define HX_SCK 5     // Clock pin
 
 HX711 scale;
 
 // Valor de calibración — AJUSTA ESTE DESPUÉS
-float calibration_factor = -7050.0; 
+float calibration_factor = 433935.00; 
 
 // Filtro del peso
 float peso_filtrado = 0;
