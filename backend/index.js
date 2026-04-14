@@ -1,3 +1,4 @@
+import axios from 'axios';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -736,11 +737,9 @@ app.post('/api/forgot-password', async (req, res) => {
     resetCodes.set(email.toLowerCase(), { code, expiresAt });
     console.log(`[forgot-password] Código generado para ${email}. Intentando enviar email...`);
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    await resend.emails.send({
+    await axios.post('https://api.resend.com/emails', {
       from: 'AbejaNet <onboarding@resend.dev>',
-      to: email,
+      to: [email],
       subject: 'Código de recuperación - AbejaNet',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 20px;">
@@ -756,7 +755,7 @@ app.post('/api/forgot-password', async (req, res) => {
           <p style="color: #999; font-size: 12px; text-align: center;">AbejaNet - Sistema de Monitoreo Apícola</p>
         </div>
       `,
-    });
+    }, { headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' } });
 
     console.log(`Código de recuperación enviado a ${email}`);
     res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
