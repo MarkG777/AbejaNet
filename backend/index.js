@@ -708,20 +708,25 @@ app.post('/api/change-password', verificarToken, async (req, res) => {
 
 app.post('/api/forgot-password', async (req, res) => {
   const { email } = req.body;
+  console.log(`[forgot-password] Solicitud recibida para: ${email}`);
 
   if (!email) {
+    console.warn('[forgot-password] Email no proporcionado.');
     return res.status(400).json({ success: false, message: 'El correo electrónico es requerido.' });
   }
 
   if (!process.env.RESEND_API_KEY) {
-    console.error('ERROR: Variable RESEND_API_KEY no configurada en el servidor.');
+    console.error('[forgot-password] ERROR: RESEND_API_KEY no está configurada en las variables de entorno.');
     return res.status(500).json({ success: false, message: 'El servicio de correo no está configurado en el servidor. Contacta al administrador.' });
   }
+  console.log('[forgot-password] RESEND_API_KEY detectada correctamente.');
 
   try {
     const { rows } = await pool.query('SELECT id, contrasena FROM usuarios WHERE correo_electronico = $1', [email]);
+    console.log(`[forgot-password] Usuarios encontrados: ${rows.length}`);
 
     if (rows.length === 0 || !rows[0].contrasena) {
+      console.log('[forgot-password] Usuario no encontrado o es cuenta Google. Respuesta silenciosa.');
       return res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
     }
 
@@ -729,6 +734,7 @@ app.post('/api/forgot-password', async (req, res) => {
     const expiresAt = Date.now() + 15 * 60 * 1000;
 
     resetCodes.set(email.toLowerCase(), { code, expiresAt });
+    console.log(`[forgot-password] Código generado para ${email}. Intentando enviar email...`);
 
     const resend = new Resend(process.env.RESEND_API_KEY);
 
