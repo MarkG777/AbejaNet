@@ -1,6 +1,8 @@
 import { useAuth } from '@/context/AuthContext';
 import { useAppColors } from '@/hooks/useAppColors';
 import api from '@/utils/api';
+import { saveCsvToDownloads, shareCsv } from '@/utils/csvExport';
+import { Ionicons } from '@expo/vector-icons';
 import { isAxiosError } from 'axios';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -296,6 +298,29 @@ export default function ColmenaDetailScreen() {
         selectedPoint={selectedPoint}
         onSetSelectedPoint={setSelectedPoint}
       />
+
+      {/* Exportar CSV */}
+      {lecturas.length > 0 && (
+        <View style={[styles.exportContainer, { backgroundColor: colors.card }]}>
+          <Text style={[styles.exportTitle, { color: colors.text }]}>Exportar Datos</Text>
+          <View style={styles.exportButtons}>
+            <TouchableOpacity
+              style={[styles.exportButton, { backgroundColor: colors.primary }]}
+              onPress={() => shareCsv(lecturas, nombre || 'Colmena')}
+            >
+              <Ionicons name="share-outline" size={18} color="#fff" />
+              <Text style={styles.exportButtonText}>Compartir</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.exportButton, { backgroundColor: '#4CAF50' }]}
+              onPress={() => saveCsvToDownloads(lecturas, nombre || 'Colmena')}
+            >
+              <Ionicons name="download-outline" size={18} color="#fff" />
+              <Text style={styles.exportButtonText}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -767,6 +792,41 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   selectedPointDelta: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  exportContainer: {
+    marginTop: 20,
+    marginBottom: 30,
+    borderRadius: 12,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+  },
+  exportTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  exportButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  exportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    gap: 8,
+  },
+  exportButtonText: {
+    color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
