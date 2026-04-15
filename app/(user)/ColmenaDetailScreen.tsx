@@ -215,6 +215,10 @@ export default function ColmenaDetailScreen() {
     };
 
     fetchLecturas();
+
+    // Auto-refresh cada 60 segundos
+    const intervalId = setInterval(fetchLecturas, 60000);
+    return () => clearInterval(intervalId);
   }, [colmenaId, authState.accessToken, timeRange]);
 
   
@@ -475,7 +479,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
                     if (thresholdKey.startsWith('danger')) thColor = THRESHOLD_COLORS.danger;
                     else if (thresholdKey === 'warning') thColor = THRESHOLD_COLORS.warning;
                     else if (thresholdKey === 'optimal') thColor = THRESHOLD_COLORS.optimal;
-                    return <VictoryArea key={`${k}-${thresholdKey}`} data={[{ x: 0, y0: range[0], y: range[1] }, { x: processedData.length - 1, y0: range[0], y: range[1] }]} style={{ data: { fill: thColor } }} />;
+                    return <VictoryArea key={`${k}-${thresholdKey}`} data={[{ x: 0, y0: range[0], y: range[1] }, { x: Math.max(processedData.length - 1, 1), y0: range[0], y: range[1] }]} style={{ data: { fill: thColor } }} />;
                   })}
                 </VictoryGroup>
               )}

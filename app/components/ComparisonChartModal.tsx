@@ -380,13 +380,13 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
                   if (key.startsWith('danger')) {
                      return <VictoryArea
                         key={`${key}-area`}
-                        data={[{ x: 0, y0: range[0], y: range[1] }, { x: processedData.length - 1, y0: range[0], y: range[1] }]}
+                        data={[{ x: 0, y0: range[0], y: range[1] }, { x: Math.max(processedData.length - 1, 1), y0: range[0], y: range[1] }]}
                         style={{ data: { fill: THRESHOLD_COLORS.danger } }}
                       />
                   } else {
                     return <VictoryArea
                       key={`${key}-area`}
-                      data={[{ x: 0, y0: range[0], y: range[1] }, { x: processedData.length - 1, y0: range[0], y: range[1] }]}
+                      data={[{ x: 0, y0: range[0], y: range[1] }, { x: Math.max(processedData.length - 1, 1), y0: range[0], y: range[1] }]}
                       style={{ data: { fill: THRESHOLD_COLORS[key as keyof typeof THRESHOLD_COLORS] } }}
                     />
                   }
