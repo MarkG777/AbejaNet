@@ -192,9 +192,8 @@ psql -h dpg-d4hqgl75r7bs73c1vk90-a.oregon-postgres.render.com -U abeja_user -d a
 -- Ya NO necesitas hacer commit + push para cambiar la colmena destino.
 --
 -- SINTAXIS GENERAL (PowerShell):
-Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" `
---   -Method POST -UseBasicParsing -ContentType "application/json" `
---   -Body '{"colmena": "NOMBRE_COLMENA", "mac": "XX:XX:XX:XX:XX:XX", "dias": 30, "lecturasPorHora": 4}'
+Invoke-WebRequest -Uri "https://abejanet-backend.onrender.com/debug/populate-data" `   -Method POST -UseBasicParsing -ContentType "application/json" `
+   -Body '{"colmena": "Colmena Alfa Ppal", "mac": "A2:04:2A:B9:C1:D9", "dias": 30, "lecturasPorHora": 4}'
 --
 -- PARÁMETROS DISPONIBLES (todos son opcionales):
 -- | Parámetro       | Default                | Descripción                          |

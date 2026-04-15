@@ -640,6 +640,41 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
   }
 });
 
+// Obtener la última lectura cruda (sin promediar) de una colmena
+app.get('/api/colmenas/:colmenaId/ultima-lectura', verificarToken, async (req, res) => {
+  const { colmenaId } = req.params;
+  const userId = req.usuario.userId;
+
+  try {
+    const { rows: permisos } = await pool.query(
+      `SELECT ua.usuario_id FROM usuarios_apiarios ua JOIN colmenas c ON ua.apiario_id = c.apiario_id WHERE ua.usuario_id = $1 AND c.id = $2`,
+      [userId, colmenaId]
+    );
+    if (permisos.length === 0) {
+      return res.status(403).json({ success: false, message: 'Acceso no autorizado.' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT l.temperatura, l.humedad, l.peso, l.sonido, l.lluvia, l.fecha_registro
+       FROM lecturas_ambientales l
+       JOIN sensores s ON l.sensor_id = s.id
+       WHERE s.colmena_id = $1
+       ORDER BY l.fecha_registro DESC
+       LIMIT 1`,
+      [colmenaId]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ success: true, lectura: null });
+    }
+
+    res.json({ success: true, lectura: rows[0] });
+  } catch (err) {
+    console.error(`Error en GET /api/colmenas/${colmenaId}/ultima-lectura:`, err);
+    res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+  }
+});
+
 app.put('/api/profile', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   const { nombre = '', apellido_paterno = '', apellido_materno = '' } = req.body;

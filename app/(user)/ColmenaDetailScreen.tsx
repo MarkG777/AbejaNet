@@ -175,6 +175,9 @@ export default function ColmenaDetailScreen() {
   const [activeKeys, setActiveKeys] = useState<SensorDataKey[]>(['temperatura', 'peso']); // Métricas activas por defecto
   const [selectedPoint, setSelectedPoint] = useState<any | null>(null);
 
+  // Última lectura en tiempo real (sin promediar)
+  const [ultimaLectura, setUltimaLectura] = useState<any | null>(null);
+
   const toggleKey = (k: SensorDataKey) => {
     setActiveKeys(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
   };
@@ -222,6 +225,31 @@ export default function ColmenaDetailScreen() {
     const intervalId = setInterval(fetchLecturas, 60000);
     return () => clearInterval(intervalId);
   }, [colmenaId, authState.accessToken, timeRange]);
+
+  // Fetch última lectura cruda cada 30 segundos
+  useEffect(() => {
+    const fetchUltimaLectura = async () => {
+      if (!colmenaId) return;
+      try {
+        const res = await api.get(`/api/colmenas/${colmenaId}/ultima-lectura`);
+        if (res.data?.lectura) {
+          const l = res.data.lectura;
+          setUltimaLectura({
+            temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
+            humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
+            peso: l.peso !== null ? parseFloat(l.peso) : null,
+            sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
+            fecha_registro: l.fecha_registro,
+          });
+        }
+      } catch (e) {
+        console.error('Error al obtener última lectura:', e);
+      }
+    };
+    fetchUltimaLectura();
+    const id = setInterval(fetchUltimaLectura, 30000);
+    return () => clearInterval(id);
+  }, [colmenaId, authState.accessToken]);
 
   
   const processDataForPreview = (data: Lectura[], range: TimeRange): Lectura[] => {
@@ -298,6 +326,45 @@ export default function ColmenaDetailScreen() {
         selectedPoint={selectedPoint}
         onSetSelectedPoint={setSelectedPoint}
       />
+
+      {/* Lectura en Tiempo Real */}
+      {ultimaLectura && (
+        <View style={[styles.realtimeContainer, { backgroundColor: colors.card }]}>
+          <View style={styles.realtimeHeader}>
+            <Ionicons name="pulse-outline" size={18} color="#4CAF50" />
+            <Text style={[styles.realtimeTitle, { color: colors.text }]}>Lectura en Tiempo Real</Text>
+          </View>
+          <Text style={[styles.realtimeTimestamp, { color: colors.textTertiary }]}>
+            {format(new Date(ultimaLectura.fecha_registro), "dd MMM yyyy, HH:mm:ss", { locale: es })}
+          </Text>
+          <View style={styles.realtimeGrid}>
+            {ultimaLectura.temperatura !== null && (
+              <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(255, 99, 132, 1)' }]}>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Temperatura</Text>
+                <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.temperatura.toFixed(1)} °C</Text>
+              </View>
+            )}
+            {ultimaLectura.humedad !== null && (
+              <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(54, 162, 235, 1)' }]}>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Humedad</Text>
+                <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.humedad.toFixed(1)} %</Text>
+              </View>
+            )}
+            {ultimaLectura.peso !== null && (
+              <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(75, 192, 192, 1)' }]}>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Peso</Text>
+                <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.peso.toFixed(2)} kg</Text>
+              </View>
+            )}
+            {ultimaLectura.sonido !== null && (
+              <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(153, 102, 255, 1)' }]}>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Sonido</Text>
+                <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.sonido.toFixed(1)} dB</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Exportar CSV */}
       {lecturas.length > 0 && (
@@ -794,6 +861,50 @@ const styles = StyleSheet.create({
   selectedPointDelta: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  realtimeContainer: {
+    marginTop: 20,
+    borderRadius: 12,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+  },
+  realtimeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  realtimeTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  realtimeTimestamp: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  realtimeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  realtimeItem: {
+    flex: 1,
+    minWidth: '45%' as any,
+    borderLeftWidth: 3,
+    paddingLeft: 10,
+    paddingVertical: 6,
+  },
+  realtimeLabel: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  realtimeValue: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   exportContainer: {
     marginTop: 20,
