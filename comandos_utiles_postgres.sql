@@ -17,7 +17,7 @@
 --   psql "postgresql://abeja_user:PASSWORD@HOST-a.oregon-postgres.render.com/DB_NAME"
 --
 --   Ejemplo real (copia tu External URL desde Render Dashboard > tu BD > Info):
---   psql "postgresql://abeja_user:kXsLJzHn9n0bCJWHMoLqkcBfUWYkCyXr@dpg-d6u5lls50q8c73frrr6g-a.oregon-postgres.render.com/abeja_net_v3_q3xx"
+psql "postgresql://abeja_user:kXsLJzHn9n0bCJWHMoLqkcBfUWYkCyXr@dpg-d6u5lls50q8c73frrr6g-a.oregon-postgres.render.com/abeja_net_v3_q3xx"
 --
 -- PASO 3: Ya estás dentro de psql. Copia y pega los comandos SQL de abajo.
 --
@@ -48,7 +48,7 @@ DECLARE
     id_usuario_a_asignar   INTEGER;
     id_apiario_a_asignar   INTEGER;
     id_admin_que_asigna    INTEGER;
-BEGIN
+BEGINr
     -- Obtener IDs
     SELECT id INTO id_usuario_a_asignar FROM usuarios WHERE correo_electronico = correo_usuario_a_asignar;
     SELECT id INTO id_apiario_a_asignar FROM apiarios WHERE nombre = nombre_apiario_a_asignar;
