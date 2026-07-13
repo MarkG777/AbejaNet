@@ -1,10 +1,12 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
-import { View, TextInput, StyleSheet, Pressable, Alert, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { Image } from 'expo-image';
-import { Link, router } from 'expo-router';
-import { getApiUrl } from '../../utils/ip_config';
 import { useAppColors } from '@/hooks/useAppColors';
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { getApiUrl } from '../../utils/ip_config';
 
 // --- Componente para mostrar un requisito de la contraseña ---
 const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
@@ -16,6 +18,7 @@ const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
 
 export default function RegisterScreen() {
   const colors = useAppColors();
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,6 +35,13 @@ export default function RegisterScreen() {
   const [hasSpecialChar, setHasSpecialChar] = useState(false);
   
   const [api, setApi] = useState('');
+  const [emailError, setEmailError] = useState('');
+
+  const validateEmail = (value: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!value) return '';
+    return emailRegex.test(value) ? '' : t('email_invalid', 'El correo electrónico no es válido.');
+  };
 
   useEffect(() => {
     const fetchApiUrl = async () => {
@@ -55,23 +65,25 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Todos los campos son obligatorios.');
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('all_fields_required', 'Todos los campos son obligatorios.'), visibilityTime: 4000 });
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden.');
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('passwords_dont_match_short', 'Las contraseñas no coinciden.'), visibilityTime: 4000 });
       return;
     }
     // Validación de contraseña segura
     if (!isPasswordSecure) {
-      Alert.alert(
-        'Contraseña Insegura',
-        'Por favor, cumple con todos los requisitos de la contraseña para continuar.'
-      );
+      Toast.show({
+        type: 'error',
+        text1: t('insecure_password', 'Contraseña Insegura'),
+        text2: t('insecure_password_msg', 'Por favor, cumple con todos los requisitos de la contraseña para continuar.'),
+        visibilityTime: 4000
+      });
       return;
     }
     if (!api) {
-        Alert.alert('Error', 'No se pudo obtener la URL del servidor. Inténtalo de nuevo.');
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('no_api_url', 'No se pudo obtener la URL del servidor. Inténtalo de nuevo.'), visibilityTime: 4000 });
         return;
     }
 
@@ -90,17 +102,19 @@ export default function RegisterScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        Alert.alert(
-          'Registro Exitoso',
-          'Tu cuenta ha sido creada. Ahora puedes iniciar sesión.',
-          [{ text: 'OK', onPress: () => router.push('/login') }]
-        );
+        Toast.show({
+          type: 'success',
+          text1: t('register_success', 'Registro Exitoso'),
+          text2: t('register_success_msg', 'Tu cuenta ha sido creada. Ahora puedes iniciar sesión.'),
+          visibilityTime: 3000,
+          onShow: () => setTimeout(() => router.push('/login'), 2000)
+        });
       } else {
-        Alert.alert('Error de Registro', data.message || 'No se pudo completar el registro.');
+        Toast.show({ type: 'error', text1: t('register_error', 'Error de Registro'), text2: data.message || t('register_error_msg', 'No se pudo completar el registro.'), visibilityTime: 4000 });
       }
     } catch (error) {
       console.error('Error de red al registrar:', error);
-      Alert.alert('Error de Conexión', 'No se pudo conectar con el servidor. Verifica tu conexión a internet.');
+      Toast.show({ type: 'error', text1: t('connection_error', 'Error de Conexión'), text2: t('connection_error_msg', 'No se pudo conectar con el servidor. Verifica tu conexión a internet.'), visibilityTime: 4000 });
     }
   };
 
@@ -116,21 +130,25 @@ export default function RegisterScreen() {
             style={styles.logo}
           />
         </View>
-        <Text style={[styles.title, { color: colors.text }]}>Crea tu cuenta</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{t('create_account', 'Crea tu cuenta')}</Text>
         <TextInput
-          placeholder="Correo electrónico"
+          placeholder={t('email', 'Correo electrónico')}
           placeholderTextColor={colors.placeholder}
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(text) => { setEmail(text); setEmailError(''); }}
+          onBlur={() => setEmailError(validateEmail(email))}
           keyboardType="email-address"
           autoCapitalize="none"
           style={[styles.input, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.inputText }]}
         />
+        {emailError ? (
+          <Text style={[styles.errorText, { color: colors.danger }]}>{emailError}</Text>
+        ) : null}
         
         {/* Campo de Contraseña con ícono y checklist */}
         <View style={[styles.passwordContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
           <TextInput
-            placeholder="Contraseña"
+            placeholder={t('password', 'Contraseña')}
             placeholderTextColor={colors.placeholder}
             value={password}
             onChangeText={handlePasswordChange}
@@ -149,18 +167,18 @@ export default function RegisterScreen() {
         {/* Checklist de requisitos */}
         {password.length > 0 && (
             <View style={styles.requirementsList}>
-              <PasswordRequirement met={hasLength} text="Al menos 8 caracteres" />
-              <PasswordRequirement met={hasLowerCase} text="Al menos una letra minúscula" />
-              <PasswordRequirement met={hasUpperCase} text="Al menos una letra mayúscula" />
-              <PasswordRequirement met={hasNumber} text="Al menos un número" />
-              <PasswordRequirement met={hasSpecialChar} text="Al menos un carácter especial" />
+              <PasswordRequirement met={hasLength} text={t('req_length', 'Al menos 8 caracteres')} />
+              <PasswordRequirement met={hasLowerCase} text={t('req_lowercase', 'Al menos una letra minúscula')} />
+              <PasswordRequirement met={hasUpperCase} text={t('req_uppercase', 'Al menos una letra mayúscula')} />
+              <PasswordRequirement met={hasNumber} text={t('req_number', 'Al menos un número')} />
+              <PasswordRequirement met={hasSpecialChar} text={t('req_special', 'Al menos un carácter especial')} />
            </View>
         )}
 
         {/* Campo de Confirmar Contraseña con ícono */}
         <View style={[styles.passwordContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
           <TextInput
-            placeholder="Confirmar Contraseña"
+            placeholder={t('confirm_password_placeholder', 'Confirmar Contraseña')}
             placeholderTextColor={colors.placeholder}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -177,10 +195,10 @@ export default function RegisterScreen() {
         </View>
 
         <Pressable style={[styles.button, { backgroundColor: colors.accent }]} onPress={handleRegister}>
-          <Text style={styles.buttonText}>Crear cuenta</Text>
+          <Text style={styles.buttonText}>{t('create_account_button', 'Crear cuenta')}</Text>
         </Pressable>
         <Pressable onPress={() => router.push('/login')} style={styles.loginLink}>
-          <Text style={[styles.linkText, { color: colors.primary }]}>¿Ya tienes una cuenta? Inicia sesión</Text>
+          <Text style={[styles.linkText, { color: colors.primary }]}>{t('have_account', '¿Ya tienes una cuenta? Inicia sesión')}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -264,5 +282,10 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 16,
+  },
+  errorText: {
+    fontSize: 12,
+    marginBottom: 5,
+    marginLeft: 15,
   },
 });

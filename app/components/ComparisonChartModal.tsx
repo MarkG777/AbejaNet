@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { enUS, es } from 'date-fns/locale';
 import React, { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLegend, VictoryLine, VictoryScatter, VictoryTheme, VictoryTooltip, VictoryVoronoiContainer } from 'victory-native';
 
@@ -22,13 +23,6 @@ interface Props {
   timeRange: TimeRange;
   baseKey: MetricKey;
 }
-
-const labelMap: Record<MetricKey, string> = {
-  temperatura: 'Temperatura',
-  humedad: 'Humedad',
-  peso: 'Peso',
-  sonido: 'Sonido',
-};
 
 const unitMap: Record<MetricKey, string> = {
   temperatura: '°C',
@@ -104,6 +98,16 @@ const THRESHOLD_COLORS = {
 };
 
 const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, timeRange, baseKey }) => {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith('en') ? enUS : es;
+
+  const labelMap: Record<MetricKey, string> = {
+    temperatura: t('temperatura', 'Temperatura'),
+    humedad: t('humedad', 'Humedad'),
+    peso: t('peso', 'Peso'),
+    sonido: t('sonido', 'Sonido'),
+  };
+
   const [activeKeys, setActiveKeys] = useState<MetricKey[]>([baseKey]);
   const [selectedPoint, setSelectedPoint] = useState<any | null>(null);
 
@@ -200,7 +204,7 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
   const formatLabel = (fecha: string) => {
     const d = parseISO(fecha);
     if (timeRange === 'day') return format(d, 'HH:mm');
-    if (timeRange === 'week') return format(d, 'eee', { locale: es });
+    if (timeRange === 'week') return format(d, 'eee', { locale });
     return format(d, 'dd/MM');
   };
 
@@ -220,11 +224,11 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
   const renderSummary = () => {
     const getLegendTitle = () => {
       if (activeKeys.includes('temperatura') && activeKeys.includes('humedad')) {
-        return "Umbrales (Temp. y Hum.) y Variación (Peso)";
+        return t('thresholds_temp_hum', 'Umbrales (Temp. y Hum.) y Variación (Peso)');
       }
-      if (activeKeys.includes('temperatura')) return "Umbrales de Temperatura";
-      if (activeKeys.includes('humedad')) return "Umbrales de Humedad";
-      if (activeKeys.includes('peso')) return "Análisis de Variación de Peso";
+      if (activeKeys.includes('temperatura')) return t('thresholds_temp', 'Umbrales de Temperatura');
+      if (activeKeys.includes('humedad')) return t('thresholds_hum', 'Umbrales de Humedad');
+      if (activeKeys.includes('peso')) return t('weight_analysis', 'Análisis de Variación de Peso');
       return null;
     };
 
@@ -346,7 +350,7 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
-        <Text style={styles.title}>{labelMap[baseKey]} – Comparación</Text>
+        <Text style={styles.title}>{labelMap[baseKey]} – {t('comparison', 'Comparación')}</Text>
 
         <TopLegend />
 
@@ -431,7 +435,7 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
           </VictoryChart>
         ) : (
           <View style={styles.chartPlaceholder}>
-            <Text style={styles.chartPlaceholderText}>No hay datos para mostrar en el período seleccionado.</Text>
+            <Text style={styles.chartPlaceholderText}>{t('no_data_period', 'No hay datos para mostrar en el período seleccionado.')}</Text>
           </View>
         )}
 
@@ -470,7 +474,7 @@ const ComparisonChartModal: React.FC<Props> = ({ visible, onClose, lecturas, tim
         )}
 
         <Pressable style={styles.closeBtn} onPress={onClose}>
-          <Text style={styles.closeText}>Cerrar</Text>
+          <Text style={styles.closeText}>{t('close', 'Cerrar')}</Text>
         </Pressable>
       </View>
     </Modal>

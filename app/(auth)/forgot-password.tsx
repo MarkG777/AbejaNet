@@ -3,7 +3,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { getApiUrl } from '../../utils/ip_config';
 
 type Step = 'email' | 'code' | 'password';
@@ -18,10 +19,17 @@ export default function ForgotPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  const validateEmail = (value: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!value) return '';
+    return emailRegex.test(value) ? '' : t('email_invalid', 'El correo electrónico no es válido.');
+  };
 
   const handleSendCode = async () => {
     if (!email.trim()) {
-      Alert.alert(t('error', 'Error'), t('email_required', 'Por favor, introduce tu correo electrónico.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('email_required', 'Por favor, introduce tu correo electrónico.'), visibilityTime: 4000 });
       return;
     }
     setIsLoading(true);
@@ -36,10 +44,10 @@ export default function ForgotPasswordScreen() {
       if (data.success) {
         setStep('code');
       } else {
-        Alert.alert(t('error', 'Error'), data.message);
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: data.message, visibilityTime: 4000 });
       }
     } catch {
-      Alert.alert(t('error_network', 'Error de Red'), t('error_server', 'No se pudo conectar con el servidor.'));
+      Toast.show({ type: 'error', text1: t('error_network', 'Error de Red'), text2: t('error_server', 'No se pudo conectar con el servidor.'), visibilityTime: 4000 });
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +55,7 @@ export default function ForgotPasswordScreen() {
 
   const handleVerifyCode = () => {
     if (!code.trim() || code.trim().length !== 6) {
-      Alert.alert(t('error', 'Error'), t('code_required', 'Por favor, introduce el código de verificación.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('code_required', 'Por favor, introduce el código de verificación.'), visibilityTime: 4000 });
       return;
     }
     setStep('password');
@@ -55,15 +63,15 @@ export default function ForgotPasswordScreen() {
 
   const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert(t('error', 'Error'), t('fill_all_fields', 'Completa todos los campos.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('fill_all_fields', 'Completa todos los campos.'), visibilityTime: 4000 });
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert(t('error', 'Error'), t('password_min_length', 'La nueva contraseña debe tener al menos 6 caracteres.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('password_min_length', 'La nueva contraseña debe tener al menos 6 caracteres.'), visibilityTime: 4000 });
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert(t('error', 'Error'), t('passwords_dont_match', 'Las contraseñas nuevas no coinciden.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('passwords_dont_match', 'Las contraseñas nuevas no coinciden.'), visibilityTime: 4000 });
       return;
     }
     setIsLoading(true);
@@ -76,14 +84,18 @@ export default function ForgotPasswordScreen() {
       });
       const data = await res.json();
       if (data.success) {
-        Alert.alert(t('success', 'Éxito'), t('password_reset_success', 'Tu contraseña ha sido restablecida. Ya puedes iniciar sesión.'), [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        Toast.show({
+          type: 'success',
+          text1: t('success', 'Éxito'),
+          text2: t('password_reset_success', 'Tu contraseña ha sido restablecida. Ya puedes iniciar sesión.'),
+          visibilityTime: 3000,
+          onShow: () => setTimeout(() => router.back(), 2000)
+        });
       } else {
-        Alert.alert(t('error', 'Error'), data.message);
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: data.message, visibilityTime: 4000 });
       }
     } catch {
-      Alert.alert(t('error_network', 'Error de Red'), t('error_server', 'No se pudo conectar con el servidor.'));
+      Toast.show({ type: 'error', text1: t('error_network', 'Error de Red'), text2: t('error_server', 'No se pudo conectar con el servidor.'), visibilityTime: 4000 });
     } finally {
       setIsLoading(false);
     }
@@ -95,13 +107,17 @@ export default function ForgotPasswordScreen() {
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{t('forgot_password_subtitle', 'Introduce tu correo electrónico y te enviaremos un código de verificación.')}</Text>
       <TextInput
         style={[styles.input, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.inputText }]}
-        placeholder="tu@email.com"
+        placeholder={t('email_placeholder', 'tu@email.com')}
         placeholderTextColor={colors.placeholder}
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text) => { setEmail(text); setEmailError(''); }}
+        onBlur={() => setEmailError(validateEmail(email))}
         keyboardType="email-address"
         autoCapitalize="none"
       />
+      {emailError ? (
+        <Text style={[styles.errorText, { color: colors.danger }]}>{emailError}</Text>
+      ) : null}
       {isLoading ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 15 }} />
       ) : (
@@ -272,5 +288,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     marginBottom: 20,
+  },
+  errorText: {
+    fontSize: 12,
+    marginBottom: 10,
+    marginLeft: 5,
   },
 });

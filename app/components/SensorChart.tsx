@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
 import { format, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { enUS, es } from 'date-fns/locale';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
 
 // Tipos de datos (movidos desde ColmenaDetailScreen)
 export interface Lectura {
@@ -46,6 +47,9 @@ const chartConfig = {
 
 
 const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorChartProps) => {
+  const { i18n } = useTranslation();
+  const locale = i18n.language.startsWith('en') ? enUS : es;
+
   if (!data || data.length === 0) {
     return (
       <View style={styles.chartContainer}>
@@ -64,7 +68,7 @@ const SensorChart = ({ title, data, dataKey, color, unit, timeRange }: SensorCha
         return format(date, 'HH:mm');
       }
       if (timeRange === 'week') {
-        return format(date, 'eee', { locale: es });
+        return format(date, 'eee', { locale });
       }
       return format(date, 'dd/MM');
     }),
