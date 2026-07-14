@@ -1220,7 +1220,7 @@ app.post('/debug/setup-database', async (req, res) => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     
-    const sqlPath = path.join(__dirname, '..', 'abeja_net_v3_postgres.sql');
+    const sqlPath = path.join(__dirname, '..', 'abeja_net_v5_postgres.sql');
     const sqlScript = fs.readFileSync(sqlPath, 'utf8');
     
     await pool.query(sqlScript);

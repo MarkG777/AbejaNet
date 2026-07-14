@@ -36,6 +36,7 @@ CREATE TABLE usuarios (
   push_token          VARCHAR(255) NULL DEFAULT NULL,
   refresh_token       TEXT NULL,                      -- Fase 2.4: Sesiones persistentes Móvil
   proveedor_auth      VARCHAR(20) DEFAULT 'local',     -- 'local' o 'google'
+  secreto_2fa         VARCHAR(255) NULL DEFAULT NULL,  -- 2FA TOTP (web admin). NULL = no requiere 2FA
   rol_id              SMALLINT NOT NULL,
   esta_activo         BOOLEAN DEFAULT TRUE,
   fecha_creacion      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
