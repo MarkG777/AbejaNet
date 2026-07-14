@@ -1,19 +1,28 @@
+import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { useAppColors } from '@/hooks/useAppColors';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router';
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
+import { isAxiosError } from 'axios';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  SafeAreaView, StyleSheet, Text, View, ActivityIndicator, ScrollView, FlatList, Pressable, Image, Linking, Dimensions, AppState
+    AppState,
+    Dimensions,
+    FlatList,
+    Image, Linking,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet, Text, View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
-import { isAxiosError } from 'axios';
-import { useFocusEffect, useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import { useNotifications } from '../context/NotificationsContext';
-import Constants from 'expo-constants';
-import { useAppColors } from '@/hooks/useAppColors';
-import { SkeletonLoader } from '@/components/SkeletonLoader';
-import { useTranslation } from 'react-i18next';
 
 // --- INTERFACES ---
 interface SummaryData {
@@ -51,13 +60,14 @@ const StatCard: React.FC<StatCardProps & { onPress?: () => void }> = ({ icon, la
   </Pressable>
 );
 
-const formatDate = (dateString: string) => {
+const formatDate = (dateString: string, locale: string) => {
   const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-  return new Date(dateString).toLocaleDateString('es-ES', options);
+  return new Date(dateString).toLocaleDateString(locale.startsWith('en') ? 'en-US' : 'es-ES', options);
 };
 
 const NewsCard: React.FC<{ article: NewsArticle; cardBg: string; titleColor: string; sourceColor: string }> = ({ article, cardBg, titleColor, sourceColor }) => {
   const [imageError, setImageError] = useState(false);
+  const { i18n } = useTranslation();
   const handlePress = () => Linking.openURL(article.url).catch(err => console.error("Couldn't load page", err));
 
   return (
@@ -73,7 +83,7 @@ const NewsCard: React.FC<{ article: NewsArticle; cardBg: string; titleColor: str
         <Text style={[styles.newsTitle, { color: titleColor }]} numberOfLines={3}>{article.title}</Text>
         <View style={styles.newsFooter}>
           <Text style={[styles.newsSource, { color: sourceColor }]}>{article.source.name}</Text>
-          <Text style={[styles.newsDate, { color: sourceColor }]}>{formatDate(article.publishedAt)}</Text>
+          <Text style={[styles.newsDate, { color: sourceColor }]}>{formatDate(article.publishedAt, i18n.language)}</Text>
         </View>
       </View>
     </Pressable>
@@ -105,27 +115,72 @@ const UserDashboardScreen = () => {
   const flatListRef = useRef<FlatList<NewsArticle>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Función para cargar todos los datos del dashboard
-  const fetchData = useCallback(() => {
+  const CACHE_KEY_SUMMARY = '@dashboard_summary_cache';
+  const CACHE_KEY_NEWS = '@dashboard_news_cache';
+  const CACHE_TIMESTAMP_KEY = '@dashboard_cache_timestamp';
+  const CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutos
+
+  // Función para cargar todos los datos del dashboard (stale-while-revalidate)
+  const fetchData = useCallback(async () => {
+    const perfStart = performance.now();
     console.log('Actualizando datos del dashboard...');
-    
-    // Cargar resumen
+    const isConnected = (await NetInfo.fetch()).isConnected;
+
+    // Intentar cargar caché primero (stale-while-revalidate)
+    try {
+      const cachedSummary = await AsyncStorage.getItem(CACHE_KEY_SUMMARY);
+      const cachedNews = await AsyncStorage.getItem(CACHE_KEY_NEWS);
+      const cachedTimestamp = await AsyncStorage.getItem(CACHE_TIMESTAMP_KEY);
+      const cacheAge = cachedTimestamp ? Date.now() - parseInt(cachedTimestamp) : Infinity;
+
+      if (cachedSummary && cachedNews) {
+        const parsedSummary = JSON.parse(cachedSummary);
+        const parsedNews = JSON.parse(cachedNews);
+        setSummary(parsedSummary);
+        setNews(parsedNews);
+        setLoadingSummary(false);
+        setLoadingNews(false);
+        console.log(`[PERF] Dashboard caché paint: ${(performance.now() - perfStart).toFixed(0)}ms`);
+
+        // Si el caché es reciente y no hay conexión, no intentar revalidar
+        if (!isConnected) {
+          Toast.show({ type: 'info', text1: t('error_network', 'Error de Red'), text2: t('error_server', 'Sin conexión. Mostrando datos en caché.'), visibilityTime: 3000 });
+          return;
+        }
+        // Si el caché es fresco (< 5min), no revalidar
+        if (cacheAge < CACHE_MAX_AGE) return;
+      }
+    } catch (e) {
+      console.error('Error al leer caché del dashboard:', e);
+    }
+
+    if (!isConnected) {
+      Toast.show({ type: 'info', text1: t('error_network', 'Error de Red'), text2: t('error_server', 'Sin conexión a internet.'), visibilityTime: 3000 });
+      setLoadingSummary(false);
+      setLoadingNews(false);
+      return;
+    }
+
+    // Revalidar datos en segundo plano
     setLoadingSummary(true);
     api.get('/api/dashboard-summary')
       .then(response => {
         const count = response.data.summary.alertasCount;
         setSummary(response.data.summary);
         setUnread(count);
-        // Sincronizar badge del icono de la app con las alertas no leídas
         Notifications.setBadgeCountAsync(count).catch(() => {});
+        AsyncStorage.setItem(CACHE_KEY_SUMMARY, JSON.stringify(response.data.summary));
+        AsyncStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
       })
       .catch(err => {
         console.error('Error al obtener el resumen del dashboard:', err);
         setErrorSummary(isAxiosError(err) && err.response ? `Error: ${err.response.data.message || 'No se pudo cargar.'}` : 'No se pudo cargar.');
       })
-      .finally(() => setLoadingSummary(false));
+      .finally(() => {
+        setLoadingSummary(false);
+        console.log(`[PERF] Dashboard red fetch (summary): ${(performance.now() - perfStart).toFixed(0)}ms`);
+      });
 
-    // Cargar noticias directamente desde NewsAPI para evitar el bloqueo de Cloudflare
     setLoadingNews(true);
     const apiKey = Constants.expoConfig?.extra?.NEWS_API_KEY;
 
@@ -142,11 +197,11 @@ const UserDashboardScreen = () => {
       
       const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=${currentLang}&sortBy=publishedAt&apiKey=${apiKey}`;
 
-      // Usamos el 'api' (instancia de Axios) para hacer la petición directa
       api.get(url)
         .then(response => {
           const filteredArticles = response.data.articles.filter((article: NewsArticle) => article.title && article.title !== "[Removed]");
           setNews(filteredArticles || []);
+          AsyncStorage.setItem(CACHE_KEY_NEWS, JSON.stringify(filteredArticles || []));
         })
         .catch(err => {
           console.error('Error al obtener las noticias directamente desde NewsAPI:', err);
@@ -154,7 +209,7 @@ const UserDashboardScreen = () => {
         })
         .finally(() => setLoadingNews(false));
     }
-  }, [i18n.language]); // Dependencia clave para re-descargar noticias si el usuario cambia el idioma
+  }, [i18n.language, t]); // Dependencia clave para re-descargar noticias si el usuario cambia el idioma
 
   // Usar useFocusEffect para recargar los datos cada vez que la pantalla se enfoca.
   // Esto es crucial para actualizar el contador de notificaciones después de ver las alertas.
@@ -263,6 +318,17 @@ const UserDashboardScreen = () => {
     );
   };
 
+  const renderQuickActions = () => (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 15, marginBottom: 5 }}>
+      <Pressable onPress={() => router.push({ pathname: '/(user)/BitacoraScreen' } as any)} style={({ pressed }) => [{ alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}>
+        <View style={[styles.statCard, { backgroundColor: colors.statCardBg, width: 70, height: 70, borderRadius: 16 }]}>
+          <Ionicons name="book-outline" size={28} color={colors.primary} />
+        </View>
+        <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 5 }}>{t('bitacora_title', 'Bitácora')}</Text>
+      </Pressable>
+    </View>
+  );
+
     const getItemLayout = useCallback((data: any, index: number) => ({
     length: CARD_WIDTH,
     offset: CARD_WIDTH * index,
@@ -311,6 +377,7 @@ const UserDashboardScreen = () => {
         <View style={styles.contentSection}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('general_summary', 'Resumen General')}</Text>
           {renderSummarySection()}
+          {renderQuickActions()}
         </View>
 
         <View style={styles.contentSection}>

@@ -1,34 +1,44 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  Image,
-  ActivityIndicator,
-} from 'react-native';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { useAuth } from '../../context/AuthContext';
-import Constants from 'expo-constants';
-import { getApiUrl } from '../../utils/ip_config';
 import { useAppColors } from '@/hooks/useAppColors';
+import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import Constants from 'expo-constants';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+    ActivityIndicator,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import Toast from 'react-native-toast-message';
+import { useAuth } from '../../context/AuthContext';
+import { getApiUrl } from '../../utils/ip_config';
 
 export default function LoginScreen() {
   const { login } = useAuth();
   const colors = useAppColors();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  const validateEmail = (value: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!value) return '';
+    return emailRegex.test(value) ? '' : t('email_invalid', 'El correo electrónico no es válido.');
+  };
 
   useEffect(() => {
     try {
@@ -56,7 +66,7 @@ export default function LoginScreen() {
 
     } catch (error: any) {
       console.error('Error al configurar Google Sign-In:', error.message);
-      Alert.alert('Error de Configuración', error.message || 'No se pudo inicializar Google Sign-In.');
+      Toast.show({ type: 'error', text1: t('config_error', 'Error de Configuración'), text2: error.message || t('google_init_error', 'No se pudo inicializar Google Sign-In.'), visibilityTime: 4000 });
     }
   }, []);
 
@@ -78,7 +88,7 @@ export default function LoginScreen() {
         if (res.ok && data.success) {
           await login(data.token, data.refreshToken, data.user.rol, data.user);
         } else {
-          Alert.alert('Error de autenticación', data.message || 'No se pudo iniciar sesión con Google.');
+          Toast.show({ type: 'error', text1: t('auth_error', 'Error de autenticación'), text2: data.message || t('google_auth_error', 'No se pudo iniciar sesión con Google.'), visibilityTime: 4000 });
         }
       } else {
         throw new Error('No se pudo obtener el idToken de Google.');
@@ -89,9 +99,9 @@ export default function LoginScreen() {
       } else if (error.code === statusCodes.IN_PROGRESS) {
         // no hacer nada, ya está en progreso
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-        Alert.alert('Error', 'Los servicios de Google Play no están disponibles.');
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('google_play_error', 'Los servicios de Google Play no están disponibles.'), visibilityTime: 4000 });
       } else {
-        Alert.alert('Error de inicio de sesión', 'Ocurrió un error inesperado.');
+        Toast.show({ type: 'error', text1: t('auth_error', 'Error de autenticación'), text2: t('login_error', 'Ocurrió un error inesperado.'), visibilityTime: 4000 });
         console.error('Error en handleGoogleSignIn:', error);
       }
     } finally {
@@ -110,12 +120,13 @@ export default function LoginScreen() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         await login(data.token, data.refreshToken, data.user.rol, data.user);
       } else {
-        Alert.alert('Error de autenticación', data.message || 'Credenciales incorrectas');
+        Toast.show({ type: 'error', text1: t('auth_error', 'Error de autenticación'), text2: data.message || t('invalid_credentials', 'Credenciales incorrectas'), visibilityTime: 4000 });
       }
     } catch (err: any) {
-      Alert.alert('Error de red', err.message || 'No se pudo contactar al servidor');
+      Toast.show({ type: 'error', text1: t('error_network', 'Error de Red'), text2: err.message || t('error_server', 'No se pudo contactar al servidor'), visibilityTime: 4000 });
     } finally {
       setIsLoading(false);
     }
@@ -129,25 +140,29 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.titleContainer}>
           <Image source={require('../../assets/images/abejanet.png')} style={styles.logo} />
-          <Text style={[styles.titleText, { color: colors.text }]}>Bienvenido a AbejaNet</Text>
+          <Text style={[styles.titleText, { color: colors.text }]}>{t('welcome_login', 'Bienvenido a AbejaNet')}</Text>
         </View>
 
         <View style={styles.formContainer}>
           <View style={[styles.inputContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
             <TextInput
               style={[styles.input, { color: colors.inputText }]}
-              placeholder="Correo Electrónico"
+              placeholder={t('email', 'Correo Electrónico')}
               placeholderTextColor={colors.placeholder}
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => { setEmail(text); setEmailError(''); }}
+              onBlur={() => setEmailError(validateEmail(email))}
               keyboardType="email-address"
               autoCapitalize="none"
             />
           </View>
+          {emailError ? (
+            <Text style={[styles.errorText, { color: colors.danger }]}>{emailError}</Text>
+          ) : null}
           <View style={[styles.inputContainer, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground }]}>
             <TextInput
               style={[styles.input, { color: colors.inputText }]}
-              placeholder="Contraseña"
+              placeholder={t('password', 'Contraseña')}
               placeholderTextColor={colors.placeholder}
               value={password}
               onChangeText={setPassword}
@@ -162,13 +177,13 @@ export default function LoginScreen() {
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Iniciar Sesión</Text>
+              <Text style={styles.buttonText}>{t('login_button', 'Iniciar Sesión')}</Text>
             )}
           </TouchableOpacity>
 
           <View style={styles.separatorContainer}>
             <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
-            <Text style={[styles.separatorText, { color: colors.textTertiary }]}>o</Text>
+            <Text style={[styles.separatorText, { color: colors.textTertiary }]}>{t('or', 'o')}</Text>
             <View style={[styles.separatorLine, { backgroundColor: colors.border }]} />
           </View>
 
@@ -178,18 +193,18 @@ export default function LoginScreen() {
             ) : (
               <>
                 <Image source={require('../../assets/images/google-logo.jpg')} style={styles.googleIcon} />
-                <Text style={[styles.buttonText, { color: colors.text }]}>Continuar con Google</Text>
+                <Text style={[styles.buttonText, { color: colors.text }]}>{t('continue_google', 'Continuar con Google')}</Text>
               </>
             )}
           </TouchableOpacity>
 
           <Pressable onPress={() => router.push('/(auth)/register')} disabled={isLoading || isGoogleLoading}>
             <Text style={[styles.linkText, { color: colors.primary }]}>
-              ¿No tienes una cuenta? <Text style={styles.boldLink}>Regístrate aquí</Text>
+              {t('no_account', '¿No tienes una cuenta?')} <Text style={styles.boldLink}>{t('register_here', 'Regístrate aquí')}</Text>
             </Text>
           </Pressable>
           <Pressable onPress={() => router.push('/(auth)/forgot-password' as any)} disabled={isLoading || isGoogleLoading}>
-            <Text style={[styles.linkText, { color: colors.primary }]}>¿Olvidaste tu contraseña?</Text>
+            <Text style={[styles.linkText, { color: colors.primary }]}>{t('forgot_password_link', '¿Olvidaste tu contraseña?')}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -288,5 +303,10 @@ const styles = StyleSheet.create({
   },
   boldLink: {
     fontWeight: 'bold',
+  },
+  errorText: {
+    fontSize: 12,
+    marginBottom: 5,
+    marginLeft: 20,
   },
 });

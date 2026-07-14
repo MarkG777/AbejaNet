@@ -1,12 +1,12 @@
+import { useAppColors } from '@/hooks/useAppColors';
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import { Drawer } from 'expo-router/drawer';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
-import { useAppColors } from '@/hooks/useAppColors';
-import { useTranslation } from 'react-i18next';
 
 // Contenido personalizado para el menú desplegable del usuario
 function CustomDrawerContent(props: any) {
@@ -106,6 +106,15 @@ export default function UserLayout() {
           title: t('alerts_history', 'Historial de Alertas'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="notifications-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="BitacoraScreen"
+        options={{
+          title: t('bitacora_title', 'Bitácora Apícola'),
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="book-outline" size={size} color={color} />
           ),
         }}
       />

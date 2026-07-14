@@ -1,39 +1,41 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity } from 'react-native';
+import { useAuth } from '@/context/AuthContext';
 import { useAppColors } from '@/hooks/useAppColors';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/context/AuthContext';
 import { router } from 'expo-router';
+import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Dimensions, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-const SLIDES = [
-  {
-    id: '1',
-    title: 'Bienvenido a AbejaNet',
-    description: 'Monitorea tus colmenas y toma el control de tu apiario desde cualquier lugar fácilmente.',
-    icon: 'aperture-outline',
-  },
-  {
-    id: '2',
-    title: 'Alertas en Tiempo Real',
-    description: 'Entérate al instante de cambios drásticos de clima o anomalías en tus colmenas.',
-    icon: 'notifications-outline',
-  },
-  {
-    id: '3',
-    title: 'Gestión Inteligente',
-    description: 'Toma decisiones basadas en datos empíricos e incrementa la productividad de tus abejas.',
-    icon: 'bar-chart-outline',
-  },
-];
-
 export default function OnboardingScreen() {
   const colors = useAppColors();
   const { setHasSeenOnboarding } = useAuth();
+  const { t } = useTranslation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+
+  const SLIDES = [
+    {
+      id: '1',
+      title: t('onboarding_1_title', 'Bienvenido a AbejaNet'),
+      description: t('onboarding_1_desc', 'Monitorea tus colmenas y toma el control de tu apiario desde cualquier lugar fácilmente.'),
+      icon: 'aperture-outline',
+    },
+    {
+      id: '2',
+      title: t('onboarding_2_title', 'Alertas en Tiempo Real'),
+      description: t('onboarding_2_desc', 'Entérate al instante de cambios drásticos de clima o anomalías en tus colmenas.'),
+      icon: 'notifications-outline',
+    },
+    {
+      id: '3',
+      title: t('onboarding_3_title', 'Gestión Inteligente'),
+      description: t('onboarding_3_desc', 'Toma decisiones basadas en datos empíricos e incrementa la productividad de tus abejas.'),
+      icon: 'bar-chart-outline',
+    },
+  ];
 
   const handleNext = () => {
     if (currentIndex < SLIDES.length - 1) {
@@ -58,7 +60,7 @@ export default function OnboardingScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={handleFinish}>
-          <Text style={[styles.skipText, { color: colors.textSecondary }]}>Omitir</Text>
+          <Text style={[styles.skipText, { color: colors.textSecondary }]}>{t('skip', 'Omitir')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -101,7 +103,7 @@ export default function OnboardingScreen() {
           onPress={handleNext}
         >
           <Text style={styles.buttonText}>
-            {currentIndex === SLIDES.length - 1 ? 'Comenzar' : 'Siguiente'}
+            {currentIndex === SLIDES.length - 1 ? t('start', 'Comenzar') : t('next', 'Siguiente')}
           </Text>
         </TouchableOpacity>
       </View>

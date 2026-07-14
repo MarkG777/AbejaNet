@@ -4,19 +4,21 @@ import { useAppColors } from '@/hooks/useAppColors';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isAxiosError } from 'axios';
+import * as Haptics from 'expo-haptics';
 import { router, Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
-  Alert,
-  SafeAreaView, ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    SafeAreaView, ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 
@@ -64,7 +66,7 @@ const ProfileScreen = () => {
 
   const executeUpdate = async () => {
     if (!nombre.trim()) {
-      Alert.alert(t('required_field', 'Campo requerido'), t('name_empty', 'El nombre no puede estar vacío.'));
+      Toast.show({ type: 'error', text1: t('required_field', 'Campo requerido'), text2: t('name_empty', 'El nombre no puede estar vacío.'), visibilityTime: 4000 });
       return;
     }
     setIsLoading(true);
@@ -79,17 +81,18 @@ const ProfileScreen = () => {
 
       if (response.data.success) {
         await updateUser(updatedData);
-        Alert.alert(t('success', 'Éxito'), t('profile_updated', 'Tu perfil ha sido actualizado.'));
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Toast.show({ type: 'success', text1: t('success', 'Éxito'), text2: t('profile_updated', 'Tu perfil ha sido actualizado.'), visibilityTime: 3000 });
         setIsEditing(false);
       } else {
-        Alert.alert(t('error', 'Error'), response.data.message || t('error', 'Error'));
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: response.data.message || t('error', 'Error'), visibilityTime: 4000 });
       }
     } catch (err) {
       console.error('Error al guardar el perfil:', err);
       if (isAxiosError(err) && err.response) {
-        Alert.alert(t('error', 'Error'), err.response.data.message || t('error', 'Error'));
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: err.response.data.message || t('error', 'Error'), visibilityTime: 4000 });
       } else {
-        Alert.alert(t('error_network', 'Error de Red'), t('error_server', 'No se pudo conectar con el servidor.'));
+        Toast.show({ type: 'error', text1: t('error_network', 'Error de Red'), text2: t('error_server', 'No se pudo conectar con el servidor.'), visibilityTime: 4000 });
       }
     } finally {
       setIsLoading(false);
@@ -105,38 +108,38 @@ const ProfileScreen = () => {
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert(t('error', 'Error'), t('fill_all_fields', 'Completa todos los campos.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('fill_all_fields', 'Completa todos los campos.'), visibilityTime: 4000 });
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert(t('error', 'Error'), t('password_min_length', 'La nueva contraseña debe tener al menos 6 caracteres.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('password_min_length', 'La nueva contraseña debe tener al menos 6 caracteres.'), visibilityTime: 4000 });
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert(t('error', 'Error'), t('passwords_dont_match', 'Las contraseñas nuevas no coinciden.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('passwords_dont_match', 'Las contraseñas nuevas no coinciden.'), visibilityTime: 4000 });
       return;
     }
     if (currentPassword === newPassword) {
-      Alert.alert(t('error', 'Error'), t('same_password', 'Esta es tu misma contraseña. Ingresa una diferente.'));
+      Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('same_password', 'Esta es tu misma contraseña. Ingresa una diferente.'), visibilityTime: 4000 });
       return;
     }
     setIsLoading(true);
     try {
       const response = await api.post('/api/change-password', { currentPassword, newPassword });
       if (response.data.success) {
-        Alert.alert(t('success', 'Éxito'), t('password_changed', 'Contraseña actualizada correctamente.'));
+        Toast.show({ type: 'success', text1: t('success', 'Éxito'), text2: t('password_changed', 'Contraseña actualizada correctamente.'), visibilityTime: 3000 });
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
         setIsChangingPassword(false);
       } else {
-        Alert.alert(t('error', 'Error'), response.data.message || t('error_generic', 'Ocurrió un error inesperado.'));
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: response.data.message || t('error_generic', 'Ocurrió un error inesperado.'), visibilityTime: 4000 });
       }
     } catch (err) {
       if (isAxiosError(err) && err.response?.data?.message) {
-        Alert.alert(t('error', 'Error'), err.response.data.message);
+        Toast.show({ type: 'error', text1: t('error', 'Error'), text2: err.response.data.message, visibilityTime: 4000 });
       } else {
-        Alert.alert(t('error_network', 'Error de Red'), t('error_server', 'No se pudo conectar con el servidor.'));
+        Toast.show({ type: 'error', text1: t('error_network', 'Error de Red'), text2: t('error_server', 'No se pudo conectar con el servidor.'), visibilityTime: 4000 });
       }
     } finally {
       setIsLoading(false);

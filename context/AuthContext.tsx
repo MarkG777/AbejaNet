@@ -1,12 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
-import { jwtDecode } from 'jwt-decode';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
-import * as LocalAuthentication from 'expo-local-authentication';
-import api, { setAuthToken, setupErrorInterceptor } from '../utils/api';
-import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import * as LocalAuthentication from 'expo-local-authentication';
+import * as SecureStore from 'expo-secure-store';
+import { jwtDecode } from 'jwt-decode';
+import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
+import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
+import api, { setAuthToken, setupErrorInterceptor } from '../utils/api';
 
 interface User {
   id: number;
@@ -43,6 +43,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     hasSeenOnboarding: null,
   });
 
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutos (NIST SP 800-63B)
+
+  const resetInactivityTimer = () => {
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    if (authState.authenticated) {
+      inactivityTimerRef.current = setTimeout(() => {
+        console.log('AuthContext: Inactividad detectada, cerrando sesión.');
+        logout();
+      }, INACTIVITY_TIMEOUT);
+    }
+  };
+
+  useEffect(() => {
+    if (authState.authenticated) {
+      resetInactivityTimer();
+    } else {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    }
+    return () => {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    };
+  }, [authState.authenticated]);
+
+  // Reset timer on any user interaction while authenticated
+  useEffect(() => {
+    if (!authState.authenticated) return;
+    const interactionSubscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') {
+        resetInactivityTimer();
+      }
+    });
+    return () => interactionSubscription.remove();
+  }, [authState.authenticated]);
+
   const proveBiometrics = async () => {
     const hasHardware = await LocalAuthentication.hasHardwareAsync();
     const isEnrolled = await LocalAuthentication.isEnrolledAsync();
@@ -53,9 +88,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fallbackLabel: 'Usar PIN'
       });
       if (!result.success) {
-        logout(); 
+        logout();
+        return false;
       }
+      return true;
     }
+    return true;
   };
 
   const handleRefresh = async () => {

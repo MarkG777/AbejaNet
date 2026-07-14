@@ -56,6 +56,18 @@ app.get('/', (req, res) => res.send('API de AbejaNet online.'));
   try {
     await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS refresh_token TEXT;');
     await pool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_auth VARCHAR(20) DEFAULT 'local';");
+    // Crear tabla bitácora si no existe
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bitacora (
+        id SERIAL PRIMARY KEY,
+        usuario_id INT REFERENCES usuarios(id) ON DELETE CASCADE,
+        apiario_id INT REFERENCES apiarios(id) ON DELETE CASCADE,
+        fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+        tipo_evento VARCHAR(50) NOT NULL,
+        descripcion TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
     console.log('Migraciones automáticas aplicadas correctamente.');
   } catch (err) {
     console.error('Error en migraciones automáticas:', err.message);
@@ -1052,6 +1064,116 @@ app.post('/api/alertas', async (req, res) => {
 });
 
 // ==============================================
+// ENDPOINTS PARA BITÁCORA APÍCOLA
+// ==============================================
+
+// Obtener eventos de bitácora del usuario
+app.get('/api/bitacora', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  const { apiario_id, limit = 50, offset = 0 } = req.query;
+
+  try {
+    let query = `
+      SELECT b.*, a.nombre as apiario_nombre
+      FROM bitacora b
+      JOIN apiarios a ON b.apiario_id = a.id
+      JOIN usuarios_apiarios ua ON ua.apiario_id = a.id
+      WHERE ua.usuario_id = $1
+    `;
+    const params = [userId];
+    let paramIndex = 2;
+
+    if (apiario_id) {
+      query += ` AND b.apiario_id = $${paramIndex}`;
+      params.push(apiario_id);
+      paramIndex++;
+    }
+
+    query += ` ORDER BY b.fecha DESC, b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const { rows } = await pool.query(query, params);
+    res.json({ success: true, events: rows });
+  } catch (err) {
+    console.error('Error en GET /api/bitacora:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener eventos de bitácora.' });
+  }
+});
+
+// Crear evento de bitácora
+app.post('/api/bitacora', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  const { apiario_id, fecha, tipo_evento, descripcion } = req.body;
+
+  if (!apiario_id || !tipo_evento) {
+    return res.status(400).json({ success: false, message: 'Faltan campos requeridos: apiario_id, tipo_evento.' });
+  }
+
+  try {
+    // Verificar que el usuario tiene acceso al apiario
+    const accessCheck = await pool.query(
+      'SELECT 1 FROM usuarios_apiarios WHERE usuario_id = $1 AND apiario_id = $2',
+      [userId, apiario_id]
+    );
+    if (accessCheck.rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'No tienes acceso a este apiario.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO bitacora (usuario_id, apiario_id, fecha, tipo_evento, descripcion)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [userId, apiario_id, fecha || new Date().toISOString().split('T')[0], tipo_evento, descripcion || null]
+    );
+    res.json({ success: true, event: result.rows[0] });
+  } catch (err) {
+    console.error('Error en POST /api/bitacora:', err);
+    res.status(500).json({ success: false, message: 'Error al crear evento de bitácora.' });
+  }
+});
+
+// Actualizar evento de bitácora
+app.put('/api/bitacora/:id', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  const { id } = req.params;
+  const { fecha, tipo_evento, descripcion } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE bitacora SET fecha = COALESCE($1, fecha), tipo_evento = COALESCE($2, tipo_evento),
+       descripcion = COALESCE($3, descripcion) WHERE id = $4 AND usuario_id = $5 RETURNING *`,
+      [fecha || null, tipo_evento || null, descripcion || null, id, userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Evento no encontrado o no autorizado.' });
+    }
+    res.json({ success: true, event: result.rows[0] });
+  } catch (err) {
+    console.error('Error en PUT /api/bitacora:', err);
+    res.status(500).json({ success: false, message: 'Error al actualizar evento.' });
+  }
+});
+
+// Eliminar evento de bitácora
+app.delete('/api/bitacora/:id', verificarToken, async (req, res) => {
+  const userId = req.usuario.userId;
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM bitacora WHERE id = $1 AND usuario_id = $2 RETURNING id',
+      [id, userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Evento no encontrado o no autorizado.' });
+    }
+    res.json({ success: true, message: 'Evento eliminado correctamente.' });
+  } catch (err) {
+    console.error('Error en DELETE /api/bitacora:', err);
+    res.status(500).json({ success: false, message: 'Error al eliminar evento.' });
+  }
+});
+
+// ==============================================
 // ENDPOINT PARA PRUEBAS DE NOTIFICACIONES
 // ==============================================
 // Este endpoint utiliza el módulo test_notification.js para disparar
@@ -1098,7 +1220,7 @@ app.post('/debug/setup-database', async (req, res) => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     
-    const sqlPath = path.join(__dirname, '..', 'abeja_net_v3_postgres.sql');
+    const sqlPath = path.join(__dirname, '..', 'abeja_net_v5_postgres.sql');
     const sqlScript = fs.readFileSync(sqlPath, 'utf8');
     
     await pool.query(sqlScript);

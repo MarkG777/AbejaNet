@@ -2,7 +2,9 @@
 
 ## ⚠️ ¿CUÁNDO USAR ESTA GUÍA?
 
-**Cuando tu base de datos gratuita de Render expire (cada 90 días).**
+**Cuando tu base de datos gratuita de Render expire (cada 30 días).**
+
+> **⚠️ ACTUALIZACIÓN:** Desde mayo 2024, Render cambió la política — las BD gratuitas ahora expiran a los **30 días** (antes eran 90). Tienes **14 días de gracia** para actualizar a un plan pago antes de que los datos se eliminen permanentemente.
 
 Esta guía te permite migrar a una nueva BD en **15 minutos** sin tocar código ni la app móvil.
 
@@ -36,7 +38,7 @@ https://dashboard.render.com
 Name:            abejanet_db_[mes][año]
                  Ejemplo: abejanet_db_feb2025
 
-Database:        Cualquier nombre (abeja_net_v3 recomendado)
+Database:        Cualquier nombre (abeja_net_v6 recomendado)
 
 User:            Cualquier usuario (abeja_user recomendado)
 
@@ -70,7 +72,7 @@ postgresql://usuario:password@host/database
 
 Ejemplo:
 ```
-postgresql://abeja_user:EK06Cvp5Y7ihiVxocC77N3fXnHhl8Jgr@dpg-d6567vtum26s73fgo090-a/abeja_net_v3_h9fm
+postgresql://abeja_user:DCM5Qri98FRtyaDjyE5nsBgmtmNecF8e@dpg-d9ba229kh4rs73ae5re0-a/abeja_net_v6
 ```
 
 **Cópiala completa** → La necesitarás en el siguiente paso.
@@ -109,7 +111,7 @@ Windows + X → Windows PowerShell
 
 ### 4.2. Navegar a la Carpeta del Proyecto
 ```powershell
-cd C:\Users\marco\AbejaNet
+cd C:\Users\OMEN\Documents\ESCUELA\AbejaNet_Revival
 ```
 
 ### 4.3. Ejecutar el Script
@@ -231,7 +233,7 @@ Si es tu primera vez usando este sistema, configura la clave secreta:
 5. **Save Changes**
 
 ### En tu PC (Archivo .env)
-1. Abre: `C:\Users\marco\AbejaNet\backend\.env`
+1. Abre: `C:\Users\OMEN\Documents\ESCUELA\AbejaNet_Revival\backend\.env`
 2. Agrega al final:
    ```env
    SETUP_SECRET="AbejaNet2024_MigrationKey_Secure"
@@ -283,7 +285,7 @@ Si es tu primera vez usando este sistema, configura la clave secreta:
 
 **Solución:**
 ```powershell
-cd C:\Users\marco\AbejaNet
+cd C:\Users\OMEN\Documents\ESCUELA\AbejaNet_Revival
 # Luego ejecuta:
 .\MIGRACION_BD_RENDER.ps1
 ```
@@ -316,9 +318,12 @@ Después del proceso:
 
 ## Frecuencia de Migraciones
 ```
-Render Free BD expira cada: 90 días
-Próxima migración estimada: [Fecha actual + 90 días]
+Render Free BD expira cada: 30 días
+Periodo de gracia: 14 días adicionales (para upgrade a plan pago)
+Próxima migración estimada: [Fecha actual + 30 días]
 ```
+
+> Render envía notificaciones por email antes de la expiración y antes del fin del periodo de gracia.
 
 ## Datos Que Se Pierden
 - ❌ Datos de la BD anterior (solo datos de prueba)
@@ -338,17 +343,18 @@ Próxima migración estimada: [Fecha actual + 90 días]
 ✅ **Automático:** El script hace todo el trabajo
 ✅ **Seguro:** Endpoint protegido con clave
 ✅ **Sin cambios:** No tocas código ni apps
-✅ **Reutilizable:** Funciona cada 90 días
+✅ **Reutilizable:** Funciona cada 30 días
 
 ---
 
 # 🔗 ARCHIVOS RELACIONADOS
 
 ```
-📁 C:\Users\marco\AbejaNet\
+📁 C:\Users\OMEN\Documents\ESCUELA\AbejaNet_Revival\
 ├── MIGRACION_BD_RENDER.ps1      ← Script automático
 ├── RESTAURAR_BD_RENDER_FREE.md  ← Esta guía
-├── abeja_net_v3_postgres.sql    ← Script SQL (no tocar)
+├── abeja_net_v5_postgres.sql    ← Script SQL v5 (incluye tabla bitácora + secreto_2fa)
+├── abeja_net_v4_postgres.sql    ← Script SQL v4 (anterior)
 └── backend/
     └── .env                      ← Configuración local
 ```
@@ -383,15 +389,17 @@ Si en el futuro tienes datos reales importantes:
    ```
 
 ## Alternativas para Evitar Migraciones
-- **Supabase:** BD gratuita sin expiración
-- **Neon.tech:** BD PostgreSQL gratuita
-- **Render Paid:** $7/mes sin expiraciones
+- **Supabase:** BD gratuita sin expiración (recomendado para no migrar cada mes)
+- **Neon.tech:** BD PostgreSQL gratuita sin expiración
+- **Render Paid:** $7/mes sin expiraciones (Basic-256MB)
+
+> **Nota:** Con la política actual de 30 días, considerar migrar a Supabase o Neon.tech si no quieres migrar mensualmente.
 
 ---
 
-**Última actualización:** Noviembre 2024
+**Última actualización:** Julio 2026
 
-**Próxima migración:** Febrero 2025 (90 días)
+**Política de expiración:** 30 días + 14 días de gracia (confirmado en render.com/docs/free)
 
 **Tiempo estimado:** 15 minutos ⏱️
 

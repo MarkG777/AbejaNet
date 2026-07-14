@@ -8,7 +8,12 @@
     "scheme": "com.markg777.AbejaNet",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.markg777.AbejaNet",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Esta app usa Face ID para proteger tu cuenta y datos apícolas.",
+        "MinimumOSVersion": "13.0"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +26,8 @@
       "notification": {
         "icon": "./assets/images/pruebados.png",
         "color": "#F9A825"
-      }
+      },
+      "minSdkVersion": 24
     },
     "web": {
       "bundler": "metro",

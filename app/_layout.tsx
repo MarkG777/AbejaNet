@@ -1,25 +1,26 @@
 // app/_layout.tsx
-import React, { useEffect, useState } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { SplashScreen, Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 
 // Importar configuración de i18n para multi-idioma
 import '../utils/i18n';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { AuthProvider, useAuth } from '../context/AuthContext';
-import { ThemeProvider as AppThemeProvider } from '@/context/ThemeContext';
-import { NotificationsProvider } from './context/NotificationsContext';
-import * as Notifications from 'expo-notifications';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
+import { toastConfig } from '@/components/ToastConfig';
+import { ThemeProvider as AppThemeProvider } from '@/context/ThemeContext';
+import { useColorScheme } from '@/hooks/useColorScheme';
+import * as Notifications from 'expo-notifications';
+import Toast from 'react-native-toast-message';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { NotificationsProvider } from './context/NotificationsContext';
 
 // Exporta el ErrorBoundary de Expo Router para manejar errores en rutas
 export { ErrorBoundary } from 'expo-router';
 
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -130,6 +131,7 @@ function AppLayout() {
       {!isSplashAnimationComplete && (
         <AnimatedSplash onAnimationComplete={() => setSplashAnimationComplete(true)} />
       )}
+      <Toast config={toastConfig} />
     </ThemeProvider>
   );
 }
