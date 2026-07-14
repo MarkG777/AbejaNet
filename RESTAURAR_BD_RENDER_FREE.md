@@ -72,7 +72,7 @@ postgresql://usuario:password@host/database
 
 Ejemplo:
 ```
-postgresql://abeja_user:DCM5Qri98FRtyaDjyE5nsBgmtmNecF8e@dpg-d9ba229kh4rs73ae5re0-a/abeja_net_v6
+postgresql://abeja_user:DCM5Qri98FR....
 ```
 
 **Cópiala completa** → La necesitarás en el siguiente paso.
@@ -138,10 +138,13 @@ Si YA lo hiciste (Paso 3), presiona Enter.
 
 #### c) Clave Secreta (SETUP_SECRET)
 ```
-Escribe: AbejaNet2024_MigrationKey_Secure
+Escribe: [TU_SETUP_SECRET]
 ```
 
-**Nota:** Si usaste otra clave, escribe la que configuraste.
+**⚠️ IMPORTANTE:** La clave real NO está en este archivo por seguridad.
+- Encuéntrala en: `backend/.env` (variable `SETUP_SECRET`)
+- O en: Render Dashboard → Environment → `SETUP_SECRET`
+- Si no existe, crea una nueva (ver sección "Configuración Inicial")
 
 ### 4.5. Esperar Resultado
 
@@ -229,14 +232,14 @@ Si es tu primera vez usando este sistema, configura la clave secreta:
 1. Dashboard → Backend → **"Environment"**
 2. Click **"Add Environment Variable"**
 3. **Key:** `SETUP_SECRET`
-4. **Value:** `AbejaNet2024_MigrationKey_Secure`
+4. **Value:** [Genera una clave segura — ej. 32 caracteres alfanuméricos]
 5. **Save Changes**
 
 ### En tu PC (Archivo .env)
 1. Abre: `C:\Users\OMEN\Documents\ESCUELA\AbejaNet_Revival\backend\.env`
 2. Agrega al final:
    ```env
-   SETUP_SECRET="AbejaNet2024_MigrationKey_Secure"
+   SETUP_SECRET="[tu_clave_secreta_aqui]"
    ```
 3. Guarda el archivo
 
@@ -263,7 +266,7 @@ Si es tu primera vez usando este sistema, configura la clave secreta:
 
 **Solución:**
 1. Verifica que SETUP_SECRET esté en Render Environment
-2. Verifica que el valor sea exactamente: `AbejaNet2024_MigrationKey_Secure`
+2. Verifica que el valor coincida con `SETUP_SECRET` en tu `backend/.env`
 3. Usa la misma clave cuando el script la pida
 
 ---
