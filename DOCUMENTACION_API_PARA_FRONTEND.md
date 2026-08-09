@@ -15,8 +15,8 @@ https://abejanet-backend.onrender.com
 **Body (JSON):**
 ```json
 {
-  "correo_electronico": "admin@abejanet.com",
-  "contrasena": "admin123"
+  "email": "admin@abejanet.com",
+  "password": "admin123"
 }
 ```
 
@@ -25,10 +25,13 @@ https://abejanet-backend.onrender.com
 {
   "success": true,
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "usuario": {
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
     "id": 1,
-    "correo_electronico": "admin@abejanet.com",
     "nombre": "Admin",
+    "apellido_paterno": "...",
+    "apellido_materno": "...",
+    "correo_electronico": "admin@abejanet.com",
     "rol": "administrador"
   }
 }
@@ -38,6 +41,30 @@ https://abejanet-backend.onrender.com
 ```
 Authorization: Bearer <token>
 ```
+
+- `token` expira en **1 hora**.
+- `refreshToken` expira en **7 días** y sirve para pedir un `token` nuevo sin volver a loguearse (ver `/api/refresh-token` abajo).
+- Rutas de login/registro/recuperación de contraseña tienen **rate limiting**: máximo 20 intentos cada 15 minutos por IP.
+
+### Renovar token
+**POST** `/api/refresh-token`
+
+**Body:**
+```json
+{ "refreshToken": "..." }
+```
+
+**Respuesta:** mismo shape que login (`token` + `refreshToken` nuevos). Si el refresh token expiró o fue revocado, responde 401/403 y hay que loguear de nuevo.
+
+### Login con Google
+**POST** `/api/auth/google`
+
+**Body:**
+```json
+{ "token": "<idToken de Google Sign-In>" }
+```
+
+Respuesta igual a `/api/login`. Crea el usuario automáticamente si no existe.
 
 ---
 
@@ -150,6 +177,55 @@ Authorization: Bearer <token>
 
 ---
 
+## 📔 Bitácora Apícola
+
+Todas requieren `Authorization: Bearer <token>`.
+
+### Listar eventos
+**GET** `/api/bitacora?apiario_id=1&limit=50&offset=0`
+
+### Crear evento
+**POST** `/api/bitacora`
+```json
+{
+  "apiario_id": 1,
+  "colmena_id": 2,
+  "tipo_evento": "revision",
+  "descripcion": "Todo bien, sin plagas."
+}
+```
+`colmena_id` es opcional (evento a nivel apiario). `fecha` es opcional (default: hoy).
+
+### Actualizar evento
+**PUT** `/api/bitacora/:id` — solo el autor del evento puede editarlo.
+
+### Eliminar evento
+**DELETE** `/api/bitacora/:id` — solo el autor del evento puede eliminarlo.
+
+---
+
+## 🚨 Alertas
+
+**GET** `/api/alertas` — requiere `Authorization: Bearer <token>`. Devuelve las alertas de los apiarios del usuario.
+
+**POST** `/api/alertas/marcar-como-leidas` — requiere `Authorization: Bearer <token>`. Marca todas las alertas del usuario como leídas.
+
+**POST** `/api/alertas` — **requiere `X-API-Key`** (no token de usuario). Pensado para que el pipeline de sensores/dispositivos registre una alerta y dispare push notifications a los usuarios del apiario afectado. Ver sección de Sensores.
+
+---
+
+## 📡 Ingesta de Sensores (ESP32)
+
+Estos endpoints los usa el firmware, no el frontend, pero se documentan porque comparten backend.
+
+**POST** `/api/lecturas` y **POST** `/api/sensor-data` — ambos requieren el header:
+```
+X-API-Key: <ESP32_API_KEY del backend>
+```
+Sin esa clave responden `401`. El sensor se auto-registra en la tabla `sensores` si la MAC no existe todavía.
+
+---
+
 ## 📊 Lecturas de Sensores
 
 ### Obtener Lecturas de una Colmena
@@ -190,7 +266,9 @@ Authorization: Bearer <token>
 ### Ver Datos de la Base de Datos
 **GET** `/debug/data`
 
-No requiere autenticación. Muestra totales de todas las tablas.
+**Requiere** el header `x-setup-secret: <SETUP_SECRET del backend>` (o `{ "secret": "..." }` en el body). Sin esto responde `403`. Ya no está abierto públicamente.
+
+Los demás endpoints bajo `/debug/*` (`populate-data`, `assign-users`, `setup-database`) también requieren esta misma clave.
 
 ---
 
@@ -204,8 +282,8 @@ No requiere autenticación. Muestra totales de todas las tablas.
      "message": "Descripción del error"
    }
    ```
-3. **El token JWT expira** después de 24 horas
-4. **CORS está habilitado** - Pueden hacer peticiones desde localhost
+3. **El token JWT (`token`) expira en 1 hora**; usar `refreshToken` (7 días) contra `/api/refresh-token` para renovarlo sin re-loguear.
+4. **CORS está restringido** a un allowlist de orígenes conocidos (no cualquier origen de navegador). La app móvil no se ve afectada porque no envía cabecera `Origin`. Si necesitan agregar un origen nuevo (por ejemplo un build web), pídanlo para agregarlo a `ALLOWED_ORIGINS` en el backend.
 
 ---
 
@@ -222,8 +300,8 @@ const response = await fetch('https://abejanet-backend.onrender.com/api/login', 
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
-    correo_electronico: 'admin@abejanet.com',
-    contrasena: 'admin123'
+    email: 'admin@abejanet.com',
+    password: 'admin123'
   })
 });
 

@@ -28,9 +28,8 @@ const char* password = "TU_CONTRASENA_WIFI"; // La contraseña de tu red WiFi
 // La URL de tu servicio backend en Render. Reemplaza 'nombre-app' por el tuyo.
 const char* serverUrl = "https://abejanet-backend.onrender.com/api/sensor-data";
 
-// Tu clave de API secreta (la misma que en el archivo .env del backend)
-// Tu clave de API secreta (la misma que en el archivo .env del backend)
-const char* apiKey = "abeja-maestra-secreta-777"; 
+// Tu clave de API secreta (la misma que ESP32_API_KEY en el archivo .env del backend)
+const char* apiKey = "TU_API_KEY_AQUI";
 
 // Intervalo entre envíos de datos (en milisegundos)
 // 600000 ms = 10 minutos

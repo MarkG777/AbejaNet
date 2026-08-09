@@ -99,7 +99,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const handleRefresh = async () => {
     try {
       const storedRefresh = await SecureStore.getItemAsync('refreshToken');
-      if (!storedRefresh) throw new Error('No existe llava maestra localmente');
+      if (!storedRefresh) throw new Error('No existe refresh token localmente');
       
       const response = await api.post('/api/refresh-token', { refreshToken: storedRefresh });
       if (response.data.success) {
@@ -142,13 +142,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           try {
             const decodedToken = jwtDecode<{ exp: number }>(token);
             if ((decodedToken.exp * 1000) <= Date.now()) {
-               console.log('AuthContext: AccessToken Expirado Biológicamente. Activando Renobación Maestra en Hardware...');
+               console.log('AuthContext: AccessToken expirado. Renovando via refresh token...');
                const renewed = await handleRefresh();
                if (!renewed) throw new Error('Refresh Fallido');
                activeToken = renewed;
             }
           } catch(e){
-              throw new Error('Token irrecuperable de la Bóveda');
+              throw new Error('Token irrecuperable');
           }
 
           // Validación Biométrica Primaria al Descubrir Autenticación
@@ -171,7 +171,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setAuthState(prev => ({ ...prev, authenticated: false, hasSeenOnboarding }));
         }
       } catch (e) {
-        console.log('Sesión no recuperable de SecureStore, purgando bóveda...', e);
+        console.log('AuthContext: Sesion no recuperable, limpiando tokens...', e);
         logout();
       }
     };
@@ -187,7 +187,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
          try {
            const decodedToken = jwtDecode<{ exp: number }>(authState.accessToken || '');
            if ((decodedToken.exp * 1000) <= Date.now()) {
-                console.log("App regresó del doze con token muerto. Resucitando vía maestría oscura.");
+                console.log('AuthContext: Token expirado al volver a primer plano. Renovando...');
                 await handleRefresh();
            }
          } catch(e) {}
@@ -218,7 +218,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (pushToken) await savePushToken(pushToken);
 
     } catch (e) {
-      console.error('Bóveda Rechazó el Guardado Criptográfico', e);
+      console.error('AuthContext: Error al guardar tokens', e);
     }
   };
 
