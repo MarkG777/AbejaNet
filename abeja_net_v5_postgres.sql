@@ -133,18 +133,22 @@ CREATE TABLE bitacora (
   id              SERIAL PRIMARY KEY,
   usuario_id      INTEGER NOT NULL,
   apiario_id      INTEGER NOT NULL,
+  colmena_id      INTEGER NULL,              -- Opcional: para eventos específicos de una colmena
   fecha           DATE NOT NULL DEFAULT CURRENT_DATE,
   tipo_evento     VARCHAR(50) NOT NULL,   -- 'revision', 'cosecha', 'alimentacion', 'tratamiento', 'division', 'observacion', 'otro'
   descripcion     TEXT NULL,
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-  FOREIGN KEY (apiario_id) REFERENCES apiarios(id) ON DELETE CASCADE
+  FOREIGN KEY (apiario_id) REFERENCES apiarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (colmena_id) REFERENCES colmenas(id) ON DELETE SET NULL
 );
 
 -- Índice para optimizar consultas por usuario + fecha
 CREATE INDEX idx_bitacora_usuario_fecha ON bitacora(usuario_id, fecha DESC);
 -- Índice para filtrar por apiario
 CREATE INDEX idx_bitacora_apiario ON bitacora(apiario_id);
+-- Índice para filtrar por colmena
+CREATE INDEX idx_bitacora_colmena ON bitacora(colmena_id);
 
 -- ======================================================
 -- DATOS DE PRUEBA (Versión robusta)

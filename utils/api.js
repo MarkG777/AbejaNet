@@ -30,31 +30,51 @@ export const setAuthToken = (token) => {
 };
 
 export const setupErrorInterceptor = (logoutUser, handleRefresh) => {
+  let isLoggingOut = false;
   api.interceptors.response.use(
     (response) => response,
     async (error) => {
       const originalRequest = error.config;
-      
+      const isRefreshRequest = originalRequest?.url?.includes('/api/refresh-token');
+
+      if (error.response && error.response.status === 401 && isRefreshRequest) {
+        if (!isLoggingOut) {
+          isLoggingOut = true;
+          console.log('Interceptor: Refresh token invalido (401 en /api/refresh-token). Cerrando sesion...');
+          logoutUser();
+        }
+        return Promise.reject(error);
+      }
+
       if (error.response && error.response.status === 401 && !originalRequest._retry) {
+        if (isLoggingOut) {
+          return Promise.reject(error);
+        }
         originalRequest._retry = true;
         try {
-          console.log('Interceptor: Error 401. Solicitando Refresco Silencioso de Token...');
+          console.log('Interceptor: Error 401. Renovando token...');
           const newToken = await handleRefresh();
           
           if (newToken) {
-            console.log('Interceptor: Renobación Máxima de Token lograda. Re-escrutando petición original.');
+            console.log('Interceptor: Token renovado. Reintentando peticion original.');
             originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
             return api(originalRequest);
           }
         } catch (refreshErr) {
-          console.log('Interceptor: El Refresh Token Murió Criptográficamente. Deslogueando...');
-          logoutUser();
+          if (!isLoggingOut) {
+            isLoggingOut = true;
+            console.log('Interceptor: Refresh token invalido. Cerrando sesion...');
+            logoutUser();
+          }
           return Promise.reject(refreshErr);
         }
       }
       
       if (error.response && error.response.status === 403) {
-         logoutUser();
+         if (!isLoggingOut) {
+           isLoggingOut = true;
+           logoutUser();
+         }
       }
       
       return Promise.reject(error);

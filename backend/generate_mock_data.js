@@ -100,6 +100,10 @@ const generarDatos = async (cerrarPool = true, opciones = {}) => {
     const sensorId = rows[0].id;
     console.log(`- Sensor (MAC: ${SENSOR_MAC}) listo con ID: ${sensorId}`);
 
+    // 2.5. Limpiar lecturas previas del sensor para evitar duplicados
+    const { rowCount } = await client.query('DELETE FROM lecturas_ambientales WHERE sensor_id = $1', [sensorId]);
+    console.log(`- Lecturas previas eliminadas: ${rowCount} registros (si los había).`);
+
     // 3. Generar e insertar las lecturas
     const totalLecturas = DIAS_A_GENERAR * 24 * LECTURAS_POR_HORA;
     console.log(`\nGenerando ${totalLecturas} lecturas para ${DIAS_A_GENERAR} días...`);

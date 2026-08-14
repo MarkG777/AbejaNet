@@ -4,11 +4,13 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { Expo } from 'expo-server-sdk';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import asignarUsuariosAApiario from './assign_users.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
+import { verificarApiKey, verificarSetupSecret, verificarToken } from './middleware/auth.js';
 import enviarNotificacionPrueba from './test_notification.js';
 
 // Almacenamiento temporal de códigos de reseteo de contraseña
@@ -18,33 +20,42 @@ const resetCodes = new Map();
 // Carga variables de entorno desde .env
 dotenv.config();
 
+// Variables de entorno requeridas para que el servidor pueda operar de forma segura
+const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL'];
+const missingEnvVars = requiredEnvVars.filter((key) => !process.env[key]);
+if (missingEnvVars.length > 0) {
+  console.error(`Faltan variables de entorno requeridas: ${missingEnvVars.join(', ')}`);
+  process.exit(1);
+}
+
 const app = express();
 const expo = new Expo(); // Instancia de Expo
 const googleClient = new OAuth2Client();
 
-app.use(cors());
+// La app móvil (axios) no envía cabecera Origin, así que siempre se permite.
+// Solo se restringen los orígenes de navegador (builds web, herramientas de desarrollo).
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081,http://localhost:19006,https://abejanet-backend.onrender.com')
+  .split(',')
+  .map((origin) => origin.trim());
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('No permitido por la política de CORS.'));
+  },
+}));
 app.use(express.json());
 
-// --- Middleware de Autenticación --- 
-const verificarToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Formato "Bearer TOKEN"
-
-  if (token == null) return res.sendStatus(401); // No autorizado
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, usuario) => {
-    if (err) {
-      if (err.name === 'TokenExpiredError') {
-        // Si el token ha expirado, enviamos 401 para que el cliente fuerce el re-login.
-        return res.status(401).json({ success: false, message: 'Token expirado. Por favor, inicie sesión de nuevo.' });
-      }
-      // Para cualquier otro error (token malformado, firma inválida), enviamos 403.
-      return res.status(403).json({ success: false, message: 'Token inválido o no autorizado.' });
-    }
-    req.usuario = usuario;
-    next();
-  });
-};
+// Limita intentos repetidos en rutas sensibles a fuerza bruta
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Demasiados intentos. Intenta de nuevo en unos minutos.' },
+});
 
 // =================================================================
 // RUTAS DE TEST Y SALUD
@@ -68,22 +79,14 @@ app.get('/', (req, res) => res.send('API de AbejaNet online.'));
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    // Columna colmena_id (opcional) para bitácora, agregada en v5 pero faltante en la tabla ya existente
+    await pool.query('ALTER TABLE bitacora ADD COLUMN IF NOT EXISTS colmena_id INT REFERENCES colmenas(id) ON DELETE SET NULL;');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_bitacora_colmena ON bitacora(colmena_id);');
     console.log('Migraciones automáticas aplicadas correctamente.');
   } catch (err) {
     console.error('Error en migraciones automáticas:', err.message);
   }
 })();
-
-// ENDPOINT TEMPORAL PARA MIGRACIÓN SILENCIOSA DE BD RENDER
-app.get('/debug/migrate-refresh-token', async (req, res) => {
-  try {
-    await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS refresh_token TEXT;');
-    await pool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS proveedor_auth VARCHAR(20) DEFAULT 'local';");
-    res.send('Migración exitosa: Columnas refresh_token y proveedor_auth habilitadas en Render DB.');
-  } catch(err) {
-    res.status(500).send('Error DB: ' + err.message);
-  }
-});
 
 app.get('/test-db', async (req, res) => {
   try {
@@ -95,7 +98,7 @@ app.get('/test-db', async (req, res) => {
 });
 
 // Endpoint temporal para ver datos en la DB
-app.get('/debug/data', async (req, res) => {
+app.get('/debug/data', verificarSetupSecret, async (req, res) => {
   try {
     const roles = await pool.query('SELECT COUNT(*) as total FROM roles');
     const usuarios = await pool.query('SELECT COUNT(*) as total FROM usuarios');
@@ -127,7 +130,7 @@ app.get('/debug/data', async (req, res) => {
 });
 
 // Endpoint para poblar datos de sensores (llama al módulo generate_mock_data.js)
-app.post('/debug/populate-data', async (req, res) => {
+app.post('/debug/populate-data', verificarSetupSecret, async (req, res) => {
   try {
     // Acepta parámetros opcionales del body para configurar la generación
     // Ejemplo body: { "colmena": "Colmena Alfa Ppal", "mac": "XX:XX:XX:XX:XX:XX", "dias": 15, "lecturasPorHora": 2 }
@@ -143,7 +146,7 @@ app.post('/debug/populate-data', async (req, res) => {
 });
 
 // Endpoint para asignar usuarios a apiarios (llama al módulo assign_users.js)
-app.post('/debug/assign-users', async (req, res) => {
+app.post('/debug/assign-users', verificarSetupSecret, async (req, res) => {
   try {
     // Acepta un array de asignaciones o un solo objeto
     let asignaciones = req.body;
@@ -200,7 +203,7 @@ app.post('/api/save-push-token', verificarToken, async (req, res) => {
 });
 
 
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', authLimiter, async (req, res) => {
   const { correo_electronico, contrasena } = req.body;
   if (!correo_electronico || !contrasena) {
     return res.status(400).json({ success: false, message: 'Correo y contraseña son requeridos.' });
@@ -228,7 +231,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   try {
     const { rows } = await pool.query(
@@ -439,21 +442,6 @@ app.post('/api/auth/google', async (req, res) => {
 
 // Endpoint para obtener un resumen de datos para el dashboard
 // =================================================================
-// MIDDLEWARE PARA AUTENTICACIÓN DE DISPOSITIVOS IOT (ESP32)
-// =================================================================
-const verificarApiKey = (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
-    const expectedApiKey = process.env.ESP32_API_KEY;
-
-  console.log(`[AUTH DEBUG] Received API Key: ${apiKey}`);
-    console.log(`[AUTH DEBUG] Expected API Key from Env (ESP32_API_KEY): ${expectedApiKey}`);
-        if (!apiKey || apiKey !== expectedApiKey) {
-    return res.status(401).json({ success: false, message: 'API Key no válida o no proporcionada.' });
-  }
-  next();
-};
-
-// =================================================================
 // ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
 // =================================================================
 app.post('/api/sensor-data', verificarApiKey, async (req, res) => {
@@ -534,14 +522,25 @@ app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
 
 app.get('/api/apiarios', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
+  const userRol = req.usuario.rol;
   try {
-    const { rows: apiarios } = await pool.query(
-       `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas 
-        FROM apiarios a
-        JOIN usuarios_apiarios ua ON a.id = ua.apiario_id
-       WHERE ua.usuario_id = $1`,
-      [userId]
-    );
+    let apiarios;
+    if (userRol === 'administrador') {
+      // Los admin ven todos los apiarios
+      const result = await pool.query(
+        `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas 
+         FROM apiarios a ORDER BY a.nombre`);
+      apiarios = result.rows;
+    } else {
+      const result = await pool.query(
+         `SELECT a.id, a.nombre, a.descripcion_general, a.direccion_o_coordenadas 
+          FROM apiarios a
+          JOIN usuarios_apiarios ua ON a.id = ua.apiario_id
+         WHERE ua.usuario_id = $1`,
+        [userId]
+      );
+      apiarios = result.rows;
+    }
     res.json({ success: true, apiarios });
   } catch (err) {
     console.error('Error en GET /api/apiarios:', err);
@@ -556,13 +555,15 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
 
   try {
     // 1. Verificación de seguridad: ¿Tiene el usuario acceso a este apiario?
-    const { rows: permisos } = await pool.query(
-      'SELECT usuario_id FROM usuarios_apiarios WHERE usuario_id = $1 AND apiario_id = $2',
-      [userId, apiarioId]
-    );
+    if (req.usuario.rol !== 'administrador') {
+      const { rows: permisos } = await pool.query(
+        'SELECT usuario_id FROM usuarios_apiarios WHERE usuario_id = $1 AND apiario_id = $2',
+        [userId, apiarioId]
+      );
 
-    if (permisos.length === 0) {
-      return res.status(403).json({ success: false, message: 'Acceso no autorizado a este apiario.' });
+      if (permisos.length === 0) {
+        return res.status(403).json({ success: false, message: 'Acceso no autorizado a este apiario.' });
+      }
     }
 
     // 2. Si tiene acceso, obtener las colmenas
@@ -752,7 +753,7 @@ app.post('/api/change-password', verificarToken, async (req, res) => {
   }
 });
 
-app.post('/api/forgot-password', async (req, res) => {
+app.post('/api/forgot-password', authLimiter, async (req, res) => {
   const { email } = req.body;
   console.log(`[forgot-password] Solicitud recibida para: ${email}`);
 
@@ -817,7 +818,7 @@ app.post('/api/forgot-password', async (req, res) => {
   }
 });
 
-app.post('/api/reset-password', async (req, res) => {
+app.post('/api/reset-password', authLimiter, async (req, res) => {
   const { email, code, newPassword } = req.body;
 
   if (!email || !code || !newPassword) {
@@ -866,7 +867,7 @@ app.post('/api/reset-password', async (req, res) => {
 // ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
 // =================================================================
 
-app.post('/api/lecturas', async (req, res) => {
+app.post('/api/lecturas', verificarApiKey, async (req, res) => {
   const { macAddress, temperatura, humedad, peso, lluvia, sonido } = req.body;
 
   if (!macAddress) {
@@ -980,7 +981,7 @@ app.post('/api/alertas/marcar-como-leidas', verificarToken, async (req, res) => 
   }
 });
 
-app.post('/api/alertas', async (req, res) => {
+app.post('/api/alertas', verificarApiKey, async (req, res) => {
   const { colmena_id, tipo_alerta, valor_registrado, mensaje } = req.body;
 
   if (!colmena_id || !tipo_alerta || !mensaje) {
@@ -1074,9 +1075,13 @@ app.get('/api/bitacora', verificarToken, async (req, res) => {
 
   try {
     let query = `
-      SELECT b.*, a.nombre as apiario_nombre
+      SELECT b.*, a.nombre as apiario_nombre,
+             u.nombre as autor_nombre, u.apellido_paterno as autor_apellido,
+             c.nombre as colmena_nombre
       FROM bitacora b
       JOIN apiarios a ON b.apiario_id = a.id
+      JOIN usuarios u ON b.usuario_id = u.id
+      LEFT JOIN colmenas c ON b.colmena_id = c.id
       JOIN usuarios_apiarios ua ON ua.apiario_id = a.id
       WHERE ua.usuario_id = $1
     `;
@@ -1103,26 +1108,28 @@ app.get('/api/bitacora', verificarToken, async (req, res) => {
 // Crear evento de bitácora
 app.post('/api/bitacora', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
-  const { apiario_id, fecha, tipo_evento, descripcion } = req.body;
+  const { apiario_id, colmena_id, fecha, tipo_evento, descripcion } = req.body;
 
   if (!apiario_id || !tipo_evento) {
     return res.status(400).json({ success: false, message: 'Faltan campos requeridos: apiario_id, tipo_evento.' });
   }
 
   try {
-    // Verificar que el usuario tiene acceso al apiario
-    const accessCheck = await pool.query(
-      'SELECT 1 FROM usuarios_apiarios WHERE usuario_id = $1 AND apiario_id = $2',
-      [userId, apiario_id]
-    );
-    if (accessCheck.rows.length === 0) {
-      return res.status(403).json({ success: false, message: 'No tienes acceso a este apiario.' });
+    // Los admin tienen acceso a todos los apiarios
+    if (req.usuario.rol !== 'administrador') {
+      const accessCheck = await pool.query(
+        'SELECT 1 FROM usuarios_apiarios WHERE usuario_id = $1 AND apiario_id = $2',
+        [userId, apiario_id]
+      );
+      if (accessCheck.rows.length === 0) {
+        return res.status(403).json({ success: false, message: 'No tienes acceso a este apiario.' });
+      }
     }
 
     const result = await pool.query(
-      `INSERT INTO bitacora (usuario_id, apiario_id, fecha, tipo_evento, descripcion)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [userId, apiario_id, fecha || new Date().toISOString().split('T')[0], tipo_evento, descripcion || null]
+      `INSERT INTO bitacora (usuario_id, apiario_id, colmena_id, fecha, tipo_evento, descripcion)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [userId, apiario_id, colmena_id || null, fecha || new Date().toISOString().split('T')[0], tipo_evento, descripcion || null]
     );
     res.json({ success: true, event: result.rows[0] });
   } catch (err) {
@@ -1135,13 +1142,14 @@ app.post('/api/bitacora', verificarToken, async (req, res) => {
 app.put('/api/bitacora/:id', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   const { id } = req.params;
-  const { fecha, tipo_evento, descripcion } = req.body;
+  const { fecha, tipo_evento, descripcion, colmena_id } = req.body;
 
   try {
     const result = await pool.query(
       `UPDATE bitacora SET fecha = COALESCE($1, fecha), tipo_evento = COALESCE($2, tipo_evento),
-       descripcion = COALESCE($3, descripcion) WHERE id = $4 AND usuario_id = $5 RETURNING *`,
-      [fecha || null, tipo_evento || null, descripcion || null, id, userId]
+       descripcion = COALESCE($3, descripcion), colmena_id = COALESCE($4, colmena_id)
+       WHERE id = $5 AND usuario_id = $6 RETURNING *`,
+      [fecha || null, tipo_evento || null, descripcion || null, colmena_id !== undefined ? colmena_id : null, id, userId]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'Evento no encontrado o no autorizado.' });
@@ -1254,6 +1262,13 @@ app.post('/debug/setup-database', async (req, res) => {
       error: error.message
     });
   }
+});
+
+// --- Manejador de errores centralizado (red de seguridad) ---
+app.use((err, req, res, next) => {
+  console.error('Error no manejado:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ success: false, message: 'Error interno del servidor.' });
 });
 
 // --- Arranque del Servidor ---

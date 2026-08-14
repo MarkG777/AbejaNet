@@ -16,6 +16,9 @@ const char* password = "";   // ← CAMBIAR: Contraseña de tu WiFi
 // -------- CONFIGURACIÓN BACKEND --------
 const char* serverUrl = "https://abejanet-backend.onrender.com/api/lecturas";
 
+// Clave de API secreta (la misma que ESP32_API_KEY en el .env del backend)
+const char* apiKey = "TU_API_KEY_AQUI"; // ← CAMBIAR
+
 // -------- Micrófono MAX4466 --------
 const int ADC_PIN = 34;
 const int NSAMPLES = 1024;
@@ -223,7 +226,8 @@ void enviarDatos(float sonido, float temperatura, float humedad, float peso) {
   // Configurar HTTP request
   http.begin(serverUrl);
   http.addHeader("Content-Type", "application/json");
-  
+  http.addHeader("X-API-Key", apiKey);
+
   // Enviar POST request
   int httpResponseCode = http.POST(jsonPayload);
   

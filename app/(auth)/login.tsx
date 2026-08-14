@@ -4,7 +4,7 @@ import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-si
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -33,6 +33,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [emailError, setEmailError] = useState('');
+  const googleConfigured = useRef(false);
 
   const validateEmail = (value: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +42,8 @@ export default function LoginScreen() {
   };
 
   useEffect(() => {
+    if (googleConfigured.current) return;
+    googleConfigured.current = true;
     try {
       const googleAuthConfig = Constants.expoConfig?.extra?.googleAuth;
       if (!googleAuthConfig) {

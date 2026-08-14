@@ -1,8 +1,9 @@
 import { useAppColors } from '@/hooks/useAppColors';
+import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -18,17 +19,38 @@ import {
     View
 } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import { getQueuedEvents, queueEvent, syncQueuedEvents } from '../../utils/offlineQueue';
 
 interface BitacoraEvent {
   id: number;
   usuario_id: number;
   apiario_id: number;
   apiario_nombre: string;
+  colmena_id: number | null;
+  colmena_nombre: string | null;
+  autor_nombre: string;
+  autor_apellido: string | null;
   fecha: string;
   tipo_evento: string;
   descripcion: string | null;
   created_at: string;
+  pending?: boolean;
+  localId?: string;
+}
+
+interface QueuedBitacoraPayload {
+  apiario_id: number;
+  colmena_id: number | null;
+  tipo_evento: string;
+  descripcion: string;
+}
+
+interface QueuedBitacoraEvent {
+  localId: string;
+  payload: QueuedBitacoraPayload;
+  queuedAt: string;
 }
 
 const EVENT_TYPES = [
@@ -46,6 +68,9 @@ export default function BitacoraScreen() {
   const { t } = useTranslation();
   const router = useRouter();
 
+  const { authState } = useAuth();
+  const currentUser = authState.user;
+
   const [events, setEvents] = useState<BitacoraEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -53,8 +78,16 @@ export default function BitacoraScreen() {
   const [selectedType, setSelectedType] = useState('revision');
   const [descripcion, setDescripcion] = useState('');
   const [selectedApiario, setSelectedApiario] = useState<number | null>(null);
+  const [selectedColmena, setSelectedColmena] = useState<number | null>(null);
+  const [colmenas, setColmenas] = useState<{ id: number; nombre: string }[]>([]);
   const [apiarios, setApiarios] = useState<{ id: number; nombre: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [pendingEvents, setPendingEvents] = useState<QueuedBitacoraEvent[]>([]);
+
+  const loadPendingEvents = useCallback(async () => {
+    const queue: QueuedBitacoraEvent[] = await getQueuedEvents();
+    setPendingEvents(queue);
+  }, []);
 
   const fetchEvents = useCallback(async () => {
     const perfStart = performance.now();
@@ -83,12 +116,45 @@ export default function BitacoraScreen() {
     }
   }, []);
 
+  const fetchColmenas = useCallback(async (apiarioId: number) => {
+    try {
+      const res = await api.get(`/api/apiarios/${apiarioId}/colmenas`);
+      if (res.data.success) {
+        setColmenas(res.data.colmenas.map((c: any) => ({ id: c.id, nombre: c.nombre })));
+      }
+    } catch (err) {
+      console.error('Error al cargar colmenas:', err);
+      setColmenas([]);
+    }
+  }, []);
+
+  const trySyncQueue = useCallback(async () => {
+    const synced = await syncQueuedEvents((payload: QueuedBitacoraPayload) => api.post('/api/bitacora', payload));
+    if (synced > 0) {
+      Toast.show({ type: 'success', text1: t('bitacora_synced', 'Sincronizado'), text2: t('bitacora_synced_msg', `${synced} evento(s) pendiente(s) se sincronizaron.`), visibilityTime: 3000 });
+      fetchEvents();
+    }
+    loadPendingEvents();
+  }, [fetchEvents, loadPendingEvents, t]);
+
   useFocusEffect(
     useCallback(() => {
       fetchEvents();
       fetchApiarios();
-    }, [fetchEvents, fetchApiarios])
+      loadPendingEvents();
+      trySyncQueue();
+    }, [fetchEvents, fetchApiarios, loadPendingEvents, trySyncQueue])
   );
+
+  // Reintenta sincronizar la cola en cuanto vuelve la conexión a internet.
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (state.isConnected) {
+        trySyncQueue();
+      }
+    });
+    return () => unsubscribe();
+  }, [trySyncQueue]);
 
   const openModal = (event?: BitacoraEvent) => {
     if (event) {
@@ -96,11 +162,15 @@ export default function BitacoraScreen() {
       setSelectedType(event.tipo_evento);
       setDescripcion(event.descripcion || '');
       setSelectedApiario(event.apiario_id);
+      setSelectedColmena(event.colmena_id);
+      if (event.apiario_id) fetchColmenas(event.apiario_id);
     } else {
       setEditingEvent(null);
       setSelectedType('revision');
       setDescripcion('');
       setSelectedApiario(apiarios.length > 0 ? apiarios[0].id : null);
+      setSelectedColmena(null);
+      setColmenas([]);
     }
     setModalVisible(true);
   };
@@ -116,17 +186,44 @@ export default function BitacoraScreen() {
         await api.put(`/api/bitacora/${editingEvent.id}`, {
           tipo_evento: selectedType,
           descripcion,
+          colmena_id: selectedColmena,
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         Toast.show({ type: 'success', text1: t('success', 'Éxito'), text2: t('bitacora_updated', 'Evento actualizado.'), visibilityTime: 3000 });
       } else {
-        await api.post('/api/bitacora', {
+        const payload = {
           apiario_id: selectedApiario,
+          colmena_id: selectedColmena,
           tipo_evento: selectedType,
           descripcion,
-        });
+        };
+        const netState = await NetInfo.fetch();
+        let queuedOffline = false;
+
+        if (!netState.isConnected) {
+          await queueEvent(payload);
+          queuedOffline = true;
+        } else {
+          try {
+            await api.post('/api/bitacora', payload);
+          } catch (postErr: any) {
+            if (!postErr.response) {
+              // Sin respuesta del servidor (error de red): se encola para reintentar después.
+              await queueEvent(payload);
+              queuedOffline = true;
+            } else {
+              throw postErr;
+            }
+          }
+        }
+
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        Toast.show({ type: 'success', text1: t('success', 'Éxito'), text2: t('bitacora_created', 'Evento registrado.'), visibilityTime: 3000 });
+        if (queuedOffline) {
+          await loadPendingEvents();
+          Toast.show({ type: 'info', text1: t('bitacora_queued', 'Guardado localmente'), text2: t('bitacora_queued_msg', 'Sin conexión: se sincronizará automáticamente.'), visibilityTime: 4000 });
+        } else {
+          Toast.show({ type: 'success', text1: t('success', 'Éxito'), text2: t('bitacora_created', 'Evento registrado.'), visibilityTime: 3000 });
+        }
       }
       setModalVisible(false);
       fetchEvents();
@@ -171,8 +268,27 @@ export default function BitacoraScreen() {
     return found ? found.icon : 'create-outline';
   };
 
+  const pendingAsEvents: BitacoraEvent[] = pendingEvents.map((q) => ({
+    id: 0,
+    usuario_id: currentUser?.id ?? 0,
+    apiario_id: q.payload.apiario_id,
+    apiario_nombre: apiarios.find((a) => a.id === q.payload.apiario_id)?.nombre || '',
+    colmena_id: q.payload.colmena_id ?? null,
+    colmena_nombre: null,
+    autor_nombre: currentUser?.nombre ?? '',
+    autor_apellido: null,
+    fecha: q.queuedAt,
+    tipo_evento: q.payload.tipo_evento,
+    descripcion: q.payload.descripcion,
+    created_at: q.queuedAt,
+    pending: true,
+    localId: q.localId,
+  }));
+
+  const combinedEvents = [...pendingAsEvents, ...events];
+
   const renderEvent = ({ item }: { item: BitacoraEvent }) => (
-    <View style={[styles.eventCard, { backgroundColor: colors.card }]}>
+    <View style={[styles.eventCard, { backgroundColor: colors.card }, item.pending && styles.eventCardPending]}>
       <View style={styles.eventHeader}>
         <View style={styles.eventTypeContainer}>
           <Ionicons name={getEventIcon(item.tipo_evento) as any} size={20} color={colors.primary} />
@@ -180,21 +296,37 @@ export default function BitacoraScreen() {
             {t(`bitacora_type_${item.tipo_evento}`, item.tipo_evento)}
           </Text>
         </View>
-        <Text style={[styles.eventDate, { color: colors.textTertiary }]}>{formatDate(item.fecha)}</Text>
+        {item.pending ? (
+          <View style={styles.pendingBadge}>
+            <Ionicons name="cloud-offline-outline" size={14} color="#B45309" />
+            <Text style={styles.pendingBadgeText}>{t('bitacora_pending', 'Pendiente de sincronizar')}</Text>
+          </View>
+        ) : (
+          <Text style={[styles.eventDate, { color: colors.textTertiary }]}>{formatDate(item.fecha)}</Text>
+        )}
       </View>
       {item.descripcion ? (
         <Text style={[styles.eventDesc, { color: colors.textSecondary }]}>{item.descripcion}</Text>
       ) : null}
       <View style={styles.eventFooter}>
-        <Text style={[styles.eventApiary, { color: colors.textTertiary }]}>{item.apiario_nombre}</Text>
-        <View style={styles.eventActions}>
-          <TouchableOpacity onPress={() => openModal(item)} style={styles.actionBtn}>
-            <Ionicons name="pencil-outline" size={18} color={colors.textTertiary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleDelete(item)} style={styles.actionBtn}>
-            <Ionicons name="trash-outline" size={18} color="#EF4444" />
-          </TouchableOpacity>
+        <View style={styles.eventFooterLeft}>
+          <Text style={[styles.eventApiary, { color: colors.textTertiary }]}>
+            {item.apiario_nombre}{item.colmena_nombre ? ` · ${item.colmena_nombre}` : ''}
+          </Text>
+          <Text style={[styles.eventAuthor, { color: colors.textTertiary }]}>
+            {t('bitacora_by', 'Por')} {item.autor_nombre}{item.autor_apellido ? ` ${item.autor_apellido}` : ''}
+          </Text>
         </View>
+        {!item.pending && item.usuario_id === currentUser?.id && (
+          <View style={styles.eventActions}>
+            <TouchableOpacity onPress={() => openModal(item)} style={styles.actionBtn}>
+              <Ionicons name="pencil-outline" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleDelete(item)} style={styles.actionBtn}>
+              <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -202,7 +334,7 @@ export default function BitacoraScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => router.navigate('/(user)/dashboard')} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>{t('bitacora_title', 'Bitácora Apícola')}</Text>
@@ -213,7 +345,7 @@ export default function BitacoraScreen() {
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
-      ) : events.length === 0 ? (
+      ) : combinedEvents.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="book-outline" size={60} color={colors.textTertiary} />
           <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
@@ -222,8 +354,8 @@ export default function BitacoraScreen() {
         </View>
       ) : (
         <FlatList
-          data={events}
-          keyExtractor={(item) => item.id.toString()}
+          data={combinedEvents}
+          keyExtractor={(item) => item.pending ? item.localId! : item.id.toString()}
           renderItem={renderEvent}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -244,7 +376,11 @@ export default function BitacoraScreen() {
                   {apiarios.map((a) => (
                     <TouchableOpacity
                       key={a.id}
-                      onPress={() => setSelectedApiario(a.id)}
+                      onPress={() => {
+                        setSelectedApiario(a.id);
+                        setSelectedColmena(null);
+                        fetchColmenas(a.id);
+                      }}
                       style={[
                         styles.apiaryChip,
                         {
@@ -255,6 +391,45 @@ export default function BitacoraScreen() {
                     >
                       <Text style={{ color: selectedApiario === a.id ? '#fff' : colors.text, fontSize: 13 }}>
                         {a.nombre}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {colmenas.length > 0 && (
+              <View style={styles.pickerContainer}>
+                <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>{t('bitacora_hive', 'Colmena (opcional)')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.apiaryScroll}>
+                  <TouchableOpacity
+                    onPress={() => setSelectedColmena(null)}
+                    style={[
+                      styles.apiaryChip,
+                      {
+                        backgroundColor: selectedColmena === null ? colors.primary : colors.card,
+                        borderColor: selectedColmena === null ? colors.primary : colors.border,
+                      }
+                    ]}
+                  >
+                    <Text style={{ color: selectedColmena === null ? '#fff' : colors.text, fontSize: 13 }}>
+                      {t('bitacora_any_hive', 'Todo el apiario')}
+                    </Text>
+                  </TouchableOpacity>
+                  {colmenas.map((c) => (
+                    <TouchableOpacity
+                      key={c.id}
+                      onPress={() => setSelectedColmena(c.id)}
+                      style={[
+                        styles.apiaryChip,
+                        {
+                          backgroundColor: selectedColmena === c.id ? colors.primary : colors.card,
+                          borderColor: selectedColmena === c.id ? colors.primary : colors.border,
+                        }
+                      ]}
+                    >
+                      <Text style={{ color: selectedColmena === c.id ? '#fff' : colors.text, fontSize: 13 }}>
+                        {c.nombre}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -324,13 +499,18 @@ const styles = StyleSheet.create({
   loader: { flex: 1, justifyContent: 'center' },
   list: { padding: 15 },
   eventCard: { borderRadius: 12, padding: 15, marginBottom: 10 },
+  eventCardPending: { borderWidth: 1, borderColor: '#F59E0B', borderStyle: 'dashed' },
+  pendingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  pendingBadgeText: { fontSize: 10, color: '#B45309', fontWeight: '600' },
   eventHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   eventTypeContainer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   eventType: { fontSize: 15, fontWeight: '600' },
   eventDate: { fontSize: 13 },
   eventDesc: { fontSize: 14, marginBottom: 8 },
   eventFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  eventFooterLeft: { flex: 1 },
   eventApiary: { fontSize: 12 },
+  eventAuthor: { fontSize: 11, marginTop: 2 },
   eventActions: { flexDirection: 'row', gap: 15 },
   actionBtn: { padding: 5 },
   emptyState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40 },
