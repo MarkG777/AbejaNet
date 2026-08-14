@@ -582,7 +582,7 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
 // Obtener todas las lecturas de una colmena específica
 app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) => {
   const { colmenaId } = req.params;
-  const { range = 'day' } = req.query; // Default to 'day'
+  const { range = 'day', raw } = req.query; // Default to 'day'
   const userId = req.usuario.userId;
 
   try {
@@ -593,6 +593,21 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
     );
     if (permisos.length === 0) {
       return res.status(403).json({ success: false, message: 'Acceso no autorizado a esta colmena.' });
+    }
+
+    // 1.5. Modo "raw": devuelve todas las lecturas sin promediar, para exportación.
+    // No afecta el comportamiento de la gráfica (que sigue usando el switch de abajo).
+    if (raw === 'true') {
+      const intervalRaw = range === 'month' ? '1 MONTH' : range === 'week' ? '1 WEEK' : '1 DAY';
+      const { rows: lecturasRaw } = await pool.query(
+        `SELECT l.fecha_registro, l.temperatura, l.humedad, l.peso, l.sonido
+         FROM lecturas_ambientales l
+         JOIN sensores s ON l.sensor_id = s.id
+         WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '${intervalRaw}'
+         ORDER BY l.fecha_registro ASC`,
+        [colmenaId]
+      );
+      return res.json({ success: true, lecturas: lecturasRaw });
     }
 
     // 2. Construcción de la consulta según el rango

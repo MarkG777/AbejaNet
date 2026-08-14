@@ -29,9 +29,11 @@ const formatDateTime = (isoDate: string): { fecha: string; hora: string } => {
 };
 
 /**
- * Formatea un número a 2 decimales o retorna vacío
+ * Formatea un número a 2 decimales con coma decimal (formato regional para Excel
+ * cuando el separador de columnas es ';' — si no, Excel no reconoce los números
+ * y los importa como texto)
  */
-const fmt = (val: number | null): string => (val !== null && val !== undefined ? val.toFixed(2) : '');
+const fmt = (val: number | null): string => (val !== null && val !== undefined ? val.toFixed(2).replace('.', ',') : '');
 
 /**
  * Genera contenido CSV organizado con BOM UTF-8 para Excel

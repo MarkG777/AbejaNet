@@ -178,6 +178,9 @@ export default function ColmenaDetailScreen() {
   // Última lectura en tiempo real (sin promediar)
   const [ultimaLectura, setUltimaLectura] = useState<any | null>(null);
 
+  // Exportación: bandera para no bloquear la UI ni permitir doble-tap mientras se piden los datos crudos
+  const [exporting, setExporting] = useState<'share' | 'save' | null>(null);
+
   const toggleKey = (k: SensorDataKey) => {
     setActiveKeys(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
   };
@@ -287,6 +290,35 @@ export default function ColmenaDetailScreen() {
 
   const chartPreviewData = useMemo(() => processDataForPreview(lecturas, timeRange), [lecturas, timeRange]);
 
+  // Trae todas las lecturas del período seleccionado sin promediar (independiente de lo que muestre la gráfica)
+  const fetchRawLecturasForExport = async (): Promise<Lectura[]> => {
+    const response = await api.get<{ lecturas: Lectura[] }>(`/api/colmenas/${colmenaId}/lecturas`, {
+      params: { range: timeRange, raw: 'true' },
+    });
+    return (response.data?.lecturas || []).map((l: any) => ({
+      ...l,
+      temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
+      humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
+      peso: l.peso !== null ? parseFloat(l.peso) : null,
+      sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
+    }));
+  };
+
+  const handleExport = async (mode: 'share' | 'save') => {
+    setExporting(mode);
+    try {
+      const rawData = await fetchRawLecturasForExport();
+      if (mode === 'share') {
+        await shareCsv(rawData, nombre || 'Colmena');
+      } else {
+        await saveCsvToDownloads(rawData, nombre || 'Colmena');
+      }
+    } catch (err) {
+      console.error('Error al exportar CSV:', err);
+    } finally {
+      setExporting(null);
+    }
+  };
 
   if (loading) {
     return <ActivityIndicator size="large" color={colors.accent} style={[styles.centered, { backgroundColor: colors.background }]} />;
@@ -370,19 +402,32 @@ export default function ColmenaDetailScreen() {
       {lecturas.length > 0 && (
         <View style={[styles.exportContainer, { backgroundColor: colors.card }]}>
           <Text style={[styles.exportTitle, { color: colors.text }]}>Exportar Datos</Text>
+          <Text style={[styles.exportSubtitle, { color: colors.textTertiary }]}>
+            Todas las lecturas del período &quot;{timeRange === 'day' ? 'Día' : timeRange === 'week' ? 'Semana' : 'Mes'}&quot;, sin promediar
+          </Text>
           <View style={styles.exportButtons}>
             <TouchableOpacity
-              style={[styles.exportButton, { backgroundColor: colors.primary }]}
-              onPress={() => shareCsv(lecturas, nombre || 'Colmena')}
+              style={[styles.exportButton, { backgroundColor: colors.primary }, exporting !== null && { opacity: 0.6 }]}
+              onPress={() => handleExport('share')}
+              disabled={exporting !== null}
             >
-              <Ionicons name="share-outline" size={18} color="#fff" />
+              {exporting === 'share' ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="share-outline" size={18} color="#fff" />
+              )}
               <Text style={styles.exportButtonText}>Compartir</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.exportButton, { backgroundColor: '#4CAF50' }]}
-              onPress={() => saveCsvToDownloads(lecturas, nombre || 'Colmena')}
+              style={[styles.exportButton, { backgroundColor: '#4CAF50' }, exporting !== null && { opacity: 0.6 }]}
+              onPress={() => handleExport('save')}
+              disabled={exporting !== null}
             >
-              <Ionicons name="download-outline" size={18} color="#fff" />
+              {exporting === 'save' ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="download-outline" size={18} color="#fff" />
+              )}
               <Text style={styles.exportButtonText}>Guardar</Text>
             </TouchableOpacity>
           </View>
@@ -920,6 +965,11 @@ const styles = StyleSheet.create({
   exportTitle: {
     fontSize: 16,
     fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  exportSubtitle: {
+    fontSize: 12,
     marginBottom: 12,
     textAlign: 'center',
   },
