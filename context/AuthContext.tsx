@@ -4,7 +4,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
-import { AppState, AppStateStatus } from 'react-native';
+import { AppState, AppStateStatus, View } from 'react-native';
 import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
 import api, { setAuthToken, setupErrorInterceptor } from '../utils/api';
 
@@ -264,7 +264,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const value = { authState, login, logout, updateUser, setHasSeenOnboarding };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      <View
+        style={{ flex: 1 }}
+        onStartShouldSetResponderCapture={() => {
+          if (authState.authenticated) resetInactivityTimer();
+          return false;
+        }}
+      >
+        {children}
+      </View>
+    </AuthContext.Provider>
+  );
 };
 
 export const useAuth = () => {

@@ -79,6 +79,9 @@ app.get('/', (req, res) => res.send('API de AbejaNet online.'));
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    // Columna colmena_id (opcional) para bitácora, agregada en v5 pero faltante en la tabla ya existente
+    await pool.query('ALTER TABLE bitacora ADD COLUMN IF NOT EXISTS colmena_id INT REFERENCES colmenas(id) ON DELETE SET NULL;');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_bitacora_colmena ON bitacora(colmena_id);');
     console.log('Migraciones automáticas aplicadas correctamente.');
   } catch (err) {
     console.error('Error en migraciones automáticas:', err.message);
