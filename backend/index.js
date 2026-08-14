@@ -582,7 +582,7 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
 // Obtener todas las lecturas de una colmena específica
 app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) => {
   const { colmenaId } = req.params;
-  const { range = 'day', raw } = req.query; // Default to 'day'
+  const { range = 'day', granularity } = req.query; // Default to 'day'
   const userId = req.usuario.userId;
 
   try {
@@ -595,19 +595,39 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
       return res.status(403).json({ success: false, message: 'Acceso no autorizado a esta colmena.' });
     }
 
-    // 1.5. Modo "raw": devuelve todas las lecturas sin promediar, para exportación.
-    // No afecta el comportamiento de la gráfica (que sigue usando el switch de abajo).
-    if (raw === 'true') {
+    // 1.5. Modo de exportación: granularity = 'raw' | 'hour' | 'day'.
+    // Devuelve datos del mismo rango de fechas que la gráfica, pero con el nivel de
+    // detalle que pida el cliente, en vez del agregado fijo del switch de abajo.
+    // No afecta el comportamiento de la gráfica cuando no se envía este parámetro.
+    if (granularity === 'raw' || granularity === 'hour' || granularity === 'day') {
       const intervalRaw = range === 'month' ? '1 MONTH' : range === 'week' ? '1 WEEK' : '1 DAY';
-      const { rows: lecturasRaw } = await pool.query(
-        `SELECT l.fecha_registro, l.temperatura, l.humedad, l.peso, l.sonido
+      let selectCols;
+      let groupBy = '';
+
+      if (granularity === 'raw') {
+        selectCols = 'l.fecha_registro, l.temperatura, l.humedad, l.peso, l.sonido';
+      } else if (granularity === 'hour') {
+        selectCols = `date_trunc('hour', l.fecha_registro) as fecha_registro,
+                      AVG(l.temperatura) as temperatura, AVG(l.humedad) as humedad,
+                      AVG(l.peso) as peso, AVG(l.sonido) as sonido`;
+        groupBy = `GROUP BY date_trunc('hour', l.fecha_registro)`;
+      } else {
+        selectCols = `l.fecha_registro::date as fecha_registro,
+                      AVG(l.temperatura) as temperatura, AVG(l.humedad) as humedad,
+                      AVG(l.peso) as peso, AVG(l.sonido) as sonido`;
+        groupBy = `GROUP BY l.fecha_registro::date`;
+      }
+
+      const { rows: lecturasExport } = await pool.query(
+        `SELECT ${selectCols}
          FROM lecturas_ambientales l
          JOIN sensores s ON l.sensor_id = s.id
          WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '${intervalRaw}'
-         ORDER BY l.fecha_registro ASC`,
+         ${groupBy}
+         ORDER BY fecha_registro ASC`,
         [colmenaId]
       );
-      return res.json({ success: true, lecturas: lecturasRaw });
+      return res.json({ success: true, lecturas: lecturasExport });
     }
 
     // 2. Construcción de la consulta según el rango

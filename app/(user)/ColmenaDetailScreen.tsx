@@ -8,7 +8,7 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLine, VictoryScatter, VictoryTheme } from 'victory-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
 
@@ -290,10 +290,13 @@ export default function ColmenaDetailScreen() {
 
   const chartPreviewData = useMemo(() => processDataForPreview(lecturas, timeRange), [lecturas, timeRange]);
 
-  // Trae todas las lecturas del período seleccionado sin promediar (independiente de lo que muestre la gráfica)
-  const fetchRawLecturasForExport = async (): Promise<Lectura[]> => {
+  // Trae las lecturas del período seleccionado con el nivel de detalle pedido
+  // (independiente de lo que muestre la gráfica, que sigue usando su propio agregado)
+  type ExportGranularity = 'raw' | 'hour' | 'day';
+
+  const fetchLecturasForExport = async (granularity: ExportGranularity): Promise<Lectura[]> => {
     const response = await api.get<{ lecturas: Lectura[] }>(`/api/colmenas/${colmenaId}/lecturas`, {
-      params: { range: timeRange, raw: 'true' },
+      params: { range: timeRange, granularity },
     });
     return (response.data?.lecturas || []).map((l: any) => ({
       ...l,
@@ -304,20 +307,33 @@ export default function ColmenaDetailScreen() {
     }));
   };
 
-  const handleExport = async (mode: 'share' | 'save') => {
+  const runExport = async (mode: 'share' | 'save', granularity: ExportGranularity) => {
     setExporting(mode);
     try {
-      const rawData = await fetchRawLecturasForExport();
+      const data = await fetchLecturasForExport(granularity);
       if (mode === 'share') {
-        await shareCsv(rawData, nombre || 'Colmena');
+        await shareCsv(data, nombre || 'Colmena');
       } else {
-        await saveCsvToDownloads(rawData, nombre || 'Colmena');
+        await saveCsvToDownloads(data, nombre || 'Colmena');
       }
     } catch (err) {
       console.error('Error al exportar CSV:', err);
     } finally {
       setExporting(null);
     }
+  };
+
+  const handleExport = (mode: 'share' | 'save') => {
+    Alert.alert(
+      '¿Cómo querés exportar?',
+      'Elegí el detalle de las lecturas del período seleccionado.',
+      [
+        { text: 'Todas las lecturas', onPress: () => runExport(mode, 'raw') },
+        { text: 'Promedio por hora', onPress: () => runExport(mode, 'hour') },
+        { text: 'Promedio por día', onPress: () => runExport(mode, 'day') },
+      ],
+      { cancelable: true }
+    );
   };
 
   if (loading) {
@@ -403,7 +419,7 @@ export default function ColmenaDetailScreen() {
         <View style={[styles.exportContainer, { backgroundColor: colors.card }]}>
           <Text style={[styles.exportTitle, { color: colors.text }]}>Exportar Datos</Text>
           <Text style={[styles.exportSubtitle, { color: colors.textTertiary }]}>
-            Todas las lecturas del período &quot;{timeRange === 'day' ? 'Día' : timeRange === 'week' ? 'Semana' : 'Mes'}&quot;, sin promediar
+            Del período &quot;{timeRange === 'day' ? 'Día' : timeRange === 'week' ? 'Semana' : 'Mes'}&quot; — te preguntamos el detalle al exportar
           </Text>
           <View style={styles.exportButtons}>
             <TouchableOpacity
