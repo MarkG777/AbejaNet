@@ -208,9 +208,10 @@ app.post('/api/register', authLimiter, async (req, res) => {
   if (!correo_electronico || !contrasena) {
     return res.status(400).json({ success: false, message: 'Correo y contraseña son requeridos.' });
   }
+  const correoNormalizado = correo_electronico.trim().toLowerCase();
 
   try {
-    const { rows: existingUsers } = await pool.query('SELECT id FROM usuarios WHERE correo_electronico = $1', [correo_electronico]);
+    const { rows: existingUsers } = await pool.query('SELECT id FROM usuarios WHERE LOWER(correo_electronico) = $1', [correoNormalizado]);
     if (existingUsers.length > 0) {
       return res.status(409).json({ success: false, message: 'El correo ya está registrado.' });
     }
@@ -222,7 +223,7 @@ app.post('/api/register', authLimiter, async (req, res) => {
       VALUES ($1, $2, (SELECT id FROM roles WHERE nombre = 'usuario'))
       RETURNING id;
     `;
-    const { rows } = await pool.query(insertQuery, [correo_electronico, contrasenaHasheada]);
+    const { rows } = await pool.query(insertQuery, [correoNormalizado, contrasenaHasheada]);
 
     res.status(201).json({ success: true, message: 'Usuario registrado con éxito.', userId: rows[0].id });
   } catch (error) {
@@ -237,8 +238,8 @@ app.post('/api/login', authLimiter, async (req, res) => {
     const { rows } = await pool.query(
        `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
         FROM usuarios u JOIN roles r ON u.rol_id = r.id
-       WHERE u.correo_electronico = $1`,
-      [email]
+       WHERE LOWER(u.correo_electronico) = $1`,
+      [(email || '').trim().toLowerCase()]
     );
 
     if (rows.length === 0) {
@@ -357,13 +358,14 @@ app.post('/api/auth/google', async (req, res) => {
     if (!email) {
       return res.status(400).json({ success: false, message: 'El token de Google no contenía un correo electrónico.' });
     }
+    const emailNormalizado = email.trim().toLowerCase();
 
     // 2. Buscar o crear el usuario en la base de datos
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      let { rows: users } = await client.query('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE u.correo_electronico = $1', [email]);
+      let { rows: users } = await client.query('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE LOWER(u.correo_electronico) = $1', [emailNormalizado]);
       let user = users[0];
 
       if (!user) {
@@ -373,7 +375,7 @@ app.post('/api/auth/google', async (req, res) => {
           VALUES ($1, $2, $3, $4, (SELECT id FROM roles WHERE nombre = 'usuario'))
           RETURNING id, nombre, apellido_paterno, apellido_materno, correo_electronico, (SELECT nombre FROM roles WHERE id = rol_id) as rol;
         `;
-        const { rows: newUsers } = await client.query(insertQuery, [email, given_name || name, family_name || '', '']);
+        const { rows: newUsers } = await client.query(insertQuery, [emailNormalizado, given_name || name, family_name || '', '']);
         user = newUsers[0];
       }
 
@@ -804,7 +806,7 @@ app.post('/api/forgot-password', authLimiter, async (req, res) => {
   console.log('[forgot-password] BREVO_API_KEY detectada correctamente.');
 
   try {
-    const { rows } = await pool.query('SELECT id, contrasena FROM usuarios WHERE correo_electronico = $1', [email]);
+    const { rows } = await pool.query('SELECT id, contrasena FROM usuarios WHERE LOWER(correo_electronico) = $1', [email.trim().toLowerCase()]);
     console.log(`[forgot-password] Usuarios encontrados: ${rows.length}`);
 
     if (rows.length === 0 || !rows[0].contrasena) {
@@ -882,8 +884,8 @@ app.post('/api/reset-password', authLimiter, async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const { rowCount } = await pool.query(
-      'UPDATE usuarios SET contrasena = $1 WHERE correo_electronico = $2',
-      [hashedPassword, email]
+      'UPDATE usuarios SET contrasena = $1 WHERE LOWER(correo_electronico) = $2',
+      [hashedPassword, email.trim().toLowerCase()]
     );
 
     if (rowCount === 0) {
