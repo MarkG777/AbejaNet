@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import asignarUsuariosAApiario from './assign_users.js';
+import { responderPregunta } from './chatbot.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
 import { verificarApiKey, verificarSetupSecret, verificarToken } from './middleware/auth.js';
@@ -199,6 +200,30 @@ app.post('/api/save-push-token', verificarToken, async (req, res) => {
   } catch (error) {
     console.error('Error al guardar el token en la base de datos:', error);
     res.status(500).json({ mensaje: 'Error interno del servidor.' });
+  }
+});
+
+// Chatbot: responde preguntas usando Claude + datos reales del usuario autenticado.
+const chatbotLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Demasiadas preguntas. Espera un momento.' },
+});
+
+app.post('/api/chatbot', verificarToken, chatbotLimiter, async (req, res) => {
+  const { pregunta } = req.body;
+  if (!pregunta || typeof pregunta !== 'string') {
+    return res.status(400).json({ success: false, message: 'Falta la pregunta.' });
+  }
+
+  try {
+    const respuesta = await responderPregunta(pregunta, req.usuario.userId);
+    res.json({ success: true, respuesta });
+  } catch (error) {
+    console.error('Error en /api/chatbot:', error);
+    res.status(500).json({ success: false, message: 'No se pudo procesar la pregunta.' });
   }
 });
 

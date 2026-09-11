@@ -4,6 +4,9 @@
 .env
 .env*.local
 
+# Credenciales del ESP32 (WiFi + API key) - usa secrets.h.example como plantilla
+secrets.h
+
 # Expo credentials and build configuration
 eas.json
 

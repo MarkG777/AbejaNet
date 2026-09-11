@@ -3,6 +3,21 @@
 -- Basada en v4 + tabla bitacora apícola (RQF-05)
 -- Compatible con servidor Render (PostgreSQL)
 -- ======================================================
+--
+-- ⚠️ ADVERTENCIA: este script empieza con DROP TABLE para las 9 tablas.
+-- Si lo corres contra la BD de producción (abeja_net_v5 en Render), BORRA
+-- TODOS los datos reales (usuarios, alertas, lecturas, bitácora) y los
+-- reemplaza por el set de datos de prueba de abajo. Solo úsalo para crear
+-- una BD nueva desde cero, nunca contra la que ya está en uso.
+--
+-- ✅ VERIFICADO 2026-08-20: se comparó columna por columna, tipo por tipo,
+-- índices y llaves foráneas contra la BD real en Render — las 9 tablas
+-- coinciden exactamente con este archivo. Única diferencia (cosmética,
+-- sin impacto funcional): en la BD real, bitacora.colmena_id quedó como
+-- última columna en vez de la 4ª, porque se agregó después vía ALTER TABLE
+-- (migración automática en backend/index.js) en lugar de en la creación
+-- original de la tabla. El orden de columnas no afecta nada en Postgres.
+-- ======================================================
 
 -- Limpiamos las tablas si existen para poder re-ejecutar el script
 -- Orden: dependencias primero (hijas antes que padres)

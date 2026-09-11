@@ -9,15 +9,12 @@
 #include <DHT.h>
 #include "HX711.h"
 
-// -------- CONFIGURACIÓN WIFI --------
-const char* ssid = "UTEQ-Alumnos";           // ← CAMBIAR: Nombre de tu red WiFi
-const char* password = "";   // ← CAMBIAR: Contraseña de tu WiFi
+// WiFi (ssid, password) y apiKey viven en secrets.h (gitignoreado, no se sube
+// al repo público). Copia secrets.h.example -> secrets.h y llena tus datos.
+#include "secrets.h"
 
 // -------- CONFIGURACIÓN BACKEND --------
 const char* serverUrl = "https://abejanet-backend.onrender.com/api/lecturas";
-
-// Clave de API secreta (la misma que ESP32_API_KEY en el .env del backend)
-const char* apiKey = "TU_API_KEY_AQUI"; // ← CAMBIAR
 
 // -------- Micrófono MAX4466 --------
 const int ADC_PIN = 34;
