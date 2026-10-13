@@ -33,6 +33,10 @@
   "no_apiaries": "You have no assigned apiaries.",
   "contact_admin": "Contact an administrator to get access.",
   "no_hives": "There are no hives in this apiary.",
+  "no_hives_sub": "An administrator needs to register the hives for this apiary.",
+  "sensor_online": "Online",
+  "sensor_offline_since": "Offline for {{time}}",
+  "sensor_no_sensor": "No sensor assigned",
   "error_hives": "Could not load hives.",
   "success": "Success",
   "profile_updated": "Your profile has been updated.",
@@ -153,6 +157,10 @@
 
   "bitacora_title": "Beekeeping Logbook",
   "bitacora_empty": "No events recorded. Tap + to add the first one.",
+  "bitacora_view_calendar": "View calendar",
+  "bitacora_view_list": "View list",
+  "bitacora_empty_day": "No events on this day.",
+  "bitacora_select_day": "Tap a day to see its events.",
   "bitacora_new": "New Event",
   "bitacora_edit": "Edit Event",
   "bitacora_apiary": "Apiary",
@@ -174,5 +182,17 @@
   "bitacora_type_tratamiento": "Treatment",
   "bitacora_type_division": "Split",
   "bitacora_type_observacion": "Observation",
-  "bitacora_type_otro": "Other"
+  "bitacora_type_otro": "Other",
+
+  "chatbot_subtitle": "Ask me about your hives and alerts",
+  "chatbot_placeholder": "Type your question...",
+  "chatbot_welcome": "Buzz buzz! Which hive can I help you with today?",
+  "chatbot_suggestion_1": "What hives do I have?",
+  "chatbot_suggestion_2": "Any recent alerts?",
+  "chatbot_suggestion_3": "Tell me the trend for one of my hives",
+  "chatbot_error_rate_limit": "Too many questions. Please wait a moment.",
+  "chatbot_error_service": "The assistant isn't available right now.",
+  "chatbot_error_network": "Couldn't connect to the assistant. Check your connection.",
+  "chatbot_retry": "Retry",
+  "chatbot_send": "Send"
 }

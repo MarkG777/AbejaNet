@@ -30,8 +30,10 @@ const ProfileScreen = () => {
   const { t, i18n } = useTranslation();
 
   const changeLanguage = async (lng: string) => {
+    const perfStart = performance.now();
     await AsyncStorage.setItem('@app_language', lng);
-    i18n.changeLanguage(lng);
+    await i18n.changeLanguage(lng);
+    if (__DEV__) console.log(`[PERF] Cambio de idioma: ${(performance.now() - perfStart).toFixed(0)}ms`);
   };
 
   const [isEditing, setIsEditing] = useState(false);

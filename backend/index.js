@@ -593,9 +593,18 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
       }
     }
 
-    // 2. Si tiene acceso, obtener las colmenas
+    // 2. Si tiene acceso, obtener las colmenas junto con la última lectura de su(s) sensor(es)
+    // (una colmena puede tener más de un sensor; se toma la lectura más reciente entre todos)
     const { rows: colmenas } = await pool.query(
-      'SELECT id, nombre, descripcion_especifica FROM colmenas WHERE apiario_id = $1',
+      `SELECT c.id, c.nombre, c.descripcion_especifica, s.ultima_lectura_en
+       FROM colmenas c
+       LEFT JOIN (
+         SELECT colmena_id, MAX(ultima_lectura_en) AS ultima_lectura_en
+         FROM sensores
+         WHERE colmena_id IS NOT NULL
+         GROUP BY colmena_id
+       ) s ON s.colmena_id = c.id
+       WHERE c.apiario_id = $1`,
       [apiarioId]
     );
     res.json({ success: true, colmenas });

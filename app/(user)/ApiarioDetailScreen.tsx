@@ -7,12 +7,14 @@ import api from '../../utils/api';
 import { isAxiosError } from 'axios';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { SensorStatusBadge } from '@/components/SensorStatusBadge';
 import { useTranslation } from 'react-i18next';
 
 // Definimos un tipo para las colmenas para mayor seguridad de código
 type Colmena = {
   id: number;
   nombre: string;
+  ultima_lectura_en: string | null;
 };
 
 export default function ApiarioDetailScreen() {
@@ -77,7 +79,13 @@ export default function ApiarioDetailScreen() {
     }
 
     if (colmenas.length === 0) {
-      return <Text style={[styles.textPlaceholder, { color: colors.textTertiary }]}>{t('no_hives', 'No hay colmenas en este apiario.')}</Text>;
+      return (
+        <View style={styles.emptyState}>
+          <Ionicons name="cube-outline" size={48} color={colors.textTertiary} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('no_hives', 'No hay colmenas en este apiario.')}</Text>
+          <Text style={[styles.emptySubText, { color: colors.textTertiary }]}>{t('no_hives_sub', 'Un administrador debe registrar las colmenas de este apiario.')}</Text>
+        </View>
+      );
     }
 
     return (
@@ -87,7 +95,10 @@ export default function ApiarioDetailScreen() {
         style={styles.list}
         renderItem={({ item }) => (
           <TouchableOpacity style={[styles.colmenaItem, { backgroundColor: colors.card }]} onPress={() => handleColmenaPress(item)}>
-            <Text style={[styles.colmenaText, { color: colors.text }]}>{item.nombre}</Text>
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text style={[styles.colmenaText, { color: colors.text }]}>{item.nombre}</Text>
+              <SensorStatusBadge ultimaLecturaEn={item.ultima_lectura_en} compact />
+            </View>
             <Ionicons name="chevron-forward" size={24} color={colors.textTertiary} />
           </TouchableOpacity>
         )}
@@ -149,5 +160,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 30,
     textAlign: 'center',
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 30,
+    marginTop: 30,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  emptySubText: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 6,
   },
 });

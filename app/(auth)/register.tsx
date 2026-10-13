@@ -43,6 +43,15 @@ export default function RegisterScreen() {
     return emailRegex.test(value) ? '' : t('email_invalid', 'El correo electrónico no es válido.');
   };
 
+  const handleEmailBlur = () => {
+    const perfStart = performance.now();
+    const error = validateEmail(email);
+    setEmailError(error);
+    if (__DEV__) console.log(`[PERF] Validación onBlur (register): ${(performance.now() - perfStart).toFixed(0)}ms`);
+  };
+
+  const isEmailFormatValid = email === '' || validateEmail(email) === '';
+
   useEffect(() => {
     const fetchApiUrl = async () => {
       const apiUrl = await getApiUrl();
@@ -136,7 +145,7 @@ export default function RegisterScreen() {
           placeholderTextColor={colors.placeholder}
           value={email}
           onChangeText={(text) => { setEmail(text); setEmailError(''); }}
-          onBlur={() => setEmailError(validateEmail(email))}
+          onBlur={handleEmailBlur}
           keyboardType="email-address"
           autoCapitalize="none"
           style={[styles.input, { borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.inputText }]}
@@ -194,7 +203,11 @@ export default function RegisterScreen() {
           </Pressable>
         </View>
 
-        <Pressable style={[styles.button, { backgroundColor: colors.accent }]} onPress={handleRegister}>
+        <Pressable
+          style={[styles.button, { backgroundColor: colors.accent }, !isEmailFormatValid && styles.buttonDisabled]}
+          onPress={handleRegister}
+          disabled={!isEmailFormatValid}
+        >
           <Text style={styles.buttonText}>{t('create_account_button', 'Crear cuenta')}</Text>
         </Pressable>
         <Pressable onPress={() => router.push('/login')} style={styles.loginLink}>
@@ -275,6 +288,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   loginLink: {
     marginTop: 20,
