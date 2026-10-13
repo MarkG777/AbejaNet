@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AbejaNet v4 — Diagrama de Base de Datos</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --text: #e2e8f0;
+      --accent: #fbbf24;
+      --card: #1e293b;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    header {
+      max-width: 1100px;
+      margin: 0 auto 1.5rem;
+      text-align: center;
+    }
+    h1 { color: var(--accent); font-size: 1.8rem; margin-bottom: 0.4rem; }
+    .subtitle { color: #94a3b8; font-size: 1rem; }
+    .diagram {
+      max-width: 1100px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+    footer {
+      max-width: 1100px;
+      margin: 1.5rem auto 0;
+      text-align: center;
+      color: #64748b;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AbejaNet v4 — Diagrama de Base de Datos</h1>
+    <p class="subtitle">PostgreSQL · Generado desde <code>abeja_net_v4_postgres.sql</code></p>
+  </header>
+
+  <main class="diagram">
+    <div class="mermaid">
+classDiagram
+    direction TB
+
+    class roles {
+        +SMALLSERIAL id PK
+        +VARCHAR(20) nombre UK
+    }
+
+    class usuarios {
+        +SERIAL id PK
+        +VARCHAR(100) nombre
+        +VARCHAR(100) apellido_paterno
+        +VARCHAR(100) apellido_materno
+        +VARCHAR(120) correo_electronico UK
+        +VARCHAR(255) contrasena
+        +VARCHAR(255) push_token
+        +TEXT refresh_token
+        +VARCHAR(20) proveedor_auth
+        +SMALLINT rol_id FK
+        +BOOLEAN esta_activo
+        +TIMESTAMP fecha_creacion
+    }
+
+    class apiarios {
+        +SERIAL id PK
+        +VARCHAR(150) nombre UK
+        +TEXT descripcion_general
+        +VARCHAR(255) direccion_o_coordenadas
+        +TIMESTAMP fecha_creacion
+        +INTEGER creado_por_usuario_id FK
+    }
+
+    class colmenas {
+        +SERIAL id PK
+        +INTEGER apiario_id FK
+        +VARCHAR(100) nombre UK
+        +TEXT descripcion_especifica
+        +TIMESTAMP fecha_creacion
+    }
+
+    class usuarios_apiarios {
+        +INTEGER usuario_id PK,FK
+        +INTEGER apiario_id PK,FK
+        +TIMESTAMP fecha_asignacion
+        +INTEGER asignado_por_admin_id FK
+    }
+
+    class sensores {
+        +SERIAL id PK
+        +VARCHAR(17) mac_address UK
+        +INTEGER colmena_id FK
+        +VARCHAR(50) tipo_sensor
+        +sensor_estado estado
+        +TIMESTAMP fecha_instalacion
+        +TIMESTAMP ultima_lectura_en
+    }
+
+    class lecturas_ambientales {
+        +BIGSERIAL id PK
+        +INTEGER sensor_id FK
+        +DECIMAL(5,2) humedad
+        +DECIMAL(5,2) temperatura
+        +DECIMAL(6,2) peso
+        +DECIMAL(5,2) sonido
+        +BOOLEAN lluvia
+        +TIMESTAMP fecha_registro
+    }
+
+    class alertas {
+        +SERIAL id PK
+        +INTEGER colmena_id FK
+        +VARCHAR(50) tipo_alerta
+        +VARCHAR(20) valor_registrado
+        +VARCHAR(255) mensaje
+        +BOOLEAN leida
+        +TIMESTAMP fecha_alerta
+    }
+
+    roles "1" --> "0..*" usuarios : asigna
+    usuarios "1" --> "0..*" apiarios : creado_por
+    apiarios "1" --> "0..*" colmenas : contiene
+    usuarios "1" --> "0..*" usuarios_apiarios : asignado_a
+    apiarios "1" --> "0..*" usuarios_apiarios : asignado_a
+    usuarios "1" --> "0..*" usuarios_apiarios : asignado_por_admin
+    colmenas "1" --> "0..*" sensores : tiene
+    sensores "1" --> "0..*" lecturas_ambientales : genera
+    colmenas "1" --> "0..*" alertas : emite
+    </div>
+  </main>
+
+  <footer>
+    <p>AbejaNet Revival · UTEQ · IDGS 16</p>
+  </footer>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#1e293b',
+        primaryTextColor: '#e2e8f0',
+        primaryBorderColor: '#fbbf24',
+        lineColor: '#94a3b8',
+        fontSize: '14px'
+      }
+    });
+  </script>
+</body>
+</html>

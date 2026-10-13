@@ -1,0 +1,87 @@
+\clearpage
+\subsection{RNF-02 — Retroalimentación háptica y toasts no intrusivos}
+
+\renewcommand{\arraystretch}{1.3}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{1. INFORMACIÓN DEL CLIENTE}} \\
+\hline
+Nombre de la empresa  & UTEQ \\ \hline
+Nombre del Contacto   & Angélica Garduño Bustamante \\ \hline
+Fecha de Elaboración  & 01/06/2026 \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{2. INFORMACIÓN GENERAL}} \\
+\hline
+Nombre del Requerimiento     & RNF 02. Retroalimentación háptica y toasts no intrusivos \\ \hline
+Tipo de Requerimiento        & No funcional — Usabilidad \\ \hline
+Fecha requerida de solución  & 30/06/2026 \\ \hline
+Prioridad                    & Media \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{4.5cm}|p{11cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{3. DESCRIPCIÓN DEL REQUERIMIENTO}} \\
+\hline
+Objetivo del Requerimiento &
+Sustituir las alertas modales (\texttt{Alert.alert}) por notificaciones tipo \textit{toast} no intrusivas y agregar retroalimentación háptica en las acciones críticas de la app. \\
+\hline
+Beneficio esperado &
+La aplicación adquiere una sensación nativa y fluida, alineada con las mejores prácticas de apps móviles modernas. El usuario recibe confirmación de sus acciones sin interrupciones de flujo. \\
+\hline
+Alcance &
+- Integrar la librería \texttt{react-native-toast-message}. \par
+- Aprovechar \texttt{expo-haptics} (ya instalada) en login, guardado de perfil, registro de evento y marcado de alertas como leídas. \par
+- Mantener \texttt{Alert.alert} solo para confirmaciones destructivas (eliminar cuenta, eliminar registros). \\
+\hline
+Ubicación & \url{https://github.com/MarkG777/AbejaNet} \\ \hline
+Descripción de Usuarios y Responsables &
+\textbf{Usuarios:} \par
+\textbf{Usuario (Cliente):} ejecuta acciones que generan retroalimentación háptica y visual. \par
+\vspace{0.1cm}
+\textbf{Responsables:} \par
+\textbf{App Móvil:} dispara la vibración y muestra los toasts en respuesta a las acciones del usuario. \\
+\hline
+Descripción funcional &
+1. Cuando el usuario ejecuta una acción crítica, la app dispara una vibración suave mediante \texttt{expo-haptics}. \par
+2. El resultado de la acción se muestra como toast (verde para éxito, rojo para error, amarillo para advertencia) en la parte inferior de la pantalla. \par
+3. El toast desaparece automáticamente tras 3 segundos sin bloquear la interfaz. \par
+4. Las acciones destructivas continúan mostrando confirmación modal previa. \\
+\hline
+Restricciones &
+- La intensidad háptica debe ser \texttt{Light} para no resultar molesta. \par
+- Los toasts no deben superponerse con la barra de navegación inferior. \\
+\hline
+Precedencias & Ninguna (las dependencias ya están en el proyecto). \\ \hline
+Documentación requerida & No se requiere documentación adicional para el usuario final. \\ \hline
+Observaciones & La librería \texttt{expo-haptics} ya es utilizada parcialmente en el componente \texttt{HapticTab}. \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5.1cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{3}{|l|}{\color{white}\textbf{4. CONDICIONES DE PRUEBA}} \\
+\hline
+\rowcolor{cellGris}\textbf{Condición} & \textbf{Validación} & \textbf{Resultado} \\
+\hline
+El usuario guarda cambios en su perfil correctamente. &
+La app debe vibrar suavemente y mostrar un toast de éxito. &
+Aparece un toast verde \textit{``Perfil actualizado''} y se siente la vibración háptica. \\
+\hline
+El usuario ingresa credenciales incorrectas en el inicio de sesión. &
+La app debe mostrar un toast rojo en lugar de un \texttt{Alert.alert}. &
+Aparece un toast rojo \textit{``Credenciales inválidas''} sin bloquear la pantalla de login. \\
+\hline
+\end{tabular}

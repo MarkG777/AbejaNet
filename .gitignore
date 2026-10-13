@@ -26,7 +26,6 @@ google-services.json
 # === DEPENDENCIES & BUILD ARTIFACTS ===
 # Project dependencies, should be installed via package manager
 node_modules/
-practica_preprocesamiento
 
 # Build output folders
 build/
@@ -85,12 +84,13 @@ yarn-error.*
 memorytecnic/
 Comandos abeja_net2.sql
 app-example
-comandos_utiles_postgres.sql
 platform-tools.zip
 backend/hashes.txt
 
-# Documentacion LaTeX / PDF de requerimientos
-docs/
+# Práctica de otra materia que se coló en este repo (ver Context.md)
+practica_preprocesamiento/
 
-# Capturas de pantalla del celular (evidencias, no versionar)
-capturas/
+# Capturas de pantalla del celular: pesan varios MB y son evidencia de
+# pruebas manuales, no documentación de referencia — se dejan fuera del
+# repo a propósito. Si las quieres versionadas, quita esta línea.
+docs/capturas/

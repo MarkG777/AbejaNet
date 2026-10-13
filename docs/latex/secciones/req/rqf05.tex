@@ -1,0 +1,95 @@
+\clearpage
+\subsection{RQF-05 — Bitácora apícola con calendario}
+
+\renewcommand{\arraystretch}{1.3}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{1. INFORMACIÓN DEL CLIENTE}} \\
+\hline
+Nombre de la empresa  & UTEQ \\ \hline
+Nombre del Contacto   & Angélica Garduño Bustamante \\ \hline
+Fecha de Elaboración  & 01/06/2026 \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{2. INFORMACIÓN GENERAL}} \\
+\hline
+Nombre del Requerimiento     & RQF 05. Bitácora apícola con calendario \\ \hline
+Tipo de Requerimiento        & Funcional \\ \hline
+Fecha requerida de solución  & 30/07/2026 \\ \hline
+Prioridad                    & Alta \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{4.5cm}|p{11cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{3. DESCRIPCIÓN DEL REQUERIMIENTO}} \\
+\hline
+Objetivo del Requerimiento &
+Implementar una bitácora apícola digital con calendario interactivo que permita al apicultor registrar, consultar, editar y eliminar eventos asociados a sus colmenas y apiarios, sustituyendo la libreta de campo tradicional. \\
+\hline
+Beneficio esperado &
+Centralización del historial de inspecciones, tratamientos, cosechas y cambios de reina en un solo lugar accesible desde el dispositivo móvil. Mejora la trazabilidad de las labores apícolas y facilita la toma de decisiones informadas. \\
+\hline
+Alcance &
+- Crear nueva pantalla \textit{Bitácora} accesible desde el \textit{drawer} del usuario. \par
+- Mostrar un calendario mensual con dots de color en los días con eventos. \par
+- CRUD completo de eventos clasificados por tipo. \par
+- Acceso rápido desde la pantalla de detalle de cada colmena. \par
+- Crear tabla \texttt{bitacora} en PostgreSQL y endpoints REST asociados. \\
+\hline
+Ubicación & \url{https://github.com/MarkG777/AbejaNet} \\ \hline
+Descripción de Usuarios y Responsables &
+\textbf{Usuarios:} \par
+\textbf{Apicultor (Cliente):} registra y consulta eventos sobre el manejo de sus colmenas. \par
+\vspace{0.1cm}
+\textbf{Responsables:} \par
+\textbf{App Móvil:} ofrece la interfaz de calendario y los formularios de evento. \par
+\textbf{API Backend:} expone los endpoints \texttt{/api/bitacora} para CRUD. \par
+\textbf{Base de Datos PostgreSQL:} almacena los eventos en la tabla \texttt{bitacora} con relaciones a \texttt{usuarios}, \texttt{colmenas} y \texttt{apiarios}. \\
+\hline
+Descripción funcional &
+1. El apicultor accede a \textit{Bitácora} desde el \textit{drawer} del usuario. \par
+2. Visualiza un calendario mensual con dots de color en los días con eventos registrados. \par
+3. Selecciona un día y consulta el listado de eventos de esa fecha. \par
+4. Mediante un botón flotante (FAB) crea un nuevo evento eligiendo tipo (Inspección, Cosecha, Tratamiento, Cambio de reina, División/Unión, Alimentación o Nota libre), colmena/apiario asociado, título y comentario. \par
+5. Puede editar o eliminar eventos existentes. \par
+6. Desde la pantalla de detalle de una colmena, dispone de un acceso rápido \textit{``Registrar evento''} que pre-llena la colmena en el formulario. \par
+7. Puede filtrar el calendario por colmena o apiario específico. \\
+\hline
+Restricciones &
+- Cada evento debe estar asociado al menos a una colmena o a un apiario. \par
+- Los comentarios libres tienen un límite de 1000 caracteres. \par
+- Solo el usuario propietario puede ver y modificar sus propios eventos. \\
+\hline
+Precedencias & RQF 02. Registro de clientes \\ \hline
+Documentación requerida & Manual de usuario con guía de uso de la bitácora y descripción de los tipos de evento. \\ \hline
+Observaciones & Se introduce la librería \texttt{react-native-calendars} y se requiere actualización del esquema de base de datos. \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5.1cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{3}{|l|}{\color{white}\textbf{4. CONDICIONES DE PRUEBA}} \\
+\hline
+\rowcolor{cellGris}\textbf{Condición} & \textbf{Validación} & \textbf{Resultado} \\
+\hline
+El apicultor crea un nuevo evento de tipo \textit{Inspección} desde la pantalla de bitácora. &
+El sistema debe persistir el evento en el backend y reflejarlo en el calendario. &
+El día correspondiente muestra un dot de color y al seleccionarlo aparece el evento creado. \\
+\hline
+El apicultor accede a \textit{``Registrar evento''} desde el detalle de una colmena. &
+El formulario debe abrirse con la colmena pre-seleccionada en el campo correspondiente. &
+El evento se guarda asociado correctamente a esa colmena sin requerir selección manual. \\
+\hline
+\end{tabular}

@@ -1,0 +1,89 @@
+\clearpage
+\subsection{RNF-05 — Tiempo de respuesta en operaciones locales}
+
+\renewcommand{\arraystretch}{1.3}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{1. INFORMACIÓN DEL CLIENTE}} \\
+\hline
+Nombre de la empresa  & UTEQ \\ \hline
+Nombre del Contacto   & Angélica Garduño Bustamante \\ \hline
+Fecha de Elaboración  & 01/06/2026 \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{2. INFORMACIÓN GENERAL}} \\
+\hline
+Nombre del Requerimiento     & RNF 05. Tiempo de respuesta en operaciones locales \\ \hline
+Tipo de Requerimiento        & No funcional — Rendimiento \\ \hline
+Fecha requerida de solución  & 30/07/2026 \\ \hline
+Prioridad                    & Media \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{4.5cm}|p{11cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{3. DESCRIPCIÓN DEL REQUERIMIENTO}} \\
+\hline
+Objetivo del Requerimiento &
+Garantizar que las operaciones locales de la aplicación se completen en un tiempo máximo de dos (2) segundos en dispositivos de gama media, sin bloquear el hilo principal de la interfaz. \\
+\hline
+Beneficio esperado &
+Sensación de fluidez y respuesta inmediata en las acciones del usuario, alineada con los estándares de apps móviles modernas. \\
+\hline
+Alcance &
+- Cambio de pantalla mediante \textit{Expo Router}. \par
+- Cambio de idioma desde el perfil. \par
+- Apertura de la pantalla de bitácora. \par
+- Validación de formularios. \par
+- Lectura del caché del dashboard. \\
+\hline
+Ubicación & \url{https://github.com/MarkG777/AbejaNet} \\ \hline
+Descripción de Usuarios y Responsables &
+\textbf{Usuarios:} \par
+\textbf{Usuario (Cliente):} percibe la fluidez de la aplicación. \par
+\vspace{0.1cm}
+\textbf{Responsables:} \par
+\textbf{Equipo de desarrollo:} mide y documenta los tiempos de respuesta usando \texttt{performance.now()} en dispositivos de prueba. \\
+\hline
+Descripción funcional &
+1. Las operaciones locales no deben exceder los 2 segundos en su ejecución. \par
+2. Las operaciones que dependan de la red están exentas de este requerimiento. \par
+3. Las animaciones deben ejecutarse a 60 FPS sin caídas perceptibles. \par
+4. Los tiempos se documentan en una tabla del \texttt{README} técnico. \\
+\hline
+Restricciones &
+- La métrica aplica solo a operaciones locales (sin red). \par
+- Se considera \textit{gama media} a un dispositivo con al menos 4 GB de RAM. \\
+\hline
+Precedencias & Ninguna. \\ \hline
+Documentación requerida & Tabla de tiempos medidos en el \texttt{README} técnico. \\ \hline
+Observaciones & Las dependencias actuales (\texttt{react-native-reanimated}) ya facilitan el cumplimiento del requerimiento. \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5.1cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{3}{|l|}{\color{white}\textbf{4. CONDICIONES DE PRUEBA}} \\
+\hline
+\rowcolor{cellGris}\textbf{Condición} & \textbf{Validación} & \textbf{Resultado} \\
+\hline
+El usuario navega del dashboard a la pantalla de bitácora. &
+La transición debe completarse en menos de 2 segundos. &
+La pantalla de bitácora se renderiza con el calendario visible dentro del umbral establecido. \\
+\hline
+El usuario cambia el idioma desde el perfil. &
+La interfaz debe actualizarse en tiempo real sin bloquear la UI. &
+La traducción se aplica en menos de 1 segundo y la app responde inmediatamente a nuevas interacciones. \\
+\hline
+\end{tabular}
