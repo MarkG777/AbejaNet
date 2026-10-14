@@ -59,14 +59,20 @@ export default function ChatbotScreen() {
     return t('chatbot_error_network', 'No se pudo conectar con el asistente. Revisa tu conexión.');
   };
 
-  // Nota: cada llamada es una pregunta independiente para el backend (backend/chatbot.js no
-  // recibe ni mantiene historial entre peticiones). El historial que se ve aquí es solo visual.
+  // El backend no guarda sesión: mandamos el historial completo (ya visible en pantalla)
+  // en cada pregunta para que Gemini tenga contexto de la conversación. Se excluyen los
+  // mensajes pendientes/con error — no son respuestas reales del asistente.
+  const buildHistorial = () =>
+    messages
+      .filter((m) => !m.pending && !m.error && m.text)
+      .map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('model' as const), text: m.text }));
+
   const askBackend = async (question: string, targetId: string) => {
     setSending(true);
     try {
       const res = await api.post<{ success: boolean; respuesta: string }>(
         '/api/chatbot',
-        { pregunta: question },
+        { pregunta: question, historial: buildHistorial() },
         { timeout: 20000 }
       );
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

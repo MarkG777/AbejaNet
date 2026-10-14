@@ -107,13 +107,37 @@ function buildToolRunners(usuarioId) {
 }
 
 // ------------------------------------------------------------------
-// Loop principal: manda la pregunta, ejecuta function calls hasta que
-// Gemini responda con texto final (sin más function calls pendientes).
+// Historial de conversación: el cliente lo manda completo en cada
+// petición (la API no guarda sesión). Se sanea antes de usarlo —
+// nunca se confía en la forma/tamaño de lo que mande el body.
 // ------------------------------------------------------------------
 
-export async function responderPregunta(pregunta, usuarioId) {
+const MAX_TURNOS_HISTORIAL = 10;
+const MAX_LARGO_TEXTO = 2000;
+
+function construirHistorial(historial) {
+  if (!Array.isArray(historial)) return [];
+  return historial
+    .filter((turno) => turno && (turno.role === 'user' || turno.role === 'model') && typeof turno.text === 'string' && turno.text.trim())
+    .slice(-MAX_TURNOS_HISTORIAL)
+    .map((turno) => ({
+      role: turno.role,
+      parts: [{ text: turno.text.slice(0, MAX_LARGO_TEXTO) }],
+    }));
+}
+
+// ------------------------------------------------------------------
+// Loop principal: manda la pregunta (con el historial previo, si lo
+// hay) y ejecuta function calls hasta que Gemini responda con texto
+// final (sin más function calls pendientes).
+// ------------------------------------------------------------------
+
+export async function responderPregunta(pregunta, usuarioId, historial = []) {
   const runners = buildToolRunners(usuarioId);
-  const contents = [{ role: 'user', parts: [{ text: pregunta }] }];
+  const contents = [
+    ...construirHistorial(historial),
+    { role: 'user', parts: [{ text: pregunta }] },
+  ];
 
   for (let turno = 0; turno < 5; turno++) {
     const response = await ai.models.generateContent({
