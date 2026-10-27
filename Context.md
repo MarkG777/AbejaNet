@@ -6,6 +6,9 @@
 > equipo para el módulo de aplicación móvil.
 > Última verificación contra el código real: **2026-09-11**. Las casillas `[x]` están confirmadas
 > con evidencia de código (archivo:línea), no supuestas.
+>
+> Panel vivo (se actualiza cada sesión, más fácil de leer que este archivo):
+> https://claude.ai/artifact/6rMeUziAoRU76ScbG5MHpX
 
 ---
 
