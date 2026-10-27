@@ -119,6 +119,15 @@ export default function UserLayout() {
         }}
       />
       <Drawer.Screen
+        name="ChatbotScreen"
+        options={{
+          title: 'Abeja Asistente',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
         name="ApiarioDetailScreen"
         options={{
           title: 'Detalle del Apiario',

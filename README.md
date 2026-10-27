@@ -42,6 +42,20 @@ To learn more about developing your project with Expo, look at the following res
 - [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
 - [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
 
+## Rendimiento (RNF-05)
+
+En modo `__DEV__` la app registra en consola el tiempo de las operaciones locales listadas abajo, usando `performance.now()` (ver `utils/perfMetrics.ts`, `app/(user)/dashboard.tsx`, `app/(user)/BitacoraScreen.tsx`, `app/(user)/profile.tsx` y las tres pantallas de `app/(auth)/`). Cada log aparece con el prefijo `[PERF]` en la terminal de `npx expo start` o en Logcat/Console del dispositivo.
+
+Para llenar la columna "Medido" con datos reales: correr `npx expo start --dev-client` (o el APK de debug) en el dispositivo objetivo, repetir cada operación 3-5 veces y anotar el promedio.
+
+| Operación | Objetivo | Medido (promedio) | Dispositivo/fecha |
+|---|---|---|---|
+| Transición Dashboard → Bitácora | < 300 ms | _pendiente de medir en dispositivo_ | — |
+| Cambio de idioma desde el perfil | < 100 ms | _pendiente de medir en dispositivo_ | — |
+| Apertura de Bitácora con datos cacheados | < 500 ms | _pendiente de medir en dispositivo_ | — |
+| Validación de formularios onBlur (login/register/recuperar) | < 50 ms | _pendiente de medir en dispositivo_ | — |
+| Primer paint del dashboard con caché | < 200 ms | _pendiente de medir en dispositivo_ | — |
+
 ## Join the community
 
 Join our community of developers creating universal apps.

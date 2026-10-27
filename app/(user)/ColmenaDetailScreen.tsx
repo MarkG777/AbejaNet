@@ -1,4 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { SensorStatusBadge } from '@/components/SensorStatusBadge';
 import { useAppColors } from '@/hooks/useAppColors';
 import api from '@/utils/api';
 import { saveCsvToDownloads, shareCsv } from '@/utils/csvExport';
@@ -177,6 +179,7 @@ export default function ColmenaDetailScreen() {
 
   // Última lectura en tiempo real (sin promediar)
   const [ultimaLectura, setUltimaLectura] = useState<any | null>(null);
+  const [ultimaLecturaChecked, setUltimaLecturaChecked] = useState(false);
 
   // Exportación: bandera para no bloquear la UI ni permitir doble-tap mientras se piden los datos crudos
   const [exporting, setExporting] = useState<'share' | 'save' | null>(null);
@@ -247,6 +250,8 @@ export default function ColmenaDetailScreen() {
         }
       } catch (e) {
         console.error('Error al obtener última lectura:', e);
+      } finally {
+        setUltimaLecturaChecked(true);
       }
     };
     fetchUltimaLectura();
@@ -337,7 +342,20 @@ export default function ColmenaDetailScreen() {
   };
 
   if (loading) {
-    return <ActivityIndicator size="large" color={colors.accent} style={[styles.centered, { backgroundColor: colors.background }]} />;
+    return (
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+        <SkeletonLoader width={220} height={28} style={{ marginTop: 20, marginBottom: 8 }} />
+        <SkeletonLoader width={140} height={20} style={{ marginBottom: 20 }} />
+
+        <SkeletonLoader width="100%" height={140} borderRadius={8} style={{ marginBottom: 20 }} />
+
+        <SkeletonLoader width="100%" height={42} borderRadius={8} style={{ marginBottom: 20 }} />
+
+        <SkeletonLoader width="100%" height={280} borderRadius={16} style={{ marginBottom: 20 }} />
+
+        <SkeletonLoader width="100%" height={150} borderRadius={12} />
+      </ScrollView>
+    );
   }
 
   if (error) {
@@ -348,6 +366,11 @@ export default function ColmenaDetailScreen() {
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <Text style={[styles.title, { color: colors.text }]}>Detalle de la Colmena</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{nombre}</Text>
+      {ultimaLecturaChecked && (
+        <View style={{ marginBottom: 16 }}>
+          <SensorStatusBadge ultimaLecturaEn={ultimaLectura?.fecha_registro ?? null} />
+        </View>
+      )}
 
       <DetailedSummary data={chartPreviewData} colors={colors} />
 
@@ -691,11 +714,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FA',
     paddingHorizontal: 16,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   title: {
     fontSize: 28,

@@ -33,6 +33,10 @@
   "no_apiaries": "No tienes apiarios asignados.",
   "contact_admin": "Contacta a un administrador para obtener acceso.",
   "no_hives": "No hay colmenas en este apiario.",
+  "no_hives_sub": "Un administrador debe registrar las colmenas de este apiario.",
+  "sensor_online": "En línea",
+  "sensor_offline_since": "Desconectado hace {{time}}",
+  "sensor_no_sensor": "Sin sensor asignado",
   "error_hives": "No se pudieron cargar las colmenas.",
   "success": "Éxito",
   "profile_updated": "Tu perfil ha sido actualizado.",
@@ -153,6 +157,10 @@
 
   "bitacora_title": "Bitácora Apícola",
   "bitacora_empty": "No hay eventos registrados. Toca + para agregar el primero.",
+  "bitacora_view_calendar": "Ver calendario",
+  "bitacora_view_list": "Ver lista",
+  "bitacora_empty_day": "No hay eventos este día.",
+  "bitacora_select_day": "Toca un día para ver sus eventos.",
   "bitacora_new": "Nuevo Evento",
   "bitacora_edit": "Editar Evento",
   "bitacora_apiary": "Apiario",
@@ -174,5 +182,17 @@
   "bitacora_type_tratamiento": "Tratamiento",
   "bitacora_type_division": "División",
   "bitacora_type_observacion": "Observación",
-  "bitacora_type_otro": "Otro"
+  "bitacora_type_otro": "Otro",
+
+  "chatbot_subtitle": "Pregúntame sobre tus colmenas y alertas",
+  "chatbot_placeholder": "Escribe tu pregunta...",
+  "chatbot_welcome": "¡Zumba zumba! ¿En qué colmena te ayudo hoy?",
+  "chatbot_suggestion_1": "¿Qué colmenas tengo?",
+  "chatbot_suggestion_2": "¿Hay alertas recientes?",
+  "chatbot_suggestion_3": "Cuéntame la tendencia de una colmena",
+  "chatbot_error_rate_limit": "Demasiadas preguntas. Espera un momento.",
+  "chatbot_error_service": "El asistente no está disponible en este momento.",
+  "chatbot_error_network": "No se pudo conectar con el asistente. Revisa tu conexión.",
+  "chatbot_retry": "Reintentar",
+  "chatbot_send": "Enviar"
 }

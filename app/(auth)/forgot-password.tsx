@@ -27,6 +27,15 @@ export default function ForgotPasswordScreen() {
     return emailRegex.test(value) ? '' : t('email_invalid', 'El correo electrónico no es válido.');
   };
 
+  const handleEmailBlur = () => {
+    const perfStart = performance.now();
+    const error = validateEmail(email);
+    setEmailError(error);
+    if (__DEV__) console.log(`[PERF] Validación onBlur (forgot-password): ${(performance.now() - perfStart).toFixed(0)}ms`);
+  };
+
+  const isEmailFormatValid = email === '' || validateEmail(email) === '';
+
   const handleSendCode = async () => {
     if (!email.trim()) {
       Toast.show({ type: 'error', text1: t('error', 'Error'), text2: t('email_required', 'Por favor, introduce tu correo electrónico.'), visibilityTime: 4000 });
@@ -111,7 +120,7 @@ export default function ForgotPasswordScreen() {
         placeholderTextColor={colors.placeholder}
         value={email}
         onChangeText={(text) => { setEmail(text); setEmailError(''); }}
-        onBlur={() => setEmailError(validateEmail(email))}
+        onBlur={handleEmailBlur}
         keyboardType="email-address"
         autoCapitalize="none"
       />
@@ -121,7 +130,11 @@ export default function ForgotPasswordScreen() {
       {isLoading ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginVertical: 15 }} />
       ) : (
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleSendCode}>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.primary }, !isEmailFormatValid && styles.buttonDisabled]}
+          onPress={handleSendCode}
+          disabled={!isEmailFormatValid}
+        >
           <Text style={styles.buttonText}>{t('send_code', 'Enviar Código')}</Text>
         </TouchableOpacity>
       )}
@@ -267,6 +280,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   buttonSecondary: {
     padding: 15,

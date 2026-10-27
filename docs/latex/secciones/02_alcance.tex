@@ -1,0 +1,32 @@
+\clearpage
+\section{Alcance}
+
+\subsection{Dentro del Alcance}
+
+\begin{itemize}[leftmargin=*]
+  \item Implementación en la aplicación móvil React Native (Expo SDK 51) del proyecto AbejaNet.
+  \item Modificaciones puntuales al backend (Node.js / Express / PostgreSQL) únicamente para dar soporte a la bitácora apícola (RQF-05), funcionalidad propia de la app móvil.
+  \item Internacionalización completa de las cadenas de texto que aún se encuentran codificadas en español dentro del frontend.
+  \item Integración de las librerías \texttt{react-native-toast-message}, \texttt{@react-native-community/netinfo} y \texttt{react-native-calendars}.
+  \item Reutilización del sistema de autenticación biométrica ya existente para el nuevo bloqueo por inactividad.
+\end{itemize}
+
+\subsection{Fuera del Alcance}
+
+\begin{itemize}[leftmargin=*]
+  \item Rediseño visual integral de pantallas ya existentes.
+  \item Cambios de modelo de negocio o de roles de usuario.
+  \item Integración con servicios externos de pago, mapas o análisis avanzado mediante inteligencia artificial.
+  \item Modificaciones al firmware del ESP32 ni al protocolo de envío de lecturas.
+  \item Requerimientos de la aplicación web de administración, del subsistema IoT (ESP32) o del backend que no estén directamente ligados a una funcionalidad de la app móvil; éstos se documentan por separado.
+  \item Soporte para dispositivos wearables o Smart TV.
+\end{itemize}
+
+\subsection{Supuestos}
+
+\begin{itemize}[leftmargin=*]
+  \item El backend continuará desplegado en Render con la misma URL de producción.
+  \item Los dispositivos de prueba contarán con Android 8.0 (API 26) o superior, o iOS 13.0 o superior.
+  \item Los usuarios cuentan con conexión intermitente a internet; la app debe degradar correctamente cuando esta falle.
+  \item Los apicultores que usen la bitácora tienen al menos una colmena registrada en el sistema.
+\end{itemize}

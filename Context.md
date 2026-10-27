@@ -1,289 +1,172 @@
-# AbejaNet — Tareas a Completar (App Móvil v3)
+# AbejaNet — Mejoras App Móvil (Integradora 3, IDGS 16)
 
-> Análisis del código fuente realizado el 09/07/2026.
-> Las tareas marcadas con ✅ ya están implementadas y no requieren acción.
-> Validación basada en normas ISO 9241, WCAG 2.2, NIST SP 800-63B y mejores prácticas de UX 2025.
-
----
-
-## Normas y estándares aplicados
-
-| Norma | Aplicación en AbejaNet |
-|---|---|
-| **ISO 9241-210** | Diseño centrado en el usuario: iterar con feedback real |
-| **ISO 9241-110** | 7 principios de diálogo: auto-descriptividad, conformidad con expectativas, tolerancia a errores, controlabilidad |
-| **ISO 9241-11** | Usabilidad medible: efectividad, eficiencia, satisfacción en contexto |
-| **ISO 9241-125/143** | Presentación visual: contraste, legibilidad, agrupación de información |
-| **WCAG 2.2 (AA)** | Accesibilidad: contraste 4.5:1, touch target mínimo 24x24 CSS px, foco visible |
-| **NIST SP 800-63B** | Autenticación: timeout de inactividad, reautenticación biométrica |
-| **Material Design 3** | Patrones UX: toasts/snackbars, banners, formularios progresivos |
+> Reemplaza la versión anterior de este archivo (cuatrimestre pasado, otro set de tareas —
+> recuperable con `git log -p -- Context.md` si hace falta consultarla).
+> Fuente: documento **"Documento de Requerimientos de Software"** (LaTeX/PDF) elaborado por el
+> equipo para el módulo de aplicación móvil.
+> Última verificación contra el código real: **2026-09-11**. Las casillas `[x]` están confirmadas
+> con evidencia de código (archivo:línea), no supuestas.
+>
+> Panel vivo (se actualiza cada sesión, más fácil de leer que este archivo):
+> https://claude.ai/artifact/6rMeUziAoRU76ScbG5MHpX
 
 ---
 
-## RQF-03 — Anti-spam y validación de email
+## Alcance
 
-**Normas aplicadas:** ISO 9241-110 (tolerancia a errores, auto-descriptividad), WCAG 2.2 SC 3.3.1 (identificación de errores), NN/g Form Validation Guidelines
+Cinco mejoras priorizadas para el módulo móvil (React Native / Expo), elegidas por bajo riesgo de
+implementación: reutilizan endpoints y datos que ya existen en el backend, sin cambios
+estructurales a la base de datos.
 
-**Estado actual:** No existe validación de email en ninguna pantalla. Los botones ya se deshabilitan durante loading (`disabled={isLoading}`) pero no validan formato antes de enviar.
+1. Asistente conversacional (bot) dentro de la app.
+2. Loading skeletons en pantallas de carga.
+3. Indicador de estado del sensor (en línea / desconectado).
+4. Estados vacíos ilustrados.
+5. Botón de compartir reportes y gráficas.
 
-**Mejores prácticas de UX (NN/g 2024):**
-- Validación inline **después** de que el usuario abandone el campo (onBlur), no mientras escribe
-- Para passwords complejas: validación en tiempo real SÍ es recomendada (feedback inmediato)
-- Mensajes de error específicos, no genéricos ("El email no tiene formato válido" > "Error")
-- El botón de envío debe deshabilitarse visualmente pero no ocultarse
-- El borde rojo + texto de error debajo del input es el patrón estándar de Material Design 3
+Quedan fuera del alcance de este archivo los requerimientos del firmware IoT (ESP32) y de la app
+web administrativa — documentados aparte por los integrantes responsables de cada módulo.
 
-- [ ] Crear función `validateEmail(email)` con regex RFC 5322 simplificada
-- [ ] Integrar validación onBlur en **login** (`app/(auth)/login.tsx`) — mostrar borde rojo + mensaje inline
-- [ ] Integrar validación onBlur en **register** (`app/(auth)/register.tsx`) — mostrar borde rojo + mensaje inline
-- [ ] Integrar validación onBlur en **forgot-password** (`app/(auth)/forgot-password.tsx`) — mostrar borde rojo + mensaje inline
-- [ ] Deshabilitar botón de envío cuando el email sea inválido (estado visual deshabilitado, no oculto)
-- [ ] Asegurar contraste 4.5:1 en texto de error (WCAG 2.2 SC 1.4.3)
-- [ ] Asegurar touch target mínimo 48x48dp en botones de envío (WCAG 2.2 SC 2.5.8)
-- [ ] ✅ Deshabilitar botón y mostrar loading durante la petición HTTP (ya implementado con `isLoading`)
-- [ ] ✅ Reactivar botón al recibir respuesta (ya implementado en `finally { setIsLoading(false) }`)
+**Actores:** Usuario (Apicultor autenticado) y Backend de AbejaNet (Node.js/Express + PostgreSQL).
+Los 5 casos de uso (CU-01 a CU-05) incluyen `«include»` a CU-00 (Iniciar sesión, ya existente).
+CU-04 (lista vacía) `«extend»` a CU-03, ya que CU-03 empieza abriendo una lista de colmenas.
+
+**Normas aplicadas:** ISO 9241-110/11/125/143, WCAG 2.2 (AA), NIST SP 800-63B, Material Design 3.
 
 ---
 
-## RQF-04 — Indicador de conexión y caché offline del dashboard
+## Orden sugerido (de lo más fácil a lo más grande)
 
-**Normas aplicadas:** ISO 9241-110 (auto-descriptividad, conformidad con expectativas), Material Design 3 (banners), patrón stale-while-revalidate (Google web.dev, Android offline-first)
-
-**Estado actual:** No hay `@react-native-community/netinfo` instalado. El dashboard (`app/(user)/dashboard.tsx`) llama directamente `api.get('/api/dashboard-summary')` sin caché ni manejo offline.
-
-**Mejores prácticas de caché offline (Android Developers, web.dev 2024):**
-- Patrón **stale-while-revalidate**: mostrar datos cacheados inmediatamente, refrescar en background
-- Comunicar frescura al usuario: "Actualizado hace X min" (ISO 9241-110: auto-descriptividad)
-- Banner de conexión no intrusivo: amarillo para offline, desaparece al reconectar
-- TTL de 5 min para datos del dashboard (frecuencia de actualización del ESP32 = 10 min)
-- Metadata de caché: `{ data, timestamp, ttl }` en AsyncStorage
-- Al reconectar: refrescar automáticamente sin intervención del usuario
-
-- [ ] Instalar `@react-native-community/netinfo` (compatible con Expo SDK 51 / RN 0.74.5)
-- [ ] Crear hook `useNetworkStatus` con suscripción a cambios de red (no polling)
-- [ ] Mostrar banner superior amarillo "Sin conexión" (Material Design 3 banner pattern)
-- [ ] Implementar caché stale-while-revalidate: guardar `{ data, timestamp, ttl: 300000 }` en AsyncStorage
-- [ ] Cargar datos cacheados inmediatamente al abrir dashboard (incluso con conexión)
-- [ ] Refrescar en background si hay conexión y caché está stale
-- [ ] Mostrar "Actualizado hace X min" cuando se muestren datos cacheados
-- [ ] Refrescar automáticamente al recuperar conexión (NetInfo subscription)
-- [ ] Ocultar banner con animación al confirmarse la reconexión
-- [ ] Asegurar contraste 4.5:1 en texto del banner (WCAG 2.2 SC 1.4.3)
+1. ~~**Botón de compartir**~~ — ✅ ya estaba implementado.
+2. ~~**Estados vacíos ilustrados**~~ — ✅ completado 2026-09-11.
+3. ~~**Loading skeletons**~~ — ✅ completado 2026-09-11.
+4. ~~**Indicador de estado del sensor**~~ — ✅ completado 2026-09-11.
+5. ~~**Asistente conversacional (chatbot)**~~ — ✅ completado 2026-09-11. Las 5 mejoras están
+   terminadas. Queda pendiente de prueba manual en dispositivo/emulador (ver checklist de cada
+   mejora) y la limitación de historial del chatbot documentada arriba, por si se prioriza a futuro.
 
 ---
 
-## RQF-05 — Bitácora apícola con calendario
+## Mejora 1 — Botón de compartir reportes y gráficas
 
-**Normas aplicadas:** ISO 9241-110 (suitability for task, controllability), ISO 9241-11 (efficiency), WCAG 2.2 SC 2.5.8 (touch targets en calendario)
+**RF-12, RF-13 · CU-05 · RNF-09, RNF-10**
 
-**Estado actual:** No existe tabla `bitacora` en PostgreSQL. No hay endpoints de bitácora en `backend/index.js`. No hay `react-native-calendars` instalado. `react-native-svg` ya está instalado (dependencia requerida por calendars).
+**Estado: ✅ Completo** (verificado 2026-09-11)
 
-**Mejores prácticas de UX para calendarios:**
-- Los dots en días con eventos deben tener contraste suficiente contra el fondo (WCAG 2.2)
-- Touch target mínimo 44x44dp en días del calendario (WCAG 2.2 SC 2.5.5 Enhanced)
-- Formulario de evento: agrupar campos relacionados (ISO 9241-125: agrupación de información)
-- Confirmación antes de eliminar (ISO 9241-110: tolerancia a errores — usar Alert.alert destructivo)
-- Feedback háptico al crear/editar/eliminar evento (RNF-02)
-
-### Backend
-- [ ] Crear tabla `bitacora` en PostgreSQL (id, usuario_id, colmena_id, apiario_id, tipo_evento, titulo, comentario, fecha_evento, created_at, updated_at)
-- [ ] Endpoint POST /api/bitacora — validar campos obligatorios
-- [ ] Endpoint GET /api/bitacora con filtros (usuario_id, fecha_inicio, fecha_fin, colmena_id, apiario_id)
-- [ ] Endpoint GET /api/bitacora/:id
-- [ ] Endpoint PUT /api/bitacora/:id
-- [ ] Endpoint DELETE /api/bitacora/:id
-- [ ] Validar propietario del evento en PUT y DELETE (seguridad: OWASP MASVS)
-
-### Frontend
-- [ ] Instalar `react-native-calendars` (requiere `react-native-svg` ✅ ya instalado)
-- [ ] Crear pantalla Bitácora accesible desde el drawer (`app/(user)/_layout.tsx`)
-- [ ] Mostrar calendario mensual con dots en días con eventos (contraste WCAG)
-- [ ] Listar eventos al seleccionar un día (ordenados por hora)
-- [ ] Crear formulario de evento con tipo, colmena/apiario, título y comentario (campos agrupados)
-- [ ] Editar eventos existentes (cargar datos previos en formulario)
-- [ ] Eliminar eventos con confirmación Alert.alert destructiva (ISO 9241-110: error tolerance)
-- [ ] Acceso rápido "Registrar evento" desde detalle de colmena (FAB button, 56x56dp)
-- [ ] Filtrar calendario por colmena o apiario (dropdown selector)
-- [ ] Integrar con endpoints /api/bitacora
-- [ ] Aplicar i18n a todos los textos del calendario y formularios (RNF-01)
-- [ ] Aplicar toasts para feedback de crear/editar/eliminar (RNF-02)
+- [x] `shareCsv()` con `expo-sharing` → `Sharing.shareAsync()` (`utils/csvExport.ts:87-108`)
+- [x] `saveCsvToDownloads()` con fallback a share en iOS (`utils/csvExport.ts:113-139`)
+- [x] Botón de compartir (ícono share-outline) en `ColmenaDetailScreen.tsx:314-315,427-433`
+- [x] Contenido limitado a la colmena consultada por el usuario autenticado (RF-13)
+- [ ] Prueba funcional en dispositivo físico: el selector nativo abre con el contenido correcto
+      (verificación sugerida por la matriz de trazabilidad, no automatizable)
 
 ---
 
-## RNF-01 — Soporte bilingüe Español/Inglés
+## Mejora 2 — Estados vacíos ilustrados
 
-**Normas aplicadas:** ISO 9241-110 (individualisation — personalización por usuario), ISO 9241-11 (satisfaction en contexto cultural)
+**RF-10, RF-11 · CU-04 · RNF-08**
 
-**Estado actual:** `i18next` + `react-i18next` ya configurados en `utils/i18n.ts`. Archivos `locales/es.json` y `locales/en.json` existen con ~83 claves. Persistencia en AsyncStorage ya funciona. Selector de idioma ya funciona en `profile.tsx`. **Faltan 3 pantallas sin i18n y localización de fechas en charts.**
+**Estado: ✅ Completo** (implementado 2026-09-11)
 
-**Mejores prácticas de i18n:**
-- Toda cadena visible al usuario debe pasar por `t()` — cero strings hardcoded
-- Formato de fechas y números debe adaptarse al locale (date-fns con locale dinámico)
-- El idioma del dispositivo debe respetarse como fallback inicial (ya implementado)
-- El cambio de idioma debe ser instantáneo sin reiniciar la app (i18n.changeLanguage ya lo soporta)
+- [x] `AlertsScreen.tsx:154-159` — ícono + título + mensaje específico
+- [x] `ColmenasScreen.tsx:125-129` — ícono + mensaje + submensaje
+- [x] `BitacoraScreen.tsx:396-400,421-424` — ícono + mensaje, incluye variante por día (vista calendario)
+- [x] `ApiarioDetailScreen.tsx` — agregado ícono `cube-outline` + mensaje + submensaje (antes solo texto plano)
+- [x] Mensajes específicos al contexto por pantalla (RF-11)
 
-- [ ] **login.tsx** — No tiene `useTranslation`. 8 strings hardcoded en español (títulos, placeholders, botones, links, Alert.alert)
-- [ ] **register.tsx** — No tiene `useTranslation`. 7 strings hardcoded en español (validaciones, Alert.alert, textos)
-- [ ] **onboarding.tsx** — No tiene `useTranslation`. 8 strings hardcoded en español (3 slides + "Omitir" + "Siguiente" + "Comenzar")
-- [ ] **forgot-password.tsx** — ✅ Ya usa `useTranslation` y `t()`
-- [ ] **profile.tsx** — ✅ Ya usa `useTranslation` y `t()`
-- [ ] **AlertsScreen.tsx** — ✅ Ya usa `useTranslation` y `t()`
-- [ ] **_layout.tsx (user)** — ✅ Ya usa `useTranslation` y `t()`
-- [ ] Agregar claves nuevas en `locales/es.json` y `locales/en.json` para login, register y onboarding
-- [ ] Localizar formato de fechas en `SensorChart.tsx` (usa `{ locale: es }` hardcoded de date-fns → usar locale dinámico según idioma)
-- [ ] Localizar formato de fechas en `ComparisonChartModal.tsx` (usa `{ locale: es }` hardcoded de date-fns → usar locale dinámico según idioma)
-- [ ] ✅ Persistir preferencia de idioma en AsyncStorage (ya implementado en `utils/i18n.ts`)
-- [ ] ✅ Aplicar idioma al siguiente arranque (ya implementado en `utils/i18n.ts`)
-- [ ] ✅ Selector de idioma en perfil (ya implementado en `profile.tsx` con `changeLanguage`)
+*Nota: `dashboard.tsx` no tiene manejo de lista vacía, pero no es una de las 3 pantallas de listado
+que cubre RF-10 (alertas/colmenas/apiarios), así que no cuenta como pendiente de esta mejora.*
 
 ---
 
-## RNF-02 — Retroalimentación háptica y toasts no intrusivos
+## Mejora 3 — Loading skeletons en pantallas de carga
 
-**Normas aplicadas:** ISO 9241-110 (auto-descriptividad, conformidad con expectativas), Material Design 3 (snackbars/toasts), WCAG 2.2 SC 1.4.2 (audio control — equivalente háptico)
+**RF-05, RF-06 · CU-02 · RNF-04, RNF-05**
 
-**Estado actual:** `expo-haptics` ya instalado (13.0.1) y usado en `HapticTab.tsx` (solo iOS, solo tabs). `react-native-toast-message` NO instalado. Hay **37 `Alert.alert` calls** distribuidos en 4 archivos: login.tsx (6), register.tsx (7), forgot-password.tsx (10), profile.tsx (14). `AlertsScreen.tsx` no tiene `Alert.alert`.
+**Estado: ✅ Completo** (implementado 2026-09-11)
 
-**Mejores prácticas de feedback UX (LogRocket, Mobbin 2024):**
-- **Toasts** para feedback no intrusivo: éxito, error, info (auto-dismiss 3-4s)
-- **Alert/dialog** para confirmaciones que requieren acción del usuario (ej. "¿Confirmar cambios?")
-- **Hápticos** para acciones críticas: login, guardado, eliminación (no spam háptico)
-- Toasts deben aparecer en la parte superior o inferior, no bloquear contenido
-- Toasts de error deben durar más (4-5s) que los de éxito (2-3s)
-- El texto del toast debe ser conciso (máx. 2 líneas)
-
-- [ ] Instalar `react-native-toast-message` (compatible con Expo SDK 51 / RN 0.74.5)
-- [ ] Configurar Toast global: éxito (verde, 3s), error (rojo, 4s), advertencia (amarillo, 3s)
-- [ ] Reemplazar Alert.alert por toast en **login.tsx** (6 calls — errores de auth y red)
-- [ ] Reemplazar Alert.alert por toast en **register.tsx** (7 calls — errores de validación y registro)
-- [ ] Reemplazar Alert.alert por toast en **forgot-password.tsx** (10 calls — errores y éxito)
-- [ ] Reemplazar Alert.alert por toast en **profile.tsx** (14 calls, mantener Alert.alert en confirmación destructiva de guardar cambios — línea 55 `handleSaveChanges`)
-- [ ] Agregar háptico `ImpactFeedbackStyle.Light` en login exitoso
-- [ ] Agregar háptico `ImpactFeedbackStyle.Light` en guardado de perfil exitoso
-- [ ] Agregar háptico `ImpactFeedbackStyle.Medium` en marcado de alertas como leídas (`AlertsScreen.tsx`)
-- [ ] Agregar háptico `ImpactFeedbackStyle.Heavy` en eliminación de eventos de bitácora
-- [ ] Configurar auto-dismiss: éxito 3s, error 4s, advertencia 3s
-- [ ] Mantener Alert.alert solo para confirmaciones destructivas (ej. "Confirmar Cambios" en profile, "¿Eliminar evento?" en bitácora)
-- [ ] Asegurar contraste 4.5:1 en texto de toasts (WCAG 2.2 SC 1.4.3)
+- [x] Componente `components/SkeletonLoader.tsx` con animación de pulso (`Animated.Value`, opacidad)
+- [x] Usado en `dashboard.tsx` (4x), `profile.tsx` (7x), `ApiarioDetailScreen.tsx` (2x), `ColmenasScreen.tsx` (2x), `AlertsScreen.tsx` (1x)
+- [x] `ColmenaDetailScreen.tsx` — migrado de `ActivityIndicator` a un layout de skeletons que refleja la estructura real (título, resumen, filtros, gráfica, tiempo real)
+- [ ] `BitacoraScreen.tsx` — sin skeleton (no está en la lista original de 5 pantallas del RF-05, se deja fuera de alcance a propósito)
+- [ ] Verificar en dispositivo físico que la transición no tenga parpadeos/saltos visuales (RF-06) — no automatizable, pendiente de prueba manual
 
 ---
 
-## RNF-03 — Bloqueo automático por inactividad
+## Mejora 4 — Indicador de estado del sensor (en línea / desconectado)
 
-**Normas aplicadas:** NIST SP 800-63B (session management, reauthentication), ISO 9241-110 (controllability — no bloquear sin aviso)
+**RF-07, RF-08, RF-09 · CU-03 · RNF-06, RNF-07**
 
-**Estado actual:** `expo-local-authentication` ya instalado (14.0.1). `AuthContext.tsx` ya tiene `proveBiometrics()` que valida biometría al restaurar sesión y al volver de segundo plano. **Falta el temporizador de inactividad.** No requiere código nativo ni cambios en iOS.
+**Estado: ✅ Completo** (implementado 2026-09-11)
 
-**NIST SP 800-63B — Reautenticación por inactividad:**
-- NIST define dos tipos de timeout: **overall timeout** (duración total de la sesión) e **inactivity timeout** (sin actividad del usuario)
-- AAL2: inactivity timeout SHOULD be no more than 1 hour. Para apps móviles no financieras, 5-15 min es aceptable y más seguro
-- La reautenticación tras inactivity timeout MAY usar **solo comparación biométrica** (sin reingresar password) — NIST SP 800-63B Sec 2.2.3
-- **Una sola verificación biométrica es el estándar**: el prompt biométrico del SO ya maneja reintentos internamente. No es necesario implementar lógica de 3 intentos a nivel app
-- Si la biometría falla o el usuario cancela → logout inmediato (sesión terminada)
-- El timeout de inactividad se reinicia con cualquier actividad del usuario
+- [x] Componente reutilizable `components/SensorStatusBadge.tsx` (verde "En línea" / rojo "Desconectado hace [tiempo]" / gris "Sin sensor asignado")
+- [x] Umbral configurable en `constants/sensorConfig.ts` (`SENSOR_OFFLINE_THRESHOLD_MINUTES = 15`), sin tocar el backend (RNF-07)
+- [x] Backend: `GET /api/apiarios/:id/colmenas` ahora regresa `ultima_lectura_en` por colmena (MAX entre todos sus sensores, `backend/index.js`)
+- [x] Mostrado en la lista de colmenas dentro de `ApiarioDetailScreen.tsx` (RF-09), modo `compact`
+- [x] Mostrado en `ColmenaDetailScreen.tsx` junto al nombre de la colmena (RF-09), reutilizando `ultimaLectura` ya obtenida cada 30s
+- [x] Estado alterno "Sin sensor asignado" cuando `ultima_lectura_en` es `null` (flujo A1 del CU-03)
+- [ ] Estado de excepción E1 (mostrar último estado en caché + aviso si falla la petición) — no implementado, pendiente si se prioriza
 
-- [ ] Crear temporizador de inactividad de 5 minutos (JS puro con `setTimeout`, sin dependencias nuevas)
-- [ ] Implementar wrapper a nivel de app para detectar interacciones (toque, scroll) — usar `PanResponder` o gesture handler
-- [ ] Reiniciar temporizador en cada interacción del usuario (reset inactivity timer)
-- [ ] Pausar temporizador cuando la app pase a segundo plano (usar `AppState` ya importado en AuthContext)
-- [ ] Reanudar temporizador al volver a primer plano (si ya pasó el tiempo, disparar biometría)
-- [ ] Disparar `proveBiometrics()` al expirar el temporizador (función ya existente)
-- [ ] **Verificación biométrica única**: si falla o se cancela → `logout()` inmediato (NIST SP 800-63B: sesión terminada)
-- [ ] Regresar a pantalla previa tras autenticación exitosa
-- [ ] ✅ `expo-local-authentication` ya integrado
-- [ ] ✅ Biometría al restaurar sesión ya funciona
-- [ ] ✅ Biometría al volver de segundo plano ya funciona
-- [ ] ✅ Logout en fallo biométrico ya implementado en `proveBiometrics()` (línea 56 de AuthContext.tsx)
+*Nota: no confundir con `SENSOR_THRESHOLDS` en `ColmenaDetailScreen.tsx:46,61` — eso son rangos de
+color para las gráficas (temperatura/humedad óptima), no tiene relación con conectividad.*
 
 ---
 
-## RNF-04 — Compatibilidad multiplataforma
+## Mejora 5 — Asistente conversacional (bot) en la app
 
-**Normas aplicadas:** WCAG 2.2 (aplicado a mobile — W3C WCAG2Mobile 2024), ISO 9241-125 (presentación visual multiplataforma)
+**RF-01, RF-02, RF-03, RF-04 · CU-01 · RNF-01, RNF-02, RNF-03**
 
-**Estado actual:** Expo SDK 51 ya soporta Android 8+ e iOS 13+ por defecto. El código ya maneja ambas plataformas (`Platform.OS === 'ios'` en login, `HapticTab` con código iOS, `app.json` con `iosClientId`). **No hay versiones mínimas declaradas explícitamente en `app.json`.**
+**Estado: backend completo, frontend no iniciado** (verificado 2026-09-11)
 
-**Mejores prácticas de compatibilidad multiplataforma:**
-- Usar `Platform.select()` para diferencias de UI (ya se usa en tabs)
-- Touch targets: 48x48dp Android / 44x44pt iOS (WCAG 2.2 SC 2.5.8)
-- SafeArea: usar `react-native-safe-area-context` (ya instalado) para notch y home indicator
-- KeyboardAvoidingView ya implementado en login con `behavior={Platform.OS === 'ios' ? 'padding' : 'height'}`
-- Hápticos: iOS usa `expo-haptics`, Android usa `Vibration` API nativa
+### Backend (✅ completo)
+- [x] `backend/chatbot.js` — Gemini (`gemini-2.5-flash`) con function-calling sobre datos reales del usuario
+- [x] `POST /api/chatbot` protegido con JWT (`verificarToken`) — cumple RNF-01
+- [x] Rate limiting `chatbotLimiter` (10 req/min) — apoya RNF-02/confiabilidad
+- [x] 3 herramientas reales: `listar_colmenas`, `consultar_alertas_recientes`, `consultar_tendencia_sensor`
+- [x] Acceso restringido a colmenas del usuario autenticado (RF-03)
 
-- [ ] Declarar Android 8.0 (API 26) mínimo en `app.json` → `android.permissions` o documentar en README
-- [ ] Declarar iOS 13.0 mínimo en `app.json` → `ios.infoPlist.MinimumOSVersion` o documentar en README
-- [ ] Validar touch targets ≥ 48x48dp en todos los botones (WCAG 2.2 SC 2.5.8)
-- [ ] Validar contraste 4.5:1 en todos los textos (WCAG 2.2 SC 1.4.3)
-- [ ] Validar SafeArea en pantallas con notch (iPhone X+) y home indicator
-- [ ] Validar que `react-native-toast-message`, `netinfo` y `react-native-calendars` sean compatibles con Android 8+ e iOS 13+
-- [ ] Probar funcionalidades nuevas en emulador Android 8.0
-- [ ] ~~Probar funcionalidades nuevas en simulador iOS 13.0~~ (POSPUESTO — sin acceso a Mac por ahora)
-- [ ] Actualizar README con versiones mínimas documentadas y tabla de compatibilidad
+### Frontend (✅ completo — 2026-09-11)
+- [x] Mascota "Abeja Asistente" — `components/BeeMascot.tsx` (SVG ilustrado con `react-native-svg`, tamaño configurable vía prop `size`, ids únicos por instancia con `useId()` para evitar colisión de degradados cuando se repite en varios mensajes)
+- [x] Pantalla de chat — `app/(user)/ChatbotScreen.tsx` (campo de texto + historial visual de la conversación + estado vacío con sugerencias)
+- [x] Ícono de acceso al asistente en el encabezado del Dashboard (junto a notificaciones) y entrada en el drawer
+- [x] Botón "Enviar" deshabilitado si el campo está vacío (flujo alternativo A1)
+- [x] Envío de la pregunta al backend con `utils/api.js` (agrega el JWT automáticamente)
+- [x] Renovación automática de token si expiró antes de enviar (E1) — **gratis**: `ChatbotScreen` usa el mismo cliente `api` que ya tiene el interceptor de refresh/logout en `utils/api.js`, no requirió lógica nueva
+- [x] Mensaje de error controlado + botón "Reintentar" según la causa (429 / error del servicio / sin conexión) — `resolveErrorText()` en `ChatbotScreen.tsx` (E2, RF-04)
+- [x] Mostrar la respuesta del asistente en el historial de la conversación, con indicador "escribiendo" mientras espera
 
----
-
-## RNF-05 — Tiempo de respuesta en operaciones locales
-
-**Normas aplicadas:** ISO 9241-11 (efficiency — tiempo de tarea), ISO 9241-110 (controllability — respuesta percibida)
-
-**Estado actual:** No hay mediciones. `react-native-reanimated` ya está instalado para animaciones a 60 FPS.
-
-**Mejores prácticas de performance UX (Google RAIL Model):**
-- **Response**: responder a input en < 100ms (percepción de instantaneidad)
-- **Animation**: mantener 60 FPS en animaciones (16ms por frame)
-- **Idle**: usar tiempo idle para pre-cargar datos
-- **Load**: cargar contenido en < 1s (usar caché para primer paint)
-- Medir con `performance.now()` en desarrollo, no en producción
-- Documentar resultados en tabla para auditoría de calidad (ISO 9241-11: medible)
-
-- [x] Medir transición dashboard → bitácora con `performance.now()` (objetivo: < 300ms)
-- [x] Medir cambio de idioma desde el perfil (objetivo: < 100ms, instantáneo)
-- [x] Medir apertura de pantalla de bitácora (objetivo: < 500ms con datos cacheados)
-- [x] Medir validación de formularios onBlur (objetivo: < 50ms)
-- [x] Medir primer paint del dashboard con caché (objetivo: < 200ms)
-- [ ] Verificar animaciones a 60 FPS sin caídas perceptibles (React Native Performance Monitor)
-- [ ] Documentar tabla de tiempos medidos en README (ISO 9241-11: usabilidad medible)
+**Limitación conocida (no es un bug, es el contrato actual del backend):** `backend/chatbot.js` no
+recibe ni conserva historial entre peticiones — cada pregunta es una conversación nueva para
+Gemini. El historial que se ve en `ChatbotScreen` es solo visual; una pregunta de seguimiento como
+"¿y su temperatura?" no tendrá contexto de la pregunta anterior. Si se quiere memoria real,
+`responderPregunta(pregunta, usuarioId)` tendría que aceptar y reenviar los `contents` previos —
+cambio de backend, no de esta pantalla.
 
 ---
 
-## Resumen de compatibilidad
+## Matriz de trazabilidad (resumen)
 
-| Dependencia nueva | Expo SDK 51 | RN 0.74.5 | Android 7.0+ | iOS 13+ | Riesgo |
-|---|---|---|---|---|---|
-| `@react-native-community/netinfo` | ✅ | ✅ | ✅ | ✅ | Ninguno |
-| `react-native-toast-message` | ✅ | ✅ | ✅ | ✅ | Ninguno |
-| `react-native-calendars` | ✅ | ✅ | ✅ | ✅ | Ninguno (requiere `react-native-svg` ✅ ya instalado) |
+| Mejora | RF | CU | RNF | Estado |
+|---|---|---|---|---|
+| Asistente conversacional | RF-01 a RF-04 | CU-01 | RNF-01, RNF-02, RNF-03 | ✅ Completo (2026-09-11) — ver limitación de historial abajo |
+| Loading skeletons | RF-05, RF-06 | CU-02 | RNF-04, RNF-05 | ✅ Completo (2026-09-11) |
+| Indicador de estado del sensor | RF-07 a RF-09 | CU-03 | RNF-06, RNF-07 | ✅ Completo (2026-09-11) |
+| Estados vacíos ilustrados | RF-10, RF-11 | CU-04 | RNF-08 | ✅ Completo (2026-09-11) |
+| Botón de compartir | RF-12, RF-13 | CU-05 | RNF-09, RNF-10 | ✅ Completo |
 
-**Versiones mínimas documentadas (app.json):**
-- **Android**: minSdkVersion 24 (Android 7.0 Nougat) — soporte para biometría, notificaciones push y permisos runtime
-- **iOS**: MinimumOSVersion 13.0 — soporte para Face ID, Dark Mode y SwiftUI
-- **Touch targets**: todos los botones y elementos interactivos cumplen WCAG 2.2 SC 2.5.5 (mínimo 44x44 pt iOS / 48x48 dp Android)
-
-**Dependencias ya instaladas que se reutilizan:**
-
-| Dependencia | Versión | Requerimiento |
-|---|---|---|
-| `expo-haptics` | 13.0.1 | RNF-02 |
-| `expo-local-authentication` | 14.0.1 | RNF-03 |
-| `i18next` + `react-i18next` | 25.10.4 / 16.6.1 | RNF-01 |
-| `react-native-svg` | 15.2.0 | RQF-05 (calendars) |
-| `@react-native-async-storage/async-storage` | 1.23.1 | RQF-04, RNF-01 |
-| `react-native-reanimated` | 3.10.1 | RNF-05 (animaciones 60 FPS) |
-| `react-native-safe-area-context` | 4.10.5 | RNF-04 (SafeArea multiplataforma) |
+13 de 13 RF cubiertos por un caso de uso · 10 de 10 RNF asignados a una mejora · 5 de 5 casos de
+uso respaldados por al menos un RF (sin requerimientos huérfanos, según el documento fuente).
 
 ---
 
-## Referencias de normas y mejores prácticas
+## Glosario breve
 
-| Fuente | URL |
-|---|---|
-| ISO 9241-210:2019 (Human-centred design) | https://www.iso.org/standard/77520.html |
-| ISO 9241-110 (Dialog principles) | https://www.softwareevaluation.de/en/foundations/iso-9241-110-dialog-principles/ |
-| WCAG 2.2 (W3C Recommendation 2023) | https://www.w3.org/TR/WCAG22/ |
-| WCAG 2.2 Mobile Guidance (W3C 2024) | https://www.w3.org/TR/wcag2mobile-22/ |
-| NIST SP 800-63B (Digital Identity) | https://pages.nist.gov/800-63-4/sp800-63b/ |
-| Android Biometric Best Practices | https://developer.android.com/security/fraud-prevention/authentication |
-| Material Design 3 (Components) | https://m3.material.io/ |
-| NN/g Form Validation Guidelines | https://www.nngroup.com/articles/errors-forms-design-guidelines/ |
-| Stale-while-revalidate (web.dev) | https://web.dev/articles/stale-while-revalidate |
-| Android Offline-first Architecture | https://developer.android.com/topic/architecture/data-layer/offline-first |
+- **Alerta**: registro generado cuando una lectura cruza un umbral (tabla `alertas`).
+- **Apiario**: conjunto de colmenas bajo una misma ubicación/propietario.
+- **Bitácora**: eventos de manejo apícola capturados manualmente en la app.
+- **Colmena**: unidad monitoreada dentro de un apiario, asociada a un sensor.
+- **Lectura ambiental**: medición puntual de un sensor (tabla `lecturas_ambientales`).
+- **Refresh token**: token de 7 días para renovar el JWT sin volver a iniciar sesión.
+- **Skeleton**: silueta animada del contenido mientras carga, en vez de un spinner genérico.
+- **Tool use / Function calling**: mecanismo con el que el modelo del asistente invoca funciones
+  del backend (consultar alertas, tendencias) para fundamentar sus respuestas en datos reales.

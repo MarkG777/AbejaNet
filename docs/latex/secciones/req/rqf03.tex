@@ -1,0 +1,108 @@
+\clearpage
+\subsection{RQF-03 — Anti-spam y validación de email}
+
+\renewcommand{\arraystretch}{1.3}
+
+% --- 1. Información del Cliente ---
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{1. INFORMACIÓN DEL CLIENTE}} \\
+\hline
+Nombre de la empresa  & UTEQ \\
+\hline
+Nombre del Contacto   & Angélica Garduño Bustamante \\
+\hline
+Fecha de Elaboración  & 01/06/2026 \\
+\hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+% --- 2. Información General ---
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{2. INFORMACIÓN GENERAL}} \\
+\hline
+Nombre del Requerimiento     & RQF 03. Anti-spam y validación de email \\
+\hline
+Tipo de Requerimiento        & Funcional \\
+\hline
+Fecha requerida de solución  & 30/06/2026 \\
+\hline
+Prioridad                    & Alta \\
+\hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+% --- 3. Descripción del Requerimiento ---
+\noindent
+\begin{tabular}{|p{4.5cm}|p{11cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{3. DESCRIPCIÓN DEL REQUERIMIENTO}} \\
+\hline
+Objetivo del Requerimiento &
+Implementar un mecanismo de validación de email mediante expresión regular y un sistema anti-spam que deshabilite los botones de los formularios durante las peticiones HTTP, evitando envíos duplicados al backend. \\
+\hline
+Beneficio esperado &
+Reducción de la carga al servidor por peticiones duplicadas, mejora de la experiencia de captura de datos del usuario y prevención de errores de validación previos al envío. \\
+\hline
+Alcance &
+- Aplicar validación de email en \textit{login}, \textit{register} y \textit{forgot-password}. \par
+- Deshabilitar el botón de envío durante la petición HTTP. \par
+- Mostrar borde rojo y mensaje inline en inputs inválidos. \par
+- No modifica la lógica del backend. \\
+\hline
+Ubicación &
+\url{https://github.com/MarkG777/AbejaNet} \\
+\hline
+Descripción de Usuarios y Responsables &
+\textbf{Usuarios:} \par
+\textbf{Usuario (Cliente):} interactúa con los formularios de autenticación de la app móvil. \par
+\vspace{0.1cm}
+\textbf{Responsables:} \par
+\textbf{App Móvil (React Native):} ejecuta la validación local antes de enviar la petición. \par
+\textbf{API Backend:} no requiere cambios; solo recibe peticiones bien formadas. \\
+\hline
+Descripción funcional &
+1. El usuario ingresa al formulario de inicio de sesión, registro o recuperación de contraseña. \par
+2. Al escribir el email, el sistema valida el formato en tiempo real con una expresión regular. \par
+3. Si el formato es inválido, el input muestra borde rojo y mensaje inline; el botón permanece deshabilitado. \par
+4. Cuando los datos son válidos y el usuario presiona el botón de envío, el botón se deshabilita inmediatamente y muestra un indicador de carga. \par
+5. Mientras la petición está en curso, el formulario no acepta nuevas interacciones. \par
+6. Al recibirse la respuesta del backend, el botón se reactiva y se muestra el resultado correspondiente. \\
+\hline
+Restricciones &
+- La validación local no sustituye la validación del backend. \par
+- Debe mantenerse la compatibilidad con el sistema de autenticación JWT existente. \\
+\hline
+Precedencias & RQF 02. Registro de clientes \\
+\hline
+Documentación requerida & Manuales de usuario actualizados con la nueva retroalimentación visual. \\
+\hline
+Observaciones &
+Se reutiliza la librería de iconos \texttt{Ionicons} ya presente en el proyecto para los indicadores visuales. \\
+\hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+% --- 4. Condiciones de Prueba ---
+\noindent
+\begin{tabular}{|p{5.1cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{3}{|l|}{\color{white}\textbf{4. CONDICIONES DE PRUEBA}} \\
+\hline
+\rowcolor{cellGris}\textbf{Condición} & \textbf{Validación} & \textbf{Resultado} \\
+\hline
+El usuario ingresa un email con formato inválido en la pantalla de inicio de sesión. &
+El sistema debe detectar el formato incorrecto antes de enviar la petición y mostrar un mensaje inline. &
+El input se marca con borde rojo y el botón de envío permanece deshabilitado. \\
+\hline
+El usuario presiona repetidamente el botón \textit{``Iniciar sesión''} mientras la petición está en curso. &
+El sistema debe deshabilitar el botón al primer clic para evitar envíos duplicados. &
+Únicamente se realiza una petición HTTP al backend, sin importar el número de clics. \\
+\hline
+\end{tabular}

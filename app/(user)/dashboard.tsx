@@ -22,6 +22,7 @@ import {
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
+import { markPerfNav } from '../../utils/perfMetrics';
 import { useNotifications } from '../context/NotificationsContext';
 
 // --- INTERFACES ---
@@ -246,25 +247,33 @@ const UserDashboardScreen = () => {
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Pressable 
-          style={{ marginRight: 15, padding: 5 }} 
-          onPress={() => {
-            // Optimistic update
-            setUnread(0);
-            router.push({ pathname: '/(user)/AlertsScreen' });
-            // Cuando regrese, refrescar el resumen para actualizar el contador real
-            setTimeout(() => fetchData(), 500);
-          }}
-        >
-          <Ionicons name="notifications-outline" size={26} color={colors.headerText} />
-          {unread > 0 && (
-            <View style={[styles.notificationBadge, { borderColor: colors.headerBackground }]}>
-              <Text style={styles.notificationText}>
-                {unread > 9 ? '9+' : unread}
-              </Text>
-            </View>
-          )}
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Pressable
+            style={{ marginRight: 12, padding: 5 }}
+            onPress={() => router.push({ pathname: '/(user)/ChatbotScreen' } as any)}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.headerText} />
+          </Pressable>
+          <Pressable
+            style={{ marginRight: 15, padding: 5 }}
+            onPress={() => {
+              // Optimistic update
+              setUnread(0);
+              router.push({ pathname: '/(user)/AlertsScreen' });
+              // Cuando regrese, refrescar el resumen para actualizar el contador real
+              setTimeout(() => fetchData(), 500);
+            }}
+          >
+            <Ionicons name="notifications-outline" size={26} color={colors.headerText} />
+            {unread > 0 && (
+              <View style={[styles.notificationBadge, { borderColor: colors.headerBackground }]}>
+                <Text style={styles.notificationText}>
+                  {unread > 9 ? '9+' : unread}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
       ),
     });
   }, [navigation, summary, unread, colors, setUnread, router, fetchData]);
@@ -320,7 +329,7 @@ const UserDashboardScreen = () => {
 
   const renderQuickActions = () => (
     <View style={{ flexDirection: 'row', justifyContent: 'space-around', marginTop: 15, marginBottom: 5 }}>
-      <Pressable onPress={() => router.push({ pathname: '/(user)/BitacoraScreen' } as any)} style={({ pressed }) => [{ alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}>
+      <Pressable onPress={() => { markPerfNav('dashboard_to_bitacora'); router.push({ pathname: '/(user)/BitacoraScreen' } as any); }} style={({ pressed }) => [{ alignItems: 'center', opacity: pressed ? 0.7 : 1 }]}>
         <View style={[styles.statCard, { backgroundColor: colors.statCardBg, width: 70, height: 70, borderRadius: 16 }]}>
           <Ionicons name="book-outline" size={28} color={colors.primary} />
         </View>

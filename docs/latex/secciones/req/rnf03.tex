@@ -1,0 +1,90 @@
+\clearpage
+\subsection{RNF-03 — Bloqueo automático por inactividad}
+
+\renewcommand{\arraystretch}{1.3}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{1. INFORMACIÓN DEL CLIENTE}} \\
+\hline
+Nombre de la empresa  & UTEQ \\ \hline
+Nombre del Contacto   & Angélica Garduño Bustamante \\ \hline
+Fecha de Elaboración  & 01/06/2026 \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{2. INFORMACIÓN GENERAL}} \\
+\hline
+Nombre del Requerimiento     & RNF 03. Bloqueo automático por inactividad \\ \hline
+Tipo de Requerimiento        & No funcional — Seguridad \\ \hline
+Fecha requerida de solución  & 20/07/2026 \\ \hline
+Prioridad                    & Alta \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{4.5cm}|p{11cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{3. DESCRIPCIÓN DEL REQUERIMIENTO}} \\
+\hline
+Objetivo del Requerimiento &
+Bloquear automáticamente la aplicación tras un periodo de inactividad del usuario en primer plano, exigiendo autenticación biométrica para reanudar el uso y proteger la información sensible del apiario. \\
+\hline
+Beneficio esperado &
+Capa adicional de seguridad sin requerir el reingreso constante de la contraseña. Protección de datos en escenarios donde el usuario deja el dispositivo desbloqueado por error. \\
+\hline
+Alcance &
+- Implementar un temporizador global de inactividad con duración predeterminada de 5 minutos. \par
+- Detectar interacciones del usuario mediante un \textit{wrapper} a nivel de aplicación. \par
+- Reutilizar el sistema de \texttt{LocalAuthentication} ya existente para el bloqueo. \par
+- Cerrar sesión tras tres intentos biométricos fallidos. \\
+\hline
+Ubicación & \url{https://github.com/MarkG777/AbejaNet} \\ \hline
+Descripción de Usuarios y Responsables &
+\textbf{Usuarios:} \par
+\textbf{Usuario (Cliente):} reanuda el uso de la app tras un periodo de inactividad. \par
+\vspace{0.1cm}
+\textbf{Responsables:} \par
+\textbf{App Móvil:} mide el tiempo de inactividad y dispara la pantalla biométrica. \par
+\textbf{Sistema operativo:} provee la API de autenticación biométrica nativa. \\
+\hline
+Descripción funcional &
+1. Mientras la app está en primer plano, un temporizador global mide el tiempo desde la última interacción del usuario. \par
+2. Si transcurren 5 minutos sin interacción, se dispara la pantalla biométrica. \par
+3. Si la autenticación es exitosa, el usuario regresa a la pantalla en la que estaba. \par
+4. Si falla 3 veces, la sesión se cierra y se redirige a la pantalla de inicio de sesión. \par
+5. Cualquier interacción (toque, scroll) reinicia el temporizador. \\
+\hline
+Restricciones &
+- El temporizador se pausa cuando la app pasa a segundo plano (ya está cubierto por la biometría existente). \par
+- El umbral de 5 minutos no es configurable por el usuario en esta iteración. \\
+\hline
+Precedencias & Sistema biométrico ya implementado en \texttt{AuthContext}. \\ \hline
+Documentación requerida & Manual de usuario con sección sobre el bloqueo automático. \\ \hline
+Observaciones & Reutiliza \texttt{expo-local-authentication} ya integrada en el proyecto. \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5.1cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{3}{|l|}{\color{white}\textbf{4. CONDICIONES DE PRUEBA}} \\
+\hline
+\rowcolor{cellGris}\textbf{Condición} & \textbf{Validación} & \textbf{Resultado} \\
+\hline
+El usuario deja la app abierta sin interacción por más de 5 minutos. &
+El sistema debe disparar la pantalla biométrica de bloqueo. &
+Aparece la solicitud de huella o Face ID; al validarse, el usuario regresa a la pantalla previa. \\
+\hline
+El usuario falla tres veces consecutivas la autenticación biométrica de bloqueo. &
+El sistema debe cerrar la sesión por seguridad. &
+La app cierra sesión y redirige al usuario a la pantalla de inicio de sesión. \\
+\hline
+\end{tabular}

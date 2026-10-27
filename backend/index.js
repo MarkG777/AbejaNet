@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { OAuth2Client } from 'google-auth-library';
 import jwt from 'jsonwebtoken';
 import asignarUsuariosAApiario from './assign_users.js';
+import { responderPregunta } from './chatbot.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
 import { verificarApiKey, verificarSetupSecret, verificarToken } from './middleware/auth.js';
@@ -199,6 +200,30 @@ app.post('/api/save-push-token', verificarToken, async (req, res) => {
   } catch (error) {
     console.error('Error al guardar el token en la base de datos:', error);
     res.status(500).json({ mensaje: 'Error interno del servidor.' });
+  }
+});
+
+// Chatbot: responde preguntas usando Claude + datos reales del usuario autenticado.
+const chatbotLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Demasiadas preguntas. Espera un momento.' },
+});
+
+app.post('/api/chatbot', verificarToken, chatbotLimiter, async (req, res) => {
+  const { pregunta, historial } = req.body;
+  if (!pregunta || typeof pregunta !== 'string') {
+    return res.status(400).json({ success: false, message: 'Falta la pregunta.' });
+  }
+
+  try {
+    const respuesta = await responderPregunta(pregunta, req.usuario.userId, historial);
+    res.json({ success: true, respuesta });
+  } catch (error) {
+    console.error('Error en /api/chatbot:', error);
+    res.status(500).json({ success: false, message: 'No se pudo procesar la pregunta.' });
   }
 });
 
@@ -568,9 +593,18 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
       }
     }
 
-    // 2. Si tiene acceso, obtener las colmenas
+    // 2. Si tiene acceso, obtener las colmenas junto con la última lectura de su(s) sensor(es)
+    // (una colmena puede tener más de un sensor; se toma la lectura más reciente entre todos)
     const { rows: colmenas } = await pool.query(
-      'SELECT id, nombre, descripcion_especifica FROM colmenas WHERE apiario_id = $1',
+      `SELECT c.id, c.nombre, c.descripcion_especifica, s.ultima_lectura_en
+       FROM colmenas c
+       LEFT JOIN (
+         SELECT colmena_id, MAX(ultima_lectura_en) AS ultima_lectura_en
+         FROM sensores
+         WHERE colmena_id IS NOT NULL
+         GROUP BY colmena_id
+       ) s ON s.colmena_id = c.id
+       WHERE c.apiario_id = $1`,
       [apiarioId]
     );
     res.json({ success: true, colmenas });

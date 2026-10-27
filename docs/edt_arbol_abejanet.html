@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>EDT AbejaNet — Vista de Árbol</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 35px;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f4f4;
+      color: #1e1e1e;
+    }
+
+    h1 {
+      margin: 0 0 35px 0;
+      color: #2f5f9f;
+      font-size: 34px;
+      font-weight: 700;
+    }
+
+    .tree {
+      width: max-content;
+      min-width: 100%;
+      text-align: center;
+      overflow-x: auto;
+      padding-bottom: 40px;
+    }
+
+    .root {
+      display: inline-block;
+      min-width: 360px;
+      padding: 14px 22px;
+      border: 2px solid #b9b9c9;
+      border-radius: 12px;
+      background: #f1efff;
+      color: #1e1e1e;
+      font-size: 18px;
+      font-weight: 700;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.12);
+      position: relative;
+    }
+
+    .root::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 100%;
+      width: 2px;
+      height: 35px;
+      background: #9a9a9a;
+    }
+
+    .branches {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 26px;
+      margin-top: 35px;
+      position: relative;
+    }
+
+    .branches::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 70px;
+      right: 70px;
+      height: 2px;
+      background: #9a9a9a;
+    }
+
+    .phase {
+      width: 165px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      padding-top: 35px;
+    }
+
+    .phase::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 2px;
+      height: 35px;
+      background: #9a9a9a;
+    }
+
+    .phase-title {
+      width: 100%;
+      min-height: 58px;
+      padding: 10px 8px;
+      border: 2px solid #b8b8b8;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      line-height: 1.18;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+    }
+
+    .phase-title.inicio { background: #fff1e8; color: #7a4a28; }
+    .phase-title.plan { background: #eaf6ff; color: #245579; }
+    .phase-title.ejec { background: #e9fff2; color: #25633c; }
+    .phase-title.admin { background: #fff4da; color: #7a5200; }
+    .phase-title.iot { background: #e9f8ff; color: #126078; }
+    .phase-title.control { background: #eeeeff; color: #3c3f83; }
+    .phase-title.cierre { background: #f3f1ec; color: #5b5145; }
+
+    .items {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 18px;
+      gap: 10px;
+      position: relative;
+      width: 100%;
+    }
+
+    .items::before {
+      content: "";
+      position: absolute;
+      top: -18px;
+      bottom: 18px;
+      left: 50%;
+      width: 2px;
+      background: #b8b8b8;
+      z-index: 0;
+    }
+
+    .item {
+      width: 150px;
+      min-height: 42px;
+      padding: 8px 6px;
+      border: 2px solid #d0d0d0;
+      border-radius: 7px;
+      background: #ffffff;
+      font-size: 13px;
+      line-height: 1.15;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .item.strong {
+      background: #eef8ea;
+      border-color: #abc69f;
+      font-weight: 700;
+    }
+
+    .footer {
+      margin-top: 35px;
+      padding: 16px 20px;
+      max-width: 1050px;
+      background: #ffffff;
+      border-left: 6px solid #ffc107;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 28px;
+        margin-bottom: 25px;
+      }
+
+      .tree {
+        transform: scale(0.82);
+        transform-origin: top left;
+      }
+
+      .footer {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Vista de Árbol — EDT AbejaNet</h1>
+
+  <div class="tree">
+    <div class="root">Sistema AbejaNet Revival<br>Prototipo v3</div>
+
+    <div class="branches">
+      <div class="phase">
+        <div class="phase-title inicio">1. Inicio</div>
+        <div class="items">
+          <div class="item">Equipo de trabajo</div>
+          <div class="item">Roles y responsabilidades</div>
+          <div class="item">Definición del proyecto</div>
+          <div class="item">Acta constitutiva</div>
+          <div class="item">Aprobación inicial</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-title plan">2. Planeación</div>
+        <div class="items">
+          <div class="item">Cronograma</div>
+          <div class="item">Alcance y objetivos</div>
+          <div class="item">Requerimientos funcionales</div>
+          <div class="item">Requerimientos no funcionales</div>
+          <div class="item">Arquitectura App + Web + IoT</div>
+          <div class="item">Diseño UX/UI</div>
+          <div class="item">Plan de pruebas</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-title ejec">3. App Móvil</div>
+        <div class="items">
+          <div class="item strong">F1: Aplicación móvil</div>
+          <div class="item">Inicio de sesión</div>
+          <div class="item">Perfil de usuario</div>
+          <div class="item">Gestión de colmenas</div>
+          <div class="item">Bitácora de visitas</div>
+          <div class="item">Modo offline</div>
+          <div class="item">Sincronización de datos</div>
+          <div class="item">Notificaciones push</div>
+          <div class="item">Cambio de idioma</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-title admin">4. Web Administrador</div>
+        <div class="items">
+          <div class="item strong">F2: Panel web</div>
+          <div class="item">Login administrador</div>
+          <div class="item">Dashboard general</div>
+          <div class="item">Gestión de usuarios</div>
+          <div class="item">Gestión de colmenas</div>
+          <div class="item">Cambio de contraseñas</div>
+          <div class="item">Gestión de roles</div>
+          <div class="item">Reportes del negocio</div>
+          <div class="item">Configuración de alertas</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-title iot">5. Sistema IoT</div>
+        <div class="items">
+          <div class="item strong">F3: Monitoreo IoT</div>
+          <div class="item">Sensores de temperatura</div>
+          <div class="item">Sensores de humedad</div>
+          <div class="item">Sensor de sonido o vibración</div>
+          <div class="item">Microcontrolador ESP32</div>
+          <div class="item">Módulo WiFi / GSM</div>
+          <div class="item">Envío de datos a servidor</div>
+          <div class="item">Alertas por condiciones críticas</div>
+          <div class="item">Historial de lecturas</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-title control">6. Monitoreo y Control</div>
+        <div class="items">
+          <div class="item">Seguimiento de cronograma</div>
+          <div class="item">Control de cambios</div>
+          <div class="item">Pruebas funcionales</div>
+          <div class="item">Pruebas no funcionales</div>
+          <div class="item">Pruebas IoT en campo</div>
+          <div class="item">Validación con usuarios</div>
+          <div class="item">Corrección de errores</div>
+        </div>
+      </div>
+
+      <div class="phase">
+        <div class="phase-title cierre">7. Cierre</div>
+        <div class="items">
+          <div class="item">Acta de cierre</div>
+          <div class="item">Manual de usuario</div>
+          <div class="item">Manual técnico</div>
+          <div class="item">Documentación final</div>
+          <div class="item">Presentación final</div>
+          <div class="item">Lecciones aprendidas</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <strong>Descripción:</strong> Esta EDT representa el proyecto AbejaNet como un sistema completo compuesto por aplicación móvil, panel web administrador e integración IoT. El administrador del negocio controla la página web para gestionar colmenas, usuarios, roles, contraseñas, reportes y alertas. El sistema IoT recopila información de las colmenas mediante sensores y la envía al backend para ser consultada desde la app móvil y el panel web.
+  </div>
+</body>
+</html>

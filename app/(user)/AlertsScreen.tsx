@@ -6,7 +6,7 @@ import { isAxiosError } from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '@/hooks/useAppColors';
@@ -133,9 +133,24 @@ const AlertsScreen = () => {
     );
   };
 
+  const renderSkeletonCard = (key: number) => (
+    <View key={key} style={[styles.alertCard, { backgroundColor: colors.alertCardBg, borderColor: colors.alertReadBorder }]}>
+      <SkeletonLoader width={28} height={28} borderRadius={14} style={styles.icon} />
+      <View style={styles.alertContent}>
+        <SkeletonLoader width="60%" height={16} borderRadius={4} style={{ marginBottom: 8 }} />
+        <SkeletonLoader width="90%" height={14} borderRadius={4} style={{ marginBottom: 6 }} />
+        <SkeletonLoader width="40%" height={12} borderRadius={4} />
+      </View>
+    </View>
+  );
+
   const renderContent = () => {
     if (loading && !refreshing) {
-      return <ActivityIndicator size="large" color={colors.accent} style={styles.centeredMessageContainer} />;
+      return (
+        <View style={styles.list}>
+          {[1, 2, 3, 4, 5].map(renderSkeletonCard)}
+        </View>
+      );
     }
 
     if (error) {

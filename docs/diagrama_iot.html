@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>AbejaNet — Arquitectura del Sistema (IoT + App + Web Admin)</title>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  </script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #1E1E1E;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .diagram-container {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 30px;
+      overflow-x: auto;
+    }
+    .legend {
+      background: #fff;
+      border-radius: 8px;
+      padding: 15px 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      max-width: 600px;
+      margin: 0 auto 40px auto;
+    }
+    .legend h3 {
+      margin-top: 0;
+      color: #1E1E1E;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin: 6px 0;
+    }
+    .color-box {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      margin-right: 10px;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>AbejaNet Revival — Arquitectura del Sistema</h1>
+  <p class="subtitle">Prototipo v3 | IoT + App Móvil + Web Administrador</p>
+
+  <div class="legend">
+    <h3>Leyenda de capas</h3>
+    <div class="legend-item"><div class="color-box" style="background:#E1F5FE;"></div>Capa IoT (Sensores y Dispositivos)</div>
+    <div class="legend-item"><div class="color-box" style="background:#FFF3E0;"></div>Capa Backend (API y Base de Datos)</div>
+    <div class="legend-item"><div class="color-box" style="background:#E8F5E9;"></div>Aplicación Móvil (Apicultor)</div>
+    <div class="legend-item"><div class="color-box" style="background:#F3E5F5;"></div>Web Administrador (Admin del Negocio)</div>
+    <div class="legend-item"><div class="color-box" style="background:#FFFDE7;"></div>Comunicación / Protocolos</div>
+  </div>
+
+  <div class="diagram-container">
+    <pre class="mermaid">
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#FFC107', 'primaryTextColor': '#1E1E1E', 'primaryBorderColor': '#1E1E1E', 'lineColor': '#666666', 'secondaryColor': '#F5F5F5', 'tertiaryColor': '#FFFFFF' }}}%%
+
+graph TD
+    %% ============================================================
+    %% ACTORES EXTERNOS
+    %% ============================================================
+    ACTOR_APICULTOR["🧑‍🌾 Apicultor (Usuario Móvil)"]
+    ACTOR_ADMIN["👨‍💼 Administrador del Negocio"]
+
+    %% ============================================================
+    %% CAPA IoT
+    %% ============================================================
+    subgraph CAPA_IOT["🐝 CAPA IoT — Monitoreo de Colmenas"]
+        direction TB
+        SENSOR_TEMP["🌡️ Sensor de Temperatura"]
+        SENSOR_HUM["💧 Sensor de Humedad"]
+        SENSOR_SND["🔊 Sensor de Sonido / Vibración"]
+        MICRO["📟 Microcontrolador<br/>(ESP32 / Arduino)"]
+        MODULO_GSM["📡 Módulo GSM/WiFi"]
+    end
+
+    %% ============================================================
+    %% CAPA BACKEND
+    %% ============================================================
+    subgraph CAPA_BACKEND["⚙️ CAPA BACKEND — Servicios y Datos"]
+        direction TB
+        API["🔗 API REST / GraphQL<br/>(Node.js / Python / Firebase)"]
+        AUTH["🔐 Servicio de Autenticación<br/>(JWT / OAuth)"]
+        DB[(🗄️ Base de Datos<br/>PostgreSQL / MongoDB / Firebase)]
+        BROKER["📨 Broker MQTT<br/>(Mosquitto / AWS IoT Core)"]
+        NOTIF["📲 Servicio de Notificaciones Push<br/>(Firebase Cloud Messaging)"]
+        SYNC["🔄 Servicio de Sincronización<br/>(Offline → Online)"]
+    end
+
+    %% ============================================================
+    %% APP MÓVIL
+    %% ============================================================
+    subgraph APP_MOVIL["📱 APLICACIÓN MÓVIL — AbejaNet"]
+        direction TB
+        M_LOGIN["🔑 Inicio de Sesión<br/>(RQF-05)"]
+        M_PERFIL["👤 Perfil de Usuario"]
+        M_COLMENAS["📋 Gestión de Colmenas<br/>(RQF-03)"]
+        M_BITACORA["📝 Bitácora de Visitas"]
+        M_OFFLINE["📴 Modo Offline / Sincronización<br/>(RQF-04)"]
+        M_ALERTAS["🚨 Alertas y Notificaciones<br/>(RNF-02)"]
+        M_IDIOMA["🌍 Cambio de Idioma<br/>(RNF-01)"]
+        M_RENDIMIENTO["⚡ Rendimiento & Usabilidad<br/>(RNF-03, RNF-05)"]
+    end
+
+    %% ============================================================
+    %% WEB ADMINISTRADOR
+    %% ============================================================
+    subgraph WEB_ADMIN["💻 WEB ADMINISTRADOR"]
+        direction TB
+        W_LOGIN["🔑 Login Administrador"]
+        W_DASHBOARD["📊 Dashboard General<br/>(métricas, gráficos)"]
+        W_USUARIOS["👥 Gestión de Usuarios<br/>(crear, editar, eliminar)"]
+        W_COLMENAS["📋 Gestión de Colmenas Globales"]
+        W_PASSWORDS["🔑 Cambio de Contraseñas / Roles"]
+        W_REPORTES["📈 Reportes y Exportación de Datos"]
+        W_ALERTAS_ADMIN["🚨 Configuración de Alertas IoT"]
+    end
+
+    %% ============================================================
+    %% FLUJOS DE DATO — IoT → Backend
+    %% ============================================================
+    SENSOR_TEMP --> MICRO
+    SENSOR_HUM --> MICRO
+    SENSOR_SND --> MICRO
+    MICRO --> MODULO_GSM
+    MODULO_GSM -->|"MQTT / HTTP"| BROKER
+    BROKER -->|"Procesa payload"| API
+    API -->|"Guarda lecturas"| DB
+    API -->|"Dispara alertas"| NOTIF
+
+    %% ============================================================
+    %% FLUJOS — App Móvil ↔ Backend
+    %% ============================================================
+    ACTOR_APICULTOR --> M_LOGIN
+    M_LOGIN -->|"POST /auth/login"| AUTH
+    AUTH -->|"Token JWT"| M_LOGIN
+
+    M_COLMENAS -->|"GET /api/colmenas"| API
+    API -->|"JSON: lista de colmenas"| M_COLMENAS
+
+    M_BITACORA -->|"POST /api/bitacora"| API
+    API -->|"Confirmación"| M_BITACORA
+
+    M_OFFLINE -->|"Datos locales (SQLite)"| M_OFFLINE
+    M_OFFLINE -->|"Cuando hay red: sincroniza"| SYNC
+    SYNC -->|"POST /api/sync"| API
+    API -->|"Resolución de conflictos"| SYNC
+    SYNC --> M_OFFLINE
+
+    NOTIF -->|"Push FCM"| M_ALERTAS
+    DB -->|"Consulta historial"| API
+    API -->|"Datos de sensores"| M_COLMENAS
+
+    M_IDIOMA -->|"react-i18next"| M_IDIOMA
+    M_RENDIMIENTO -->|"Optimización de renders"| M_RENDIMIENTO
+
+    %% ============================================================
+    %% FLUJOS — Web Admin ↔ Backend
+    %% ============================================================
+    ACTOR_ADMIN --> W_LOGIN
+    W_LOGIN -->|"POST /admin/auth"| AUTH
+    AUTH -->|"Token + Rol Admin"| W_LOGIN
+
+    W_DASHBOARD -->|"GET /api/metrics"| API
+    API -->|"Agregaciones de datos"| W_DASHBOARD
+
+    W_USUARIOS -->|"CRUD /api/admin/users"| API
+    W_COLMENAS -->|"CRUD /api/admin/colmenas"| API
+    W_PASSWORDS -->|"PATCH /api/admin/users/{id}/password"| API
+    W_REPORTES -->|"GET /api/admin/reports"| API
+    W_ALERTAS_ADMIN -->|"PUT /api/admin/alert-config"| API
+
+    API -->|"Consulta/Actualiza"| DB
+    NOTIF -->|"Notificaciones admin"| W_ALERTAS_ADMIN
+
+    %% ============================================================
+    %% ESTILOS DE NODOS
+    %% ============================================================
+    classDef iot fill:#E1F5FE,stroke:#0288D1,stroke-width:2px,color:#000
+    classDef backend fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px,color:#000
+    classDef mobile fill:#E8F5E9,stroke:#43A047,stroke-width:2px,color:#000
+    classDef web fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px,color:#000
+    classDef actor fill:#FFFDE7,stroke:#FBC02D,stroke-width:2px,color:#000
+    classDef comm fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px,stroke-dasharray: 5 5
+
+    class SENSOR_TEMP,SENSOR_HUM,SENSOR_SND,MICRO,MODULO_GSM iot
+    class API,AUTH,DB,BROKER,NOTIF,SYNC backend
+    class M_LOGIN,M_PERFIL,M_COLMENAS,M_BITACORA,M_OFFLINE,M_ALERTAS,M_IDIOMA,M_RENDIMIENTO mobile
+    class W_LOGIN,W_DASHBOARD,W_USUARIOS,W_COLMENAS,W_PASSWORDS,W_REPORTES,W_ALERTAS_ADMIN web
+    class ACTOR_APICULTOR,ACTOR_ADMIN actor
+    </pre>
+  </div>
+
+  <div class="diagram-container">
+    <h2 style="text-align:center; color:#1E1E1E;">Flujo de Datos IoT en Tiempo Real</h2>
+    <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant S as Sensores (Colmena)
+    participant MC as Microcontrolador<br/>(ESP32)
+    participant MQ as Broker MQTT
+    participant API as API Backend
+    participant DB as Base de Datos
+    participant FCM as Firebase Cloud<br/>Messaging
+    participant APP as App Móvil<br/>(Apicultor)
+    participant WEB as Web Admin
+
+    S->>MC: Lecturas cada 5 min<br/>(temp, humedad, sonido)
+    MC->>MQ: Publica a tema<br/>abejanet/colmena/{id}/sensores
+    MQ->>API: Suscripción recibe payload
+    API->>DB: INSERT INTO lecturas_sensores
+    API->>API: Evalúa umbrales críticos
+    alt Condición crítica detectada
+        API->>FCM: Envía notificación push
+        FCM->>APP: 🚨 Alerta: Temperatura alta en Colmena #3
+        API->>WEB: Actualiza dashboard en tiempo real<br/>(WebSocket / SSE)
+    else Todo normal
+        API->>WEB: Actualiza gráficos de métricas
+    end
+    APP->>API: GET /api/colmena/{id}/historial
+    API->>DB: SELECT * FROM lecturas<br/>WHERE colmena_id = {id}
+    DB->>API: Resultados JSON
+    API->>APP: Historial de sensores (24h, 7d, 30d)
+    WEB->>API: GET /api/admin/reportes
+    API->>DB: Consulta agregada
+    DB->>API: Datos agrupados
+    API->>WEB: Reporte CSV / PDF / Gráfico
+    </pre>
+  </div>
+
+  <div class="diagram-container">
+    <h2 style="text-align:center; color:#1E1E1E;">Arquitectura Física — Despliegue</h2>
+    <pre class="mermaid">
+graph LR
+    subgraph CAMPO["🌳 Campo — Apiario"]
+        COLMENA1["Colmena #1"]
+        COLMENA2["Colmena #2"]
+        COLMENA_N["Colmena #N"]
+        GATEWAY["📡 Gateway LoRa/WiFi"]
+    end
+
+    subgraph NUBE["☁️ Nube / Servidor"]
+        VPS["VPS / AWS / Heroku"]
+        DB_SERVER[(Base de Datos)]
+        API_SERVER["Servidor API"]
+        MQTT_BROKER["Broker MQTT"]
+    end
+
+    subgraph USUARIOS["👥 Usuarios"]
+        MOVIL["📱 App Móvil<br/>(React Native / Expo)"]
+        ADMIN["💻 Web Admin<br/>(React / Angular)"]
+    end
+
+    COLMENA1 -->|"LoRa / WiFi"| GATEWAY
+    COLMENA2 -->|"LoRa / WiFi"| GATEWAY
+    COLMENA_N -->|"LoRa / WiFi"| GATEWAY
+    GATEWAY -->|"HTTP / MQTT"| VPS
+    VPS --> API_SERVER
+    API_SERVER --> DB_SERVER
+    API_SERVER --> MQTT_BROKER
+    API_SERVER --> MOVIL
+    API_SERVER --> ADMIN
+    </pre>
+  </div>
+
+</body>
+</html>

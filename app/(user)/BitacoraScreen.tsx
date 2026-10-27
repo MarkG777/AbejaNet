@@ -18,10 +18,27 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../utils/api';
 import { getQueuedEvents, queueEvent, syncQueuedEvents } from '../../utils/offlineQueue';
+import { logPerfNav } from '../../utils/perfMetrics';
+
+LocaleConfig.locales['en'] = {
+  monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+  monthNamesShort: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  dayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  dayNamesShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  today: 'Today'
+};
+LocaleConfig.locales['es'] = {
+  monthNames: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+  monthNamesShort: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+  dayNames: ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'],
+  dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'],
+  today: 'Hoy'
+};
 
 interface BitacoraEvent {
   id: number;
@@ -65,8 +82,10 @@ const EVENT_TYPES = [
 
 export default function BitacoraScreen() {
   const colors = useAppColors();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
+
+  LocaleConfig.defaultLocale = i18n.language.startsWith('en') ? 'en' : 'es';
 
   const { authState } = useAuth();
   const currentUser = authState.user;
@@ -83,6 +102,8 @@ export default function BitacoraScreen() {
   const [apiarios, setApiarios] = useState<{ id: number; nombre: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [pendingEvents, setPendingEvents] = useState<QueuedBitacoraEvent[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const loadPendingEvents = useCallback(async () => {
     const queue: QueuedBitacoraEvent[] = await getQueuedEvents();
@@ -143,6 +164,7 @@ export default function BitacoraScreen() {
       fetchApiarios();
       loadPendingEvents();
       trySyncQueue();
+      logPerfNav('dashboard_to_bitacora', 'Dashboard → Bitácora');
     }, [fetchEvents, fetchApiarios, loadPendingEvents, trySyncQueue])
   );
 
@@ -287,6 +309,23 @@ export default function BitacoraScreen() {
 
   const combinedEvents = [...pendingAsEvents, ...events];
 
+  const toDateKey = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const markedDates = combinedEvents.reduce((acc: Record<string, any>, item) => {
+    const key = toDateKey(item.fecha);
+    acc[key] = { marked: true, dotColor: item.pending ? '#F59E0B' : colors.primary };
+    return acc;
+  }, {});
+
+  if (selectedDay) {
+    markedDates[selectedDay] = { ...(markedDates[selectedDay] || {}), selected: true, selectedColor: colors.primary };
+  }
+
+  const dayEvents = selectedDay ? combinedEvents.filter((e) => toDateKey(e.fecha) === selectedDay) : [];
+
   const renderEvent = ({ item }: { item: BitacoraEvent }) => (
     <View style={[styles.eventCard, { backgroundColor: colors.card }, item.pending && styles.eventCardPending]}>
       <View style={styles.eventHeader}>
@@ -338,9 +377,18 @@ export default function BitacoraScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>{t('bitacora_title', 'Bitácora Apícola')}</Text>
-        <TouchableOpacity onPress={() => openModal()} style={styles.addBtn}>
-          <Ionicons name="add-circle" size={28} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => { setViewMode(viewMode === 'list' ? 'calendar' : 'list'); setSelectedDay(null); }}
+            style={styles.addBtn}
+            accessibilityLabel={viewMode === 'list' ? t('bitacora_view_calendar', 'Ver calendario') : t('bitacora_view_list', 'Ver lista')}
+          >
+            <Ionicons name={viewMode === 'list' ? 'calendar-outline' : 'list-outline'} size={24} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => openModal()} style={styles.addBtn}>
+            <Ionicons name="add-circle" size={28} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -351,6 +399,47 @@ export default function BitacoraScreen() {
           <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
             {t('bitacora_empty', 'No hay eventos registrados. Toca + para agregar el primero.')}
           </Text>
+        </View>
+      ) : viewMode === 'calendar' ? (
+        <View style={{ flex: 1 }}>
+          <Calendar
+            current={selectedDay || undefined}
+            markedDates={markedDates}
+            onDayPress={(day) => setSelectedDay(day.dateString)}
+            firstDay={1}
+            theme={{
+              calendarBackground: colors.background,
+              dayTextColor: colors.text,
+              monthTextColor: colors.text,
+              textDisabledColor: colors.textTertiary,
+              arrowColor: colors.primary,
+              todayTextColor: colors.primary,
+              selectedDayBackgroundColor: colors.primary,
+            }}
+          />
+          {selectedDay ? (
+            dayEvents.length === 0 ? (
+              <View style={[styles.emptyState, { flex: 0, paddingVertical: 30 }]}>
+                <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+                  {t('bitacora_empty_day', 'No hay eventos este día.')}
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={dayEvents}
+                keyExtractor={(item) => item.pending ? item.localId! : item.id.toString()}
+                renderItem={renderEvent}
+                contentContainerStyle={styles.list}
+                showsVerticalScrollIndicator={false}
+              />
+            )
+          ) : (
+            <View style={[styles.emptyState, { flex: 0, paddingVertical: 30 }]}>
+              <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+                {t('bitacora_select_day', 'Toca un día para ver sus eventos.')}
+              </Text>
+            </View>
+          )}
         </View>
       ) : (
         <FlatList

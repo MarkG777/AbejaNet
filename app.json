@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo_abejanet_sin_letras.png",
-    "scheme": "com.markg777.AbejaNet",
+    "scheme": ["com.markg777.abejanet"],
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -21,6 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.markg777.AbejaNet",
+      "permissions": ["POST_NOTIFICATIONS"],
       "usesCleartextTraffic": true,
       "googleServicesFile": "./google-services.json",
       "notification": {

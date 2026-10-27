@@ -1,0 +1,92 @@
+\clearpage
+\subsection{RQF-04 — Indicador de conexión y caché offline del dashboard}
+
+\renewcommand{\arraystretch}{1.3}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{1. INFORMACIÓN DEL CLIENTE}} \\
+\hline
+Nombre de la empresa  & UTEQ \\ \hline
+Nombre del Contacto   & Angélica Garduño Bustamante \\ \hline
+Fecha de Elaboración  & 01/06/2026 \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5cm}|p{10.5cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{2. INFORMACIÓN GENERAL}} \\
+\hline
+Nombre del Requerimiento     & RQF 04. Indicador de conexión y caché offline del dashboard \\ \hline
+Tipo de Requerimiento        & Funcional \\ \hline
+Fecha requerida de solución  & 15/07/2026 \\ \hline
+Prioridad                    & Alta \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{4.5cm}|p{11cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{2}{|l|}{\color{white}\textbf{3. DESCRIPCIÓN DEL REQUERIMIENTO}} \\
+\hline
+Objetivo del Requerimiento &
+Implementar un sistema de detección de conectividad y caché local del dashboard que permita al usuario consultar los últimos datos disponibles cuando no exista conexión a internet, mostrando un indicador visual claro de su estado. \\
+\hline
+Beneficio esperado &
+La aplicación se mantiene utilizable durante caídas de conexión o \textit{cold starts} del backend. El usuario obtiene información reciente sin pantallas de carga infinita y comprende el estado de la red en todo momento. \\
+\hline
+Alcance &
+- Integrar la librería \texttt{@react-native-community/netinfo}. \par
+- Mostrar un banner superior cuando no haya conexión. \par
+- Cachear el último resumen del dashboard en \texttt{AsyncStorage}. \par
+- Refrescar automáticamente al recuperar conexión. \\
+\hline
+Ubicación & \url{https://github.com/MarkG777/AbejaNet} \\ \hline
+Descripción de Usuarios y Responsables &
+\textbf{Usuarios:} \par
+\textbf{Usuario (Cliente):} consulta el dashboard con o sin conexión a internet. \par
+\vspace{0.1cm}
+\textbf{Responsables:} \par
+\textbf{App Móvil:} detecta el estado de la red y administra el caché. \par
+\textbf{AsyncStorage:} persiste localmente el último resumen recibido. \par
+\textbf{API Backend:} provee los datos cuando hay conexión disponible. \\
+\hline
+Descripción funcional &
+1. Al abrir el dashboard, la app consulta el estado de la red mediante \texttt{NetInfo}. \par
+2. Si hay conexión, se descargan los datos del backend y se almacenan en caché con marca de tiempo. \par
+3. Si no hay conexión, se muestra un banner superior amarillo con el mensaje \textit{``Sin conexión''}. \par
+4. La pantalla muestra los últimos datos cacheados con la leyenda \textit{``Actualizado hace X min''}. \par
+5. Cuando la conexión se restablece, la app refresca automáticamente los datos. \par
+6. El banner desaparece al confirmarse la reconexión. \\
+\hline
+Restricciones &
+- El caché debe limitarse al último resumen del dashboard para evitar consumo excesivo de almacenamiento. \par
+- La marca de tiempo debe persistirse junto con los datos. \\
+\hline
+Precedencias & RQF 01. Requerimiento general Móvil \\ \hline
+Documentación requerida & Manual de usuario actualizado con la nueva sección de comportamiento offline. \\ \hline
+Observaciones & Se reutiliza el sistema de \texttt{AsyncStorage} ya integrado en el proyecto para tokens de sesión. \\ \hline
+\end{tabular}
+
+\vspace{0.3cm}
+
+\noindent
+\begin{tabular}{|p{5.1cm}|p{5.1cm}|p{5.1cm}|}
+\hline
+\rowcolor{secVerde}\multicolumn{3}{|l|}{\color{white}\textbf{4. CONDICIONES DE PRUEBA}} \\
+\hline
+\rowcolor{cellGris}\textbf{Condición} & \textbf{Validación} & \textbf{Resultado} \\
+\hline
+El usuario activa el modo avión con la app abierta en el dashboard. &
+La app debe detectar la pérdida de conexión y reaccionar visualmente. &
+Aparece el banner \textit{``Sin conexión''} y se muestran los datos cacheados con marca de tiempo. \\
+\hline
+El usuario abre la app sin conexión por primera vez tras tener datos cacheados. &
+La app debe cargar los datos desde \texttt{AsyncStorage} sin intentar petición HTTP. &
+El dashboard se renderiza con los datos cacheados en menos de 2 segundos. \\
+\hline
+\end{tabular}

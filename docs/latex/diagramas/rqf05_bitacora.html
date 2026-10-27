@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>RQF-05 Bitacora</title>
+<style>
+  body{margin:0;padding:30px;font-family:'Segoe UI',Arial,sans-serif;background:#fafafa}
+  .canvas{
+    width:1200px;height:780px;background:#fff;position:relative;
+    background-image:
+      linear-gradient(#e8e8e8 1px,transparent 1px),
+      linear-gradient(90deg,#e8e8e8 1px,transparent 1px);
+    background-size:25px 25px;
+    border:1px solid #ddd;
+  }
+  h1{position:absolute;top:15px;left:50%;transform:translateX(-50%);font-size:22px;margin:0;color:#222}
+  .actor{position:absolute;text-align:center;font-weight:600;font-size:14px;color:#222}
+  .actor svg{display:block;margin:0 auto 6px}
+  .uc{
+    position:absolute;background:#fff;border:1.5px solid #444;border-radius:8px;
+    padding:12px 14px;font-size:13px;text-align:center;color:#222;
+    min-width:155px;max-width:175px;line-height:1.25;
+    box-shadow:1px 1px 0 #ccc;
+  }
+  .lbl{position:absolute;font-size:11px;color:#666;font-style:italic;background:#fff;padding:1px 4px}
+  .group{
+    position:absolute;border:1.5px dashed #888;border-radius:10px;
+    background:rgba(255,193,7,0.05);
+  }
+  .group-title{
+    position:absolute;top:-12px;left:14px;background:#fff;padding:0 8px;
+    font-size:12px;font-weight:600;color:#666
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <h1>Caso de Uso — RQF-05 Bitácora Apícola con Calendario</h1>
+
+  <!-- Actor Apicultor izquierda -->
+  <div class="actor" style="left:40px;top:330px;width:100px">
+    <svg width="60" height="100" viewBox="0 0 60 100">
+      <circle cx="30" cy="15" r="11" fill="none" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="26" x2="30" y2="65" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="40" x2="10" y2="55" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="40" x2="50" y2="55" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="65" x2="14" y2="92" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="65" x2="46" y2="92" stroke="#222" stroke-width="2"/>
+    </svg>
+    Apicultor
+  </div>
+
+  <!-- Base de datos PostgreSQL derecha -->
+  <div class="actor" style="right:30px;top:340px;width:130px">
+    <svg width="60" height="100" viewBox="0 0 60 100">
+      <circle cx="30" cy="15" r="11" fill="none" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="26" x2="30" y2="65" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="40" x2="10" y2="55" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="40" x2="50" y2="55" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="65" x2="14" y2="92" stroke="#222" stroke-width="2"/>
+      <line x1="30" y1="65" x2="46" y2="92" stroke="#222" stroke-width="2"/>
+    </svg>
+    BD PostgreSQL
+  </div>
+
+  <!-- Grupo: Acceso desde Drawer -->
+  <div class="group" style="left:200px;top:70px;width:430px;height:280px">
+    <div class="group-title">Acceso desde Drawer</div>
+  </div>
+  <div class="uc" style="left:220px;top:105px">Abrir Bitácora<br>desde menú</div>
+  <div class="uc" style="left:430px;top:105px">Ver calendario<br>mensual</div>
+  <div class="uc" style="left:220px;top:225px">Filtrar por<br>colmena/apiario</div>
+  <div class="uc" style="left:430px;top:225px">Seleccionar día<br>con eventos</div>
+
+  <!-- Grupo: Acceso desde Colmena -->
+  <div class="group" style="left:200px;top:390px;width:430px;height:170px">
+    <div class="group-title">Acceso desde ColmenaDetail</div>
+  </div>
+  <div class="uc" style="left:220px;top:420px">Abrir detalle<br>de colmena</div>
+  <div class="uc" style="left:430px;top:420px">Tocar «Registrar<br>evento»</div>
+
+  <!-- Casos de uso centrales (compartidos) -->
+  <div class="uc" style="left:710px;top:160px">Listar eventos<br>del día</div>
+  <div class="uc" style="left:710px;top:280px">Crear nuevo<br>evento</div>
+  <div class="uc" style="left:710px;top:400px">Editar o eliminar<br>evento</div>
+  <div class="uc" style="left:710px;top:520px">Persistir cambios<br>en backend</div>
+
+  <div class="uc" style="left:710px;top:640px;background:#fff8dc">Tipos: Inspección, Cosecha,<br>Tratamiento, Reina, Nota...</div>
+
+  <!-- Flechas -->
+  <svg style="position:absolute;left:0;top:0;pointer-events:none" width="1200" height="780">
+    <defs>
+      <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0,0 L10,5 L0,10 z" fill="#222"/>
+      </marker>
+    </defs>
+    <!-- Actor -> UCs principales -->
+    <line x1="140" y1="350" x2="218" y2="130" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <line x1="140" y1="355" x2="218" y2="250" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <line x1="140" y1="365" x2="218" y2="445" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+    <!-- Flujo dentro Drawer -->
+    <line x1="385" y1="130" x2="428" y2="130" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <line x1="510" y1="160" x2="510" y2="220" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <line x1="385" y1="250" x2="428" y2="250" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)" stroke-dasharray="4,4"/>
+
+    <!-- Drawer -> Centrales -->
+    <line x1="595" y1="250" x2="708" y2="190" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+    <!-- ColmenaDetail flow -->
+    <line x1="385" y1="445" x2="428" y2="445" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <line x1="595" y1="445" x2="708" y2="310" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+    <!-- Listar -> Crear/Editar -->
+    <line x1="790" y1="210" x2="790" y2="275" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <line x1="790" y1="330" x2="790" y2="395" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+    <!-- Crear/Editar -> Persistir -->
+    <line x1="790" y1="450" x2="790" y2="515" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+    <!-- Crear -> tipos include -->
+    <line x1="790" y1="330" x2="790" y2="635" stroke="#222" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arr3)"/>
+
+    <!-- Persistir -> BD -->
+    <line x1="880" y1="545" x2="1055" y2="395" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)"/>
+
+    <!-- BD -> Listar (lectura) -->
+    <line x1="1055" y1="380" x2="880" y2="190" stroke="#222" stroke-width="1.5" marker-end="url(#arr3)" stroke-dasharray="3,3"/>
+  </svg>
+
+  <div class="lbl" style="left:810px;top:540px">«include»</div>
+  <div class="lbl" style="left:960px;top:280px">lectura</div>
+  <div class="lbl" style="left:960px;top:480px">escritura</div>
+</div>
+</body>
+</html>

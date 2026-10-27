@@ -1,0 +1,320 @@
+<title>Esquema AbejaNet v5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Plan: papel cálido y tinta verde-negra, ámbar de miel como único acento.
+     Diseño de referencia técnica: jerarquía tipográfica clara, el diagrama
+     vive en una superficie de papel fija para que se lea igual en ambos temas.
+     Tipos: IBM Plex Sans (texto), IBM Plex Mono (identificadores). */
+  :root {
+    --bg: #F5F2EA;
+    --fg: #1F2A22;
+    --muted: #64695D;
+    --line: #DCD6C6;
+    --card: #FBFAF6;
+    --accent: #A8690F;
+    --paper: #FFFDF7;
+    --paper-ink: #1F2A22;
+    --chip: #EFE8D6;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14150F;
+      --fg: #ECE8DA;
+      --muted: #A3A593;
+      --line: #35362C;
+      --card: #1C1E17;
+      --accent: #E3AA45;
+      --paper: #FFFDF7;
+      --paper-ink: #1F2A22;
+      --chip: #2A2B20;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14150F;
+    --fg: #ECE8DA;
+    --muted: #A3A593;
+    --line: #35362C;
+    --card: #1C1E17;
+    --accent: #E3AA45;
+    --paper: #FFFDF7;
+    --paper-ink: #1F2A22;
+    --chip: #2A2B20;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-block: 20px 56px;
+    padding-inline: 16px;
+    display: grid;
+    gap: 28px;
+  }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 {
+    font-size: clamp(26px, 5vw, 36px);
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 6px 0 10px;
+    text-wrap: balance;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede { color: var(--muted); max-width: 65ch; margin: 0; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    min-width: 0;
+  }
+  .paper {
+    background: var(--paper);
+    color: var(--paper-ink);
+    border-radius: 8px;
+    padding: 12px;
+    overflow-x: auto;
+  }
+  .paper pre.mermaid {
+    margin: 0;
+    background: transparent;
+    display: flex;
+    justify-content: center;
+  }
+  .paper pre.mermaid svg {
+    max-width: none !important;
+    width: 100% !important;
+    height: auto;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    background: var(--chip);
+    border-radius: 6px;
+    padding: 3px 8px;
+    color: var(--fg);
+  }
+  .table-wrap { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  td code, .mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 13px;
+  }
+  ul.notes {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+  }
+  footer {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">PostgreSQL · 9 tablas · v5</div>
+    <h1>Esquema AbejaNet v5</h1>
+    <p class="lede">Diagrama entidad-relación de la base de datos compartida por la app móvil y el panel web. Las columnas en tipo simplificado; el detalle exacto está en <span class="mono">abeja_net_v5_postgres.sql</span>.</p>
+    <div class="meta">
+      <span class="chip">Verificado contra Render: 2026-08-20</span>
+      <span class="chip">Llaves: PK · FK · UK</span>
+      <span class="chip">Cardinalidad: notación crow's foot</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>Diagrama entidad-relación</h2>
+    <div class="paper">
+<pre class="mermaid">
+erDiagram
+  ROLES ||--o{ USUARIOS : "asigna rol"
+  USUARIOS |o--o{ APIARIOS : "crea"
+  APIARIOS ||--o{ COLMENAS : "contiene"
+  USUARIOS ||--o{ USUARIOS_APIARIOS : "tiene acceso"
+  APIARIOS ||--o{ USUARIOS_APIARIOS : "se comparte en"
+  USUARIOS |o--o{ USUARIOS_APIARIOS : "asigna"
+  COLMENAS |o--o{ SENSORES : "monitoreada por"
+  SENSORES ||--o{ LECTURAS_AMBIENTALES : "registra"
+  COLMENAS ||--o{ ALERTAS : "genera"
+  USUARIOS ||--o{ BITACORA : "escribe"
+  APIARIOS ||--o{ BITACORA : "pertenece a"
+  COLMENAS |o--o{ BITACORA : "referencia"
+
+  ROLES {
+    smallint id PK
+    varchar nombre UK "administrador, usuario"
+  }
+  USUARIOS {
+    int id PK
+    varchar nombre
+    varchar apellido_paterno
+    varchar apellido_materno
+    varchar correo_electronico UK
+    varchar contrasena "bcrypt; NULL en cuentas Google"
+    varchar push_token
+    text refresh_token
+    varchar proveedor_auth "local o google"
+    varchar secreto_2fa "TOTP, panel web"
+    smallint rol_id FK
+    bool esta_activo
+    timestamp fecha_creacion
+  }
+  APIARIOS {
+    int id PK
+    varchar nombre UK
+    text descripcion_general
+    varchar direccion_o_coordenadas
+    timestamp fecha_creacion
+    int creado_por_usuario_id FK "NULL si se borra el usuario"
+  }
+  COLMENAS {
+    int id PK
+    int apiario_id FK
+    varchar nombre UK
+    text descripcion_especifica
+    timestamp fecha_creacion
+  }
+  USUARIOS_APIARIOS {
+    int usuario_id PK, FK
+    int apiario_id PK, FK
+    timestamp fecha_asignacion
+    int asignado_por_admin_id FK "NULL si se borra el admin"
+  }
+  SENSORES {
+    int id PK
+    varchar mac_address UK "NULL permitido"
+    int colmena_id FK "NULL: sin colmena"
+    varchar tipo_sensor
+    enum estado "activo, inactivo, mantenimiento, no_asignado"
+    timestamp fecha_instalacion
+    timestamp ultima_lectura_en
+  }
+  LECTURAS_AMBIENTALES {
+    bigint id PK
+    int sensor_id FK
+    decimal humedad
+    decimal temperatura
+    decimal peso
+    decimal sonido
+    bool lluvia
+    timestamp fecha_registro
+  }
+  ALERTAS {
+    int id PK
+    int colmena_id FK
+    varchar tipo_alerta
+    varchar valor_registrado
+    varchar mensaje
+    bool leida
+    timestamp fecha_alerta
+  }
+  BITACORA {
+    int id PK
+    int usuario_id FK
+    int apiario_id FK
+    int colmena_id FK "opcional"
+    date fecha
+    varchar tipo_evento
+    text descripcion
+    timestamp created_at
+  }
+</pre>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Relaciones y comportamiento al borrar</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tabla padre</th>
+            <th>Tabla hija</th>
+            <th>Columna FK</th>
+            <th>Cardinalidad</th>
+            <th>Al borrar el padre</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>roles</td><td>usuarios</td><td class="mono">rol_id</td><td>1 : N</td><td>Bloquea el borrado si el rol tiene usuarios</td></tr>
+          <tr><td>usuarios</td><td>apiarios</td><td class="mono">creado_por_usuario_id</td><td>0..1 : N</td><td>Se pone NULL</td></tr>
+          <tr><td>apiarios</td><td>colmenas</td><td class="mono">apiario_id</td><td>1 : N</td><td>Se borran en cascada</td></tr>
+          <tr><td>usuarios</td><td>usuarios_apiarios</td><td class="mono">usuario_id</td><td>N : M (puente)</td><td>Se borra el vínculo</td></tr>
+          <tr><td>apiarios</td><td>usuarios_apiarios</td><td class="mono">apiario_id</td><td>N : M (puente)</td><td>Se borra el vínculo</td></tr>
+          <tr><td>usuarios</td><td>usuarios_apiarios</td><td class="mono">asignado_por_admin_id</td><td>0..1 : N</td><td>Se pone NULL</td></tr>
+          <tr><td>colmenas</td><td>sensores</td><td class="mono">colmena_id</td><td>0..1 : N</td><td>El sensor queda sin colmena (NULL)</td></tr>
+          <tr><td>sensores</td><td>lecturas_ambientales</td><td class="mono">sensor_id</td><td>1 : N</td><td>Se borran en cascada</td></tr>
+          <tr><td>colmenas</td><td>alertas</td><td class="mono">colmena_id</td><td>1 : N</td><td>Se borran en cascada</td></tr>
+          <tr><td>usuarios</td><td>bitacora</td><td class="mono">usuario_id</td><td>1 : N</td><td>Se borran en cascada</td></tr>
+          <tr><td>apiarios</td><td>bitacora</td><td class="mono">apiario_id</td><td>1 : N</td><td>Se borran en cascada</td></tr>
+          <tr><td>colmenas</td><td>bitacora</td><td class="mono">colmena_id</td><td>0..1 : N</td><td>Se pone NULL</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Notas para el equipo</h2>
+    <ul class="notes">
+      <li><span class="mono">lluvia</span> existe en <span class="mono">lecturas_ambientales</span>, pero el firmware del ESP32 lo envía fijo en <span class="mono">false</span>: no hay sensor de lluvia conectado.</li>
+      <li><span class="mono">sensores.ultima_lectura_en</span> se actualiza desde el backend al insertar cada lectura; no es una llave ni un dato calculado en la BD.</li>
+      <li>En la BD real, <span class="mono">bitacora.colmena_id</span> quedó como última columna por una migración posterior. El orden de columnas no afecta el funcionamiento.</li>
+      <li>El próximo sensor previsto (BME280) aporta presión barométrica, que <span class="mono">lecturas_ambientales</span> aún no contempla. Agregarlo implica una migración de esquema compartida.</li>
+    </ul>
+  </section>
+
+  <footer>Fuente: <span class="mono">abeja_net_v5_postgres.sql</span>. Este diagrama no reemplaza el script: si el esquema cambia, actualizar ambos.</footer>
+
+</div>

@@ -1,0 +1,25 @@
+\section{Introducción}
+
+\subsection{Contexto}
+
+AbejaNet es una plataforma de monitoreo IoT para la apicultura que integra sensores ESP32, un backend en Node.js/PostgreSQL desplegado en Render, una aplicación web de administración y una aplicación móvil construida con React Native y Expo. La aplicación móvil permite a los apicultores supervisar en tiempo real la temperatura, humedad, peso y sonido de sus colmenas, así como recibir alertas críticas mediante notificaciones push.
+
+El proyecto es desarrollado por un equipo multidisciplinario: \textbf{Marco Antonio Gómez Olvera} (programador de la aplicación móvil), \textbf{Israel Gómez Bonilla} (desarrollador de la aplicación web de administración), \textbf{Orlando Cabrera Rubio} (encargado de IoT) y \textbf{Sandra Zoé Cabrera Velázquez} (encargada de documentación).
+
+Actualmente la aplicación cuenta con funcionalidades base implementadas: autenticación con JWT y refresh tokens, autenticación biométrica al reabrir la app, soporte de tema claro/oscuro, registro de usuarios con validación de contraseña fuerte, recuperación de contraseña por código de verificación, dashboard con resumen de apiarios, gestión de colmenas, alertas históricas y exportación de datos a CSV.
+
+\subsection{Motivación de las Mejoras}
+
+A partir de un análisis del código fuente y de la experiencia de uso, se identificaron áreas concretas en las que la aplicación puede elevar su calidad sin comprometer la estabilidad existente. Estas mejoras se concentran en tres ejes:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Experiencia de usuario (UX):} retroalimentación inmediata en formularios, internacionalización completa, retroalimentación háptica y notificaciones tipo \textit{toast} no intrusivas.
+  \item \textbf{Seguridad:} prevención de envíos múltiples de peticiones (anti-spam), bloqueo automático por inactividad y resiliencia ante caídas de conexión.
+  \item \textbf{Plus funcional:} una bitácora apícola digital con calendario que sustituye los cuadernos físicos tradicionales del apicultor.
+\end{itemize}
+
+\subsection{Objetivo del Documento}
+
+El presente documento especifica \textbf{únicamente los requerimientos de la aplicación móvil} de AbejaNet correspondientes al \textbf{Prototipo Versión 3}. Quedan fuera de su alcance los requerimientos de la aplicación web de administración, del backend (salvo el soporte mínimo necesario para una funcionalidad móvil) y del subsistema IoT, los cuales se documentan por separado.
+
+El documento se organiza en dos bloques: \textbf{requerimientos funcionales} y \textbf{requerimientos no funcionales}. Cada requerimiento es alcanzable dentro del cuatrimestre Mayo — Agosto 2026 y los requerimientos funcionales se complementan con un diagrama de casos de uso al final del documento.

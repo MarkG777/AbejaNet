@@ -41,6 +41,15 @@ export default function LoginScreen() {
     return emailRegex.test(value) ? '' : t('email_invalid', 'El correo electrónico no es válido.');
   };
 
+  const handleEmailBlur = () => {
+    const perfStart = performance.now();
+    const error = validateEmail(email);
+    setEmailError(error);
+    if (__DEV__) console.log(`[PERF] Validación onBlur (login): ${(performance.now() - perfStart).toFixed(0)}ms`);
+  };
+
+  const isEmailFormatValid = email === '' || validateEmail(email) === '';
+
   useEffect(() => {
     if (googleConfigured.current) return;
     googleConfigured.current = true;
@@ -154,7 +163,7 @@ export default function LoginScreen() {
               placeholderTextColor={colors.placeholder}
               value={email}
               onChangeText={(text) => { setEmail(text); setEmailError(''); }}
-              onBlur={() => setEmailError(validateEmail(email))}
+              onBlur={handleEmailBlur}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -176,7 +185,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleLogin} disabled={isLoading || isGoogleLoading}>
+          <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }, (isLoading || isGoogleLoading || !isEmailFormatValid) && styles.buttonDisabled]} onPress={handleLogin} disabled={isLoading || isGoogleLoading || !isEmailFormatValid}>
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
@@ -277,6 +286,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.5,
   },
   googleButton: {
     flexDirection: 'row',
