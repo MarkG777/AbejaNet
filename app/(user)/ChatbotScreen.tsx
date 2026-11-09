@@ -32,6 +32,20 @@ interface ChatMessage {
 
 const SUGGESTION_KEYS = ['chatbot_suggestion_1', 'chatbot_suggestion_2', 'chatbot_suggestion_3'] as const;
 
+// Gemini responde con Markdown básico: "* " como viñeta y **negritas**. Se muestra sin asteriscos sueltos.
+const formatBotText = (text: string): React.ReactNode[] => {
+  const withBullets = text.replace(/^[ \t]*[*-][ \t]+/gm, '• ');
+  return withBullets.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 === 1 ? (
+      <Text key={i} style={{ fontWeight: '700' }}>
+        {part}
+      </Text>
+    ) : (
+      part
+    )
+  );
+};
+
 export default function ChatbotScreen() {
   const colors = useAppColors();
   const { t } = useTranslation();
@@ -142,7 +156,9 @@ export default function ChatbotScreen() {
             <ActivityIndicator size="small" color={colors.textTertiary} />
           ) : (
             <>
-              <Text style={[styles.bubbleText, { color: item.error ? colors.danger : colors.text }]}>{item.text}</Text>
+              <Text style={[styles.bubbleText, { color: item.error ? colors.danger : colors.text }]}>
+                {item.error ? item.text : formatBotText(item.text)}
+              </Text>
               {item.error && item.retryQuestion && (
                 <TouchableOpacity onPress={() => handleRetry(item.id, item.retryQuestion!)} style={styles.retryButton}>
                   <Ionicons name="refresh" size={14} color={colors.primary} />
