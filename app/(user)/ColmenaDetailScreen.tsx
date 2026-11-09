@@ -165,7 +165,7 @@ const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => 
 
 // Pantalla Principal
 export default function ColmenaDetailScreen() {
-  const { colmenaId, nombre } = useLocalSearchParams<{ colmenaId: string; nombre: string }>();
+  const { colmenaId, colmenaNombre: nombre } = useLocalSearchParams<{ colmenaId: string; colmenaNombre: string }>();
   const { authState } = useAuth();
   const colors = useAppColors();
   const [lecturas, setLecturas] = useState<Lectura[]>([]);
