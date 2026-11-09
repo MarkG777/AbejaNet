@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import i18n from 'i18next';
 import { Alert, Platform } from 'react-native';
 
 export interface CsvRow {
@@ -92,7 +93,7 @@ export const shareCsv = async (data: CsvRow[], colmenaName: string): Promise<voi
 
     const isAvailable = await Sharing.isAvailableAsync();
     if (!isAvailable) {
-      Alert.alert('Error', 'La función de compartir no está disponible en este dispositivo.');
+      Alert.alert(i18n.t('error', 'Error'), i18n.t('export_share_unavailable', 'La función de compartir no está disponible en este dispositivo.'));
       return;
     }
 
@@ -103,7 +104,7 @@ export const shareCsv = async (data: CsvRow[], colmenaName: string): Promise<voi
     });
   } catch (error) {
     console.error('Error al compartir CSV:', error);
-    Alert.alert('Error', 'No se pudo compartir el archivo CSV.');
+    Alert.alert(i18n.t('error', 'Error'), i18n.t('export_share_error', 'No se pudo compartir el archivo CSV.'));
   }
 };
 
@@ -127,13 +128,13 @@ export const saveCsvToDownloads = async (data: CsvRow[], colmenaName: string): P
       await FileSystem.writeAsStringAsync(fileUri, content, {
         encoding: FileSystem.EncodingType.UTF8,
       });
-      Alert.alert('Guardado', `Archivo "${fileName}" guardado correctamente.`);
+      Alert.alert(i18n.t('saved', 'Guardado'), i18n.t('export_saved', 'Archivo "{{name}}" guardado correctamente.', { name: fileName }));
     } else {
       // iOS: no tiene carpeta Descargas accesible, usar compartir
       await shareCsv(data, colmenaName);
     }
   } catch (error) {
     console.error('Error al guardar CSV:', error);
-    Alert.alert('Error', 'No se pudo guardar el archivo CSV.');
+    Alert.alert(i18n.t('error', 'Error'), i18n.t('export_save_error', 'No se pudo guardar el archivo CSV.'));
   }
 };

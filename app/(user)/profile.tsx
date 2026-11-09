@@ -322,7 +322,7 @@ const ProfileScreen = () => {
               <Ionicons name="pencil" size={18} color="#fff" />
               <Text style={styles.editButtonText}>{t('edit_profile', 'Editar Perfil')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.editButton, { backgroundColor: colors.textSecondary, marginTop: 10 }]} onPress={() => setIsChangingPassword(true)}>
+            <TouchableOpacity style={[styles.editButton, { backgroundColor: '#4B5563', marginTop: 10 }]} onPress={() => setIsChangingPassword(true)}>
               <Ionicons name="lock-closed-outline" size={18} color="#fff" />
               <Text style={styles.editButtonText}>{t('change_password', 'Cambiar Contraseña')}</Text>
             </TouchableOpacity>

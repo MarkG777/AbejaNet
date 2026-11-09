@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { isAxiosError } from 'axios';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { enUS, es } from 'date-fns/locale';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,7 +30,7 @@ interface Alerta {
 const AlertsScreen = () => {
   const router = useRouter();
   const colors = useAppColors();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [alertas, setAlertas] = useState<Alerta[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +126,7 @@ const AlertsScreen = () => {
             {item.apiario_nombre} / {item.colmena_nombre}
           </Text>
           <Text style={[styles.alertDate, { color: colors.textTertiary }]}>
-            {format(new Date(item.fecha_alerta), "d 'de' MMMM, yyyy 'a las' HH:mm", { locale: es })}
+            {format(new Date(item.fecha_alerta), t('alert_date_format', "d 'de' MMMM, yyyy 'a las' HH:mm"), { locale: i18n.language.startsWith('en') ? enUS : es })}
           </Text>
         </View>
       </View>

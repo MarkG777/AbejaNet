@@ -213,13 +213,13 @@ const chatbotLimiter = rateLimit({
 });
 
 app.post('/api/chatbot', verificarToken, chatbotLimiter, async (req, res) => {
-  const { pregunta, historial } = req.body;
+  const { pregunta, historial, idioma } = req.body;
   if (!pregunta || typeof pregunta !== 'string') {
     return res.status(400).json({ success: false, message: 'Falta la pregunta.' });
   }
 
   try {
-    const respuesta = await responderPregunta(pregunta, req.usuario.userId, historial);
+    const respuesta = await responderPregunta(pregunta, req.usuario.userId, historial, idioma);
     res.json({ success: true, respuesta });
   } catch (error) {
     console.error('Error en /api/chatbot:', error);
@@ -547,6 +547,50 @@ app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
   }
 });
 
+// Noticias del sector. La API key de NewsAPI vive solo en el servidor (NEWS_API_KEY); la app ya no la lleva.
+const NEWS_QUERIES = {
+  en: '(beekeeping OR beekeeper OR hives OR pollination OR "honey production" OR (bees AND (honey OR agriculture OR nature OR insect OR flower OR swarm OR nectar OR farm OR environmental))) NOT (team OR game OR clothing OR baby OR sports OR club OR league OR movie OR film OR trailer OR actor OR celebrity)',
+  es: '(apicultura OR apicultor OR colmenas OR polinización OR "producción de miel" OR (abejas AND (miel OR agricultura OR naturaleza OR insecto OR flor OR enjambre OR néctar OR campo OR ambiental))) NOT (equipo OR juego OR ropa OR bebé OR deportes OR club OR liga OR fútbol OR película OR cine OR tráiler OR actor OR famoso)',
+};
+const NEWS_CACHE_TTL_MS = 15 * 60 * 1000;
+const newsCache = new Map(); // idioma -> { at, articles }
+
+app.get('/api/noticias', verificarToken, async (req, res) => {
+  const lang = req.query.lang === 'en' ? 'en' : 'es';
+  const apiKey = process.env.NEWS_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ success: false, message: 'Las noticias no están configuradas en el servidor.' });
+  }
+
+  const cached = newsCache.get(lang);
+  if (cached && Date.now() - cached.at < NEWS_CACHE_TTL_MS) {
+    return res.json({ success: true, articles: cached.articles });
+  }
+
+  try {
+    const { data } = await axios.get('https://newsapi.org/v2/everything', {
+      params: { q: NEWS_QUERIES[lang], searchIn: 'title', language: lang, sortBy: 'publishedAt', apiKey },
+      timeout: 10000,
+    });
+    const articles = (data.articles || [])
+      .filter((a) => a.title && a.title !== '[Removed]')
+      .map((a) => ({
+        title: a.title,
+        url: a.url,
+        urlToImage: a.urlToImage,
+        publishedAt: a.publishedAt,
+        source: { name: a.source?.name || '' },
+      }));
+    newsCache.set(lang, { at: Date.now(), articles });
+    res.json({ success: true, articles });
+  } catch (err) {
+    // No se registra el error completo: el objeto de axios incluye la URL con la API key.
+    console.error('Error en GET /api/noticias:', err.response?.status || err.code || err.message);
+    if (cached) return res.json({ success: true, articles: cached.articles });
+    res.status(502).json({ success: false, message: 'No se pudieron obtener las noticias.' });
+  }
+});
+
 app.get('/api/apiarios', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   const userRol = req.usuario.rol;
@@ -594,16 +638,19 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
     }
 
     // 2. Si tiene acceso, obtener las colmenas junto con la última lectura de su(s) sensor(es)
-    // (una colmena puede tener más de un sensor; se toma la lectura más reciente entre todos)
+    // (una colmena puede tener más de un sensor; se toma la lectura más reciente entre todos).
+    // sensores.ultima_lectura_en puede estar vacío en datos que no entraron por los endpoints de
+    // ingesta, así que se compara también con la última lectura real (igual que /ultima-lectura).
     const { rows: colmenas } = await pool.query(
-      `SELECT c.id, c.nombre, c.descripcion_especifica, s.ultima_lectura_en
+      `SELECT c.id, c.nombre, c.descripcion_especifica,
+              GREATEST(
+                (SELECT MAX(s.ultima_lectura_en) FROM sensores s WHERE s.colmena_id = c.id),
+                (SELECT MAX(l.fecha_registro)
+                 FROM lecturas_ambientales l
+                 JOIN sensores s ON l.sensor_id = s.id
+                 WHERE s.colmena_id = c.id)
+              ) AS ultima_lectura_en
        FROM colmenas c
-       LEFT JOIN (
-         SELECT colmena_id, MAX(ultima_lectura_en) AS ultima_lectura_en
-         FROM sensores
-         WHERE colmena_id IS NOT NULL
-         GROUP BY colmena_id
-       ) s ON s.colmena_id = c.id
        WHERE c.apiario_id = $1`,
       [apiarioId]
     );

@@ -121,7 +121,7 @@ export default function UserLayout() {
       <Drawer.Screen
         name="ChatbotScreen"
         options={{
-          title: 'Abeja Asistente',
+          title: t('chatbot_title', 'Abeja Asistente'),
           drawerIcon: ({ color, size }) => (
             <Ionicons name="chatbubble-ellipses-outline" size={size} color={color} />
           ),
@@ -130,14 +130,14 @@ export default function UserLayout() {
       <Drawer.Screen
         name="ApiarioDetailScreen"
         options={{
-          title: 'Detalle del Apiario',
+          title: t('apiary_detail_title', 'Detalle del Apiario'),
           drawerItemStyle: { display: 'none' }, // Oculta esta pantalla del menú lateral
         }}
       />
       <Drawer.Screen
         name="ColmenaDetailScreen"
         options={({ route }) => ({
-          title: 'Detalle de la Colmena',
+          title: t('hive_detail_title', 'Detalle de la Colmena'),
           drawerItemStyle: { display: 'none' },
           headerLeft: () => {
             const params = route.params as { apiarioId: string; apiarioNombre: string };

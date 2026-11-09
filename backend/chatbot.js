@@ -1,20 +1,63 @@
 import { GoogleGenAI, Type, createPartFromFunctionResponse } from '@google/genai';
 import pool from './db.js';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }); // Free tier: sin tarjeta, sin costo
+// Free tier: sin tarjeta, sin costo. Se desactivan los reintentos internos del SDK (5 intentos con espera de
+// hasta 60 s ante un 429/503): el cambio al siguiente modelo (generarConRespaldo) ya cubre ese caso y así un
+// modelo sin cuota falla en ~1 s en vez de bloquear la respuesta.
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: { retryOptions: { attempts: 1 }, timeout: 20000 },
+});
 
-const MODEL = 'gemini-2.5-flash';
+// Modelos gratuitos en orden de preferencia. La cuota gratuita es por modelo (p. ej. gemini-2.5-flash
+// permite ~20 peticiones al día), así que si uno se agota o no está disponible se pasa al siguiente.
+// Se puede cambiar con GEMINI_MODELS="modelo1,modelo2,..." sin tocar el código.
+const MODELOS = (process.env.GEMINI_MODELS || process.env.GEMINI_MODEL || 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-flash-latest,gemini-flash-lite-latest')
+  .split(',')
+  .map((m) => m.trim())
+  .filter(Boolean);
+
+const ESTADOS_CON_RESPALDO = new Set([404, 429, 500, 503]); // modelo inexistente, sin cuota, error o saturado
+const modeloEnEspera = new Map(); // modelo -> timestamp hasta el que no se vuelve a intentar
+
+// Segundos que Google pide esperar (campo retryDelay del 429); entre 30 s y 1 h para volver a probar pronto.
+const segundosDeEspera = (error) => {
+  const match = /"retryDelay":\s*"(\d+(?:\.\d+)?)s"/.exec(String(error?.message ?? ''));
+  return Math.min(Math.max(match ? Number(match[1]) : 60, 30), 3600);
+};
+
+async function generarConRespaldo(params) {
+  const ahora = Date.now();
+  const disponibles = MODELOS.filter((m) => (modeloEnEspera.get(m) ?? 0) <= ahora);
+  const candidatos = disponibles.length > 0 ? disponibles : MODELOS;
+  let ultimoError;
+
+  for (const model of candidatos) {
+    try {
+      return await ai.models.generateContent({ ...params, model });
+    } catch (error) {
+      if (!ESTADOS_CON_RESPALDO.has(error?.status)) throw error;
+      ultimoError = error;
+      modeloEnEspera.set(model, Date.now() + segundosDeEspera(error) * 1000);
+      console.warn(`Modelo ${model} no disponible (${error.status}); se prueba el siguiente.`);
+    }
+  }
+  throw ultimoError;
+}
 
 const SYSTEM_PROMPT = `Eres el asistente de AbejaNet, una app de monitoreo de colmenas con sensores IoT.
 Respondes preguntas frecuentes sobre la app y das recomendaciones sobre el estado de las colmenas
 del usuario, basándote SIEMPRE en datos reales obtenidos con las herramientas disponibles.
 
 Reglas:
+- IDIOMA: responde SIEMPRE en el idioma del último mensaje del usuario. Si te escribe en inglés, responde
+  completamente en inglés (If the user writes in English, answer fully in English). Si no queda claro, usa
+  el idioma configurado en la app del usuario (se indica al final de estas instrucciones).
 - Nunca inventes datos de sensores, alertas o colmenas. Si necesitas datos, usa las herramientas.
 - Solo puedes ver información de las colmenas del usuario que está preguntando (ya filtrado por el backend).
 - Si detectas una tendencia preocupante (ej. peso bajando fuerte, temperatura muy alta), sugiere revisar
   la colmena en persona, pero deja claro que no reemplazas el criterio del apicultor.
-- Respuestas breves y claras, en español, pensadas para alguien usando un celular.`;
+- Respuestas breves y claras, pensadas para alguien usando un celular.`;
 
 // ------------------------------------------------------------------
 // Declaraciones de herramientas (formato Gemini) + funciones reales.
@@ -132,19 +175,25 @@ function construirHistorial(historial) {
 // final (sin más function calls pendientes).
 // ------------------------------------------------------------------
 
-export async function responderPregunta(pregunta, usuarioId, historial = []) {
+// Idioma configurado en la app ("es" o "en"); cualquier otro valor cae en español.
+const instruccionIdiomaApp = (idioma) =>
+  `Idioma configurado en la app del usuario: ${idioma === 'en' ? 'inglés (English)' : 'español'}. ` +
+  'Úsalo SOLO como respaldo cuando el mensaje del usuario no deje claro su idioma (por ejemplo "ok" o "hola"); ' +
+  'si el usuario escribe en otro idioma, responde en el idioma del usuario.';
+
+export async function responderPregunta(pregunta, usuarioId, historial = [], idioma = 'es') {
   const runners = buildToolRunners(usuarioId);
+  const systemInstruction = `${SYSTEM_PROMPT}\n${instruccionIdiomaApp(idioma)}`;
   const contents = [
     ...construirHistorial(historial),
     { role: 'user', parts: [{ text: pregunta }] },
   ];
 
   for (let turno = 0; turno < 5; turno++) {
-    const response = await ai.models.generateContent({
-      model: MODEL,
+    const response = await generarConRespaldo({
       contents,
       config: {
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction,
         tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
       },
     });

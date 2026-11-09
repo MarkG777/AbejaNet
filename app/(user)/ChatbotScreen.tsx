@@ -32,9 +32,23 @@ interface ChatMessage {
 
 const SUGGESTION_KEYS = ['chatbot_suggestion_1', 'chatbot_suggestion_2', 'chatbot_suggestion_3'] as const;
 
+// Gemini responde con Markdown básico: "* " como viñeta y **negritas**. Se muestra sin asteriscos sueltos.
+const formatBotText = (text: string): React.ReactNode[] => {
+  const withBullets = text.replace(/^[ \t]*[*-][ \t]+/gm, '• ');
+  return withBullets.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 === 1 ? (
+      <Text key={i} style={{ fontWeight: '700' }}>
+        {part}
+      </Text>
+    ) : (
+      part
+    )
+  );
+};
+
 export default function ChatbotScreen() {
   const colors = useAppColors();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -72,7 +86,7 @@ export default function ChatbotScreen() {
     try {
       const res = await api.post<{ success: boolean; respuesta: string }>(
         '/api/chatbot',
-        { pregunta: question, historial: buildHistorial() },
+        { pregunta: question, historial: buildHistorial(), idioma: i18n.language.startsWith('en') ? 'en' : 'es' },
         { timeout: 20000 }
       );
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -80,10 +94,13 @@ export default function ChatbotScreen() {
         prev.map((m) => (m.id === targetId ? { ...m, pending: false, error: false, text: res.data.respuesta } : m))
       );
     } catch (err) {
+      // Se resuelve antes de setMessages: el callback del setter corre después de que termina el
+      // catch y Hermes no conserva 'err' en esa clausura ("Property 'err' doesn't exist").
+      const errorText = resolveErrorText(err);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === targetId
-            ? { ...m, pending: false, error: true, text: resolveErrorText(err), retryQuestion: question }
+            ? { ...m, pending: false, error: true, text: errorText, retryQuestion: question }
             : m
         )
       );
@@ -139,7 +156,9 @@ export default function ChatbotScreen() {
             <ActivityIndicator size="small" color={colors.textTertiary} />
           ) : (
             <>
-              <Text style={[styles.bubbleText, { color: item.error ? colors.danger : colors.text }]}>{item.text}</Text>
+              <Text style={[styles.bubbleText, { color: item.error ? colors.danger : colors.text }]}>
+                {item.error ? item.text : formatBotText(item.text)}
+              </Text>
               {item.error && item.retryQuestion && (
                 <TouchableOpacity onPress={() => handleRetry(item.id, item.retryQuestion!)} style={styles.retryButton}>
                   <Ionicons name="refresh" size={14} color={colors.primary} />
@@ -194,7 +213,7 @@ export default function ChatbotScreen() {
               <View style={styles.headerAvatar}>
                 <BeeMascot size={22} />
               </View>
-              <Text style={[styles.headerTitleText, { color: colors.headerText }]}>Abeja Asistente</Text>
+              <Text style={[styles.headerTitleText, { color: colors.headerText }]}>{t('chatbot_title', 'Abeja Asistente')}</Text>
             </View>
           ),
         }}
@@ -202,7 +221,7 @@ export default function ChatbotScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} // En Android ya ajusta la ventana (adjustResize); 'height' duplicaba el ajuste y tapaba la barra de escritura
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <FlatList

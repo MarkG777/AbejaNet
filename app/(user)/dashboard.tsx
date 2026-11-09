@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { isAxiosError } from 'axios';
-import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -126,11 +125,14 @@ const UserDashboardScreen = () => {
     const perfStart = performance.now();
     console.log('Actualizando datos del dashboard...');
     const isConnected = (await NetInfo.fetch()).isConnected;
+    // Las noticias dependen del idioma, así que su caché también (si no, al cambiar de idioma se verían las anteriores)
+    const currentLang = i18n.language.startsWith('en') ? 'en' : 'es';
+    const newsCacheKey = `${CACHE_KEY_NEWS}_${currentLang}`;
 
     // Intentar cargar caché primero (stale-while-revalidate)
     try {
       const cachedSummary = await AsyncStorage.getItem(CACHE_KEY_SUMMARY);
-      const cachedNews = await AsyncStorage.getItem(CACHE_KEY_NEWS);
+      const cachedNews = await AsyncStorage.getItem(newsCacheKey);
       const cachedTimestamp = await AsyncStorage.getItem(CACHE_TIMESTAMP_KEY);
       const cacheAge = cachedTimestamp ? Date.now() - parseInt(cachedTimestamp) : Infinity;
 
@@ -167,6 +169,7 @@ const UserDashboardScreen = () => {
     api.get('/api/dashboard-summary')
       .then(response => {
         const count = response.data.summary.alertasCount;
+        setErrorSummary(null);
         setSummary(response.data.summary);
         setUnread(count);
         Notifications.setBadgeCountAsync(count).catch(() => {});
@@ -182,34 +185,20 @@ const UserDashboardScreen = () => {
         console.log(`[PERF] Dashboard red fetch (summary): ${(performance.now() - perfStart).toFixed(0)}ms`);
       });
 
+    // Las noticias las pide el backend (guarda la API key de NewsAPI); la app solo manda su sesión y el idioma.
     setLoadingNews(true);
-    const apiKey = Constants.expoConfig?.extra?.NEWS_API_KEY;
-
-    if (!apiKey) {
-      console.error('NEWS_API_KEY no está configurada en app.json');
-      setErrorNews('Falta la configuración para cargar noticias.');
-      setLoadingNews(false);
-    } else {
-      const currentLang = i18n.language.startsWith('en') ? 'en' : 'es';
-      
-      const query = currentLang === 'en'
-        ? '(beekeeping OR beekeeper OR hives OR pollination OR "honey production" OR (bees AND (honey OR agriculture OR nature OR insect OR flower OR swarm OR nectar OR farm OR environmental))) NOT (team OR game OR clothing OR baby OR sports OR club OR league)'
-        : '(apicultura OR apicultor OR colmenas OR polinización OR "producción de miel" OR (abejas AND (miel OR agricultura OR naturaleza OR insecto OR flor OR enjambre OR néctar OR campo OR ambiental))) NOT (equipo OR juego OR ropa OR bebé OR deportes OR club OR liga OR fútbol)';
-      
-      const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=${currentLang}&sortBy=publishedAt&apiKey=${apiKey}`;
-
-      api.get(url)
-        .then(response => {
-          const filteredArticles = response.data.articles.filter((article: NewsArticle) => article.title && article.title !== "[Removed]");
-          setNews(filteredArticles || []);
-          AsyncStorage.setItem(CACHE_KEY_NEWS, JSON.stringify(filteredArticles || []));
-        })
-        .catch(err => {
-          console.error('Error al obtener las noticias directamente desde NewsAPI:', err);
-          setErrorNews('No se pudieron cargar las noticias.');
-        })
-        .finally(() => setLoadingNews(false));
-    }
+    api.get('/api/noticias', { params: { lang: currentLang } })
+      .then(response => {
+        const articles: NewsArticle[] = response.data.articles || [];
+        setErrorNews(null);
+        setNews(articles);
+        AsyncStorage.setItem(newsCacheKey, JSON.stringify(articles));
+      })
+      .catch(err => {
+        console.error('Error al obtener las noticias:', err);
+        setErrorNews(t('news_error', 'No se pudieron cargar las noticias.'));
+      })
+      .finally(() => setLoadingNews(false));
   }, [i18n.language, t]); // Dependencia clave para re-descargar noticias si el usuario cambia el idioma
 
   // Usar useFocusEffect para recargar los datos cada vez que la pantalla se enfoca.

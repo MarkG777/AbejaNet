@@ -458,6 +458,8 @@ export default function BitacoraScreen() {
               {editingEvent ? t('bitacora_edit', 'Editar Evento') : t('bitacora_new', 'Nuevo Evento')}
             </Text>
 
+            {/* El formulario se desplaza; los botones quedan fijos abajo para que el teclado no los tape */}
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             {!editingEvent && (
               <View style={styles.pickerContainer}>
                 <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>{t('bitacora_apiary', 'Apiario')}</Text>
@@ -559,6 +561,7 @@ export default function BitacoraScreen() {
               numberOfLines={3}
               textAlignVertical="top"
             />
+            </ScrollView>
 
             <View style={styles.modalActions}>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={[styles.modalBtn, { borderColor: colors.border }]}>
