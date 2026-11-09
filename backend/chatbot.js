@@ -1,7 +1,13 @@
 import { GoogleGenAI, Type, createPartFromFunctionResponse } from '@google/genai';
 import pool from './db.js';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY }); // Free tier: sin tarjeta, sin costo
+// Free tier: sin tarjeta, sin costo. Se desactivan los reintentos internos del SDK (5 intentos con espera de
+// hasta 60 s ante un 429/503): el cambio al siguiente modelo (generarConRespaldo) ya cubre ese caso y así un
+// modelo sin cuota falla en ~1 s en vez de bloquear la respuesta.
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: { retryOptions: { attempts: 1 }, timeout: 20000 },
+});
 
 // Modelos gratuitos en orden de preferencia. La cuota gratuita es por modelo (p. ej. gemini-2.5-flash
 // permite ~20 peticiones al día), así que si uno se agota o no está disponible se pasa al siguiente.
