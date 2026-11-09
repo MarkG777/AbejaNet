@@ -594,16 +594,19 @@ app.get('/api/apiarios/:apiarioId/colmenas', verificarToken, async (req, res) =>
     }
 
     // 2. Si tiene acceso, obtener las colmenas junto con la última lectura de su(s) sensor(es)
-    // (una colmena puede tener más de un sensor; se toma la lectura más reciente entre todos)
+    // (una colmena puede tener más de un sensor; se toma la lectura más reciente entre todos).
+    // sensores.ultima_lectura_en puede estar vacío en datos que no entraron por los endpoints de
+    // ingesta, así que se compara también con la última lectura real (igual que /ultima-lectura).
     const { rows: colmenas } = await pool.query(
-      `SELECT c.id, c.nombre, c.descripcion_especifica, s.ultima_lectura_en
+      `SELECT c.id, c.nombre, c.descripcion_especifica,
+              GREATEST(
+                (SELECT MAX(s.ultima_lectura_en) FROM sensores s WHERE s.colmena_id = c.id),
+                (SELECT MAX(l.fecha_registro)
+                 FROM lecturas_ambientales l
+                 JOIN sensores s ON l.sensor_id = s.id
+                 WHERE s.colmena_id = c.id)
+              ) AS ultima_lectura_en
        FROM colmenas c
-       LEFT JOIN (
-         SELECT colmena_id, MAX(ultima_lectura_en) AS ultima_lectura_en
-         FROM sensores
-         WHERE colmena_id IS NOT NULL
-         GROUP BY colmena_id
-       ) s ON s.colmena_id = c.id
        WHERE c.apiario_id = $1`,
       [apiarioId]
     );
