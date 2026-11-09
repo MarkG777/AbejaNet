@@ -3,7 +3,7 @@ import { useAppColors } from '@/hooks/useAppColors';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
-import { isAxiosError } from 'axios';
+import axios, { isAxiosError } from 'axios';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
@@ -92,6 +92,10 @@ const NewsCard: React.FC<{ article: NewsArticle; cardBg: string; titleColor: str
 };
 
 const CARD_WIDTH = Dimensions.get('window').width - 40;
+
+// Cliente aparte para NewsAPI (dominio externo): nunca debe llevar el header
+// Authorization del backend de AbejaNet, que 'api' (utils/api.js) agrega de forma global.
+const newsApiClient = axios.create();
 
 const UserDashboardScreen = () => {
   const router = useRouter();
@@ -198,7 +202,7 @@ const UserDashboardScreen = () => {
       
       const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&searchIn=title&language=${currentLang}&sortBy=publishedAt&apiKey=${apiKey}`;
 
-      api.get(url)
+      newsApiClient.get(url)
         .then(response => {
           const filteredArticles = response.data.articles.filter((article: NewsArticle) => article.title && article.title !== "[Removed]");
           setNews(filteredArticles || []);
