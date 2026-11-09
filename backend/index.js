@@ -547,6 +547,50 @@ app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
   }
 });
 
+// Noticias del sector. La API key de NewsAPI vive solo en el servidor (NEWS_API_KEY); la app ya no la lleva.
+const NEWS_QUERIES = {
+  en: '(beekeeping OR beekeeper OR hives OR pollination OR "honey production" OR (bees AND (honey OR agriculture OR nature OR insect OR flower OR swarm OR nectar OR farm OR environmental))) NOT (team OR game OR clothing OR baby OR sports OR club OR league OR movie OR film OR trailer OR actor OR celebrity)',
+  es: '(apicultura OR apicultor OR colmenas OR polinización OR "producción de miel" OR (abejas AND (miel OR agricultura OR naturaleza OR insecto OR flor OR enjambre OR néctar OR campo OR ambiental))) NOT (equipo OR juego OR ropa OR bebé OR deportes OR club OR liga OR fútbol OR película OR cine OR tráiler OR actor OR famoso)',
+};
+const NEWS_CACHE_TTL_MS = 15 * 60 * 1000;
+const newsCache = new Map(); // idioma -> { at, articles }
+
+app.get('/api/noticias', verificarToken, async (req, res) => {
+  const lang = req.query.lang === 'en' ? 'en' : 'es';
+  const apiKey = process.env.NEWS_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ success: false, message: 'Las noticias no están configuradas en el servidor.' });
+  }
+
+  const cached = newsCache.get(lang);
+  if (cached && Date.now() - cached.at < NEWS_CACHE_TTL_MS) {
+    return res.json({ success: true, articles: cached.articles });
+  }
+
+  try {
+    const { data } = await axios.get('https://newsapi.org/v2/everything', {
+      params: { q: NEWS_QUERIES[lang], searchIn: 'title', language: lang, sortBy: 'publishedAt', apiKey },
+      timeout: 10000,
+    });
+    const articles = (data.articles || [])
+      .filter((a) => a.title && a.title !== '[Removed]')
+      .map((a) => ({
+        title: a.title,
+        url: a.url,
+        urlToImage: a.urlToImage,
+        publishedAt: a.publishedAt,
+        source: { name: a.source?.name || '' },
+      }));
+    newsCache.set(lang, { at: Date.now(), articles });
+    res.json({ success: true, articles });
+  } catch (err) {
+    // No se registra el error completo: el objeto de axios incluye la URL con la API key.
+    console.error('Error en GET /api/noticias:', err.response?.status || err.code || err.message);
+    if (cached) return res.json({ success: true, articles: cached.articles });
+    res.status(502).json({ success: false, message: 'No se pudieron obtener las noticias.' });
+  }
+});
+
 app.get('/api/apiarios', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   const userRol = req.usuario.rol;
