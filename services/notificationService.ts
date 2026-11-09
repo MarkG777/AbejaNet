@@ -25,10 +25,6 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
     });
   }
 
-  // --- INICIO: LOG DE DIAGNÓSTICO ---
-  console.log('Contenido de Constants.expoConfig:', JSON.stringify(Constants.expoConfig, null, 2));
-  // --- FIN: LOG DE DIAGNÓSTICO ---
-
   // Se necesita el projectId para obtener el token. Lo obtenemos de la configuración de Expo.
   const projectId = Constants.expoConfig?.extra?.eas?.projectId;
   if (!projectId) {
