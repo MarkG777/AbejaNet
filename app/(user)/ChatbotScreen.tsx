@@ -80,10 +80,13 @@ export default function ChatbotScreen() {
         prev.map((m) => (m.id === targetId ? { ...m, pending: false, error: false, text: res.data.respuesta } : m))
       );
     } catch (err) {
+      // Se resuelve antes de setMessages: el callback del setter corre después de que termina el
+      // catch y Hermes no conserva 'err' en esa clausura ("Property 'err' doesn't exist").
+      const errorText = resolveErrorText(err);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === targetId
-            ? { ...m, pending: false, error: true, text: resolveErrorText(err), retryQuestion: question }
+            ? { ...m, pending: false, error: true, text: errorText, retryQuestion: question }
             : m
         )
       );
