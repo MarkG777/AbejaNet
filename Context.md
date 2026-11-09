@@ -135,12 +135,51 @@ color para las gráficas (temperatura/humedad óptima), no tiene relación con c
 - [x] Mensaje de error controlado + botón "Reintentar" según la causa (429 / error del servicio / sin conexión) — `resolveErrorText()` en `ChatbotScreen.tsx` (E2, RF-04)
 - [x] Mostrar la respuesta del asistente en el historial de la conversación, con indicador "escribiendo" mientras espera
 
-**Limitación conocida (no es un bug, es el contrato actual del backend):** `backend/chatbot.js` no
-recibe ni conserva historial entre peticiones — cada pregunta es una conversación nueva para
-Gemini. El historial que se ve en `ChatbotScreen` es solo visual; una pregunta de seguimiento como
-"¿y su temperatura?" no tendrá contexto de la pregunta anterior. Si se quiere memoria real,
-`responderPregunta(pregunta, usuarioId)` tendría que aceptar y reenviar los `contents` previos —
-cambio de backend, no de esta pantalla.
+**Historial (resuelto 2026-10):** la app reenvía los últimos turnos (`historial`) y
+`responderPregunta(pregunta, usuarioId, historial, idioma)` los antepone al contexto de Gemini, así
+que una pregunta de seguimiento como "¿y la primera?" sí tiene contexto.
+
+---
+
+## Sesión de pruebas en emulador — 2026-11-09
+
+Prueba de inicio a fin en emulador Android 16 (`Medium_Phone_API_36.1`, ver memoria del proyecto
+sobre `-gpu swiftshader_indirect`). Un commit por cada cambio en `version_tres`.
+
+### Corregido
+- **Seguridad:** el token JWT ya no viaja a newsapi.org; las noticias las pide el backend
+  (`GET /api/noticias`, con sesión y caché de 15 min) y la `NEWS_API_KEY` salió de `app.json`.
+  **Requiere `NEWS_API_KEY` en las variables de entorno de Render.**
+- **Seguridad:** se quitó el `console.log` de toda la config de la app (`notificationService.ts`).
+- **Chatbot:** crash "Property 'err' doesn't exist" al fallar la red; respuestas con Markdown crudo;
+  responde en el idioma del usuario (la app manda su idioma); cambio automático entre modelos
+  gratuitos de Gemini si uno se queda sin cuota (`GEMINI_MODELS`, sin reintentos internos del SDK:
+  3.6 s en vez de >60 s); el teclado ya no tapa la barra de escritura en Android.
+- **Colmenas:** el nombre no llegaba al detalle (ni al CSV); el badge de la lista usa la última
+  lectura real (antes decía "Sin sensor" con lecturas existentes).
+- **Bitácora:** un evento guardado offline se sincronizaba 3 veces; el teclado tapaba Guardar/Cancelar.
+- **i18n:** detalle de colmena, alertas, títulos del menú y avisos de exportar siguen el idioma de la
+  app; el detalle ya no vuelve al skeleton cada 60 s; el eje Y del peso ya no repite etiquetas;
+  caché de noticias por idioma; botón "Cambiar Contraseña" legible en modo oscuro.
+
+### Pendiente de probar (siguiente sesión)
+- Cambiar contraseña y Editar perfil (el usuario pidió no tocarlos todavía).
+- Vista calendario de la Bitácora, editar un evento, registro de usuario, recuperar contraseña,
+  Google Sign-In, estados vacíos reales (usuario sin apiarios / apiario sin colmenas).
+- Prueba del release en el teléfono físico (notificaciones push, compartir CSV con el selector real).
+
+### Hallazgos sin corregir
+- Onboarding con ícono de diafragma de cámara (no es de apicultura); "Continue with Google" con la
+  "g" recortada; título duplicado en la pantalla de Bitácora; splash con el recuadro amarillo que no
+  llena la pantalla en la transición; con un solo dato la gráfica no dibuja línea.
+- Cualquier 403 cierra la sesión (`utils/api.js`).
+- Las lecturas de prueba son del 22-oct, por eso todas las colmenas salen "Desconectado".
+
+### Ideas para más adelante
+- Usar otros modelos gratuitos además de Gemini (p. ej. Llama vía un servicio con capa gratuita) y,
+  al cambiar de modelo, pasarle el contexto de la conversación. Es una integración mayor (otra SDK,
+  otra API key); hoy el respaldo es solo entre modelos de Gemini.
+- La BD de prueba gratuita de Render vence ~30 días después de creada: revisar la fecha.
 
 ---
 
@@ -148,7 +187,7 @@ cambio de backend, no de esta pantalla.
 
 | Mejora | RF | CU | RNF | Estado |
 |---|---|---|---|---|
-| Asistente conversacional | RF-01 a RF-04 | CU-01 | RNF-01, RNF-02, RNF-03 | ✅ Completo (2026-09-11) — ver limitación de historial abajo |
+| Asistente conversacional | RF-01 a RF-04 | CU-01 | RNF-01, RNF-02, RNF-03 | ✅ Completo (2026-09-11) — con memoria de conversación (2026-10) |
 | Loading skeletons | RF-05, RF-06 | CU-02 | RNF-04, RNF-05 | ✅ Completo (2026-09-11) |
 | Indicador de estado del sensor | RF-07 a RF-09 | CU-03 | RNF-06, RNF-07 | ✅ Completo (2026-09-11) |
 | Estados vacíos ilustrados | RF-10, RF-11 | CU-04 | RNF-08 | ✅ Completo (2026-09-11) |
