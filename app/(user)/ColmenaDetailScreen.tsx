@@ -5,11 +5,11 @@ import { useAppColors } from '@/hooks/useAppColors';
 import api from '@/utils/api';
 import { saveCsvToDownloads, shareCsv } from '@/utils/csvExport';
 import { Ionicons } from '@expo/vector-icons';
-import { isAxiosError } from 'axios';
 import { format, parseISO } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { enUS, es } from 'date-fns/locale';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Alert, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { VictoryArea, VictoryAxis, VictoryChart, VictoryGroup, VictoryLine, VictoryScatter, VictoryTheme } from 'victory-native';
 import { Lectura, SensorChartProps, SensorDataKey, TimeRange } from '../components/SensorChart';
@@ -118,8 +118,11 @@ const allChartProps: Omit<SensorChartProps, 'data' | 'timeRange'>[] = [
 
 // Componente para el resumen detallado
 const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => {
+  const { t, i18n } = useTranslation();
+  const dfLocale = i18n.language.startsWith('en') ? enUS : es;
+
   if (data.length < 1) {
-    return <Text style={[styles.infoText, { color: colors.textTertiary }]}>No hay lecturas recientes.</Text>;
+    return <Text style={[styles.infoText, { color: colors.textTertiary }]}>{t('hive_no_recent_readings', 'No hay lecturas recientes.')}</Text>;
   }
 
   const lastDataPoint = data[data.length - 1];
@@ -128,7 +131,9 @@ const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => 
   return (
     <View style={[styles.summaryContainer, { backgroundColor: colors.summaryBg }]}>
       <Text style={[styles.summaryTitle, { color: colors.textSecondary }]}>
-        Resumen del Período ({format(parseISO(lastDataPoint.fecha_registro), 'dd MMM, HH:mm', { locale: es })}h)
+        {t('hive_period_summary', 'Resumen del Período ({{date}})', {
+          date: `${format(parseISO(lastDataPoint.fecha_registro), 'dd MMM, HH:mm', { locale: dfLocale })}h`,
+        })}
       </Text>
       <View style={styles.summaryGrid}>
         {allChartProps.map(({ dataKey, title, unit }) => {
@@ -138,7 +143,7 @@ const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => 
           if (lastValue === null || lastValue === undefined || firstValue === null || firstValue === undefined) {
             return (
               <View key={dataKey} style={styles.summaryItem}>
-                <Text style={[styles.summaryItemTitle, { color: colors.textTertiary }]}>{title}</Text>
+                <Text style={[styles.summaryItemTitle, { color: colors.textTertiary }]}>{t(dataKey, title)}</Text>
                 <Text style={[styles.summaryItemValue, { color: colors.text }]}>--</Text>
               </View>
             );
@@ -150,7 +155,7 @@ const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => 
 
           return (
             <View key={dataKey} style={styles.summaryItem}>
-              <Text style={[styles.summaryItemTitle, { color: colors.textTertiary }]}>{title}</Text>
+              <Text style={[styles.summaryItemTitle, { color: colors.textTertiary }]}>{t(dataKey, title)}</Text>
               <Text style={[styles.summaryItemValue, { color: colors.text }]}>{`${lastValue.toFixed(1)} ${unit}`}</Text>
               <Text style={[styles.summaryItemDelta, { color: deltaColor }]}>
                 {`(${deltaSign}${totalDelta.toFixed(1)}%)`}
@@ -168,6 +173,8 @@ export default function ColmenaDetailScreen() {
   const { colmenaId, colmenaNombre: nombre } = useLocalSearchParams<{ colmenaId: string; colmenaNombre: string }>();
   const { authState } = useAuth();
   const colors = useAppColors();
+  const { t, i18n } = useTranslation();
+  const dfLocale = i18n.language.startsWith('en') ? enUS : es;
   const [lecturas, setLecturas] = useState<Lectura[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,9 +196,11 @@ export default function ColmenaDetailScreen() {
   };
 
   useEffect(() => {
-    const fetchLecturas = async () => {
+    // 'silent' = refresco automático: no vuelve al skeleton ni borra la pantalla si falla una vez
+    // (así no se pierde el punto seleccionado en la gráfica cada minuto).
+    const fetchLecturas = async (silent = false) => {
       if (!colmenaId) return;
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
 
       try {
@@ -212,14 +221,8 @@ export default function ColmenaDetailScreen() {
         }
       } catch (err) {
         console.error("Error al cargar lecturas:", err);
-        // El interceptor se encarga del logout. Aquí solo mostramos el error.
-        if (isAxiosError(err) && err.response) {
-          setError(err.response.data.message || "Error al cargar los datos de la colmena.");
-        } else {
-          setError("Ocurrió un error inesperado. Revisa tu conexión.");
-        }
-        setError('No se pudieron cargar los datos. Inténtalo de nuevo más tarde.');
-        console.error(err);
+        // El interceptor se encarga del logout. Aquí solo mostramos el error (si no es un refresco automático).
+        if (!silent) setError(t('hive_load_error', 'No se pudieron cargar los datos. Inténtalo de nuevo más tarde.'));
       } finally {
         setLoading(false);
       }
@@ -228,7 +231,7 @@ export default function ColmenaDetailScreen() {
     fetchLecturas();
 
     // Auto-refresh cada 60 segundos
-    const intervalId = setInterval(fetchLecturas, 60000);
+    const intervalId = setInterval(() => fetchLecturas(true), 60000);
     return () => clearInterval(intervalId);
   }, [colmenaId, authState.accessToken, timeRange]);
 
@@ -330,12 +333,12 @@ export default function ColmenaDetailScreen() {
 
   const handleExport = (mode: 'share' | 'save') => {
     Alert.alert(
-      '¿Cómo querés exportar?',
-      'Elegí el detalle de las lecturas del período seleccionado.',
+      t('export_prompt_title', '¿Cómo quieres exportar?'),
+      t('export_prompt_msg', 'Elige el detalle de las lecturas del período seleccionado.'),
       [
-        { text: 'Todas las lecturas', onPress: () => runExport(mode, 'raw') },
-        { text: 'Promedio por hora', onPress: () => runExport(mode, 'hour') },
-        { text: 'Promedio por día', onPress: () => runExport(mode, 'day') },
+        { text: t('export_all', 'Todas las lecturas'), onPress: () => runExport(mode, 'raw') },
+        { text: t('export_hourly', 'Promedio por hora'), onPress: () => runExport(mode, 'hour') },
+        { text: t('export_daily', 'Promedio por día'), onPress: () => runExport(mode, 'day') },
       ],
       { cancelable: true }
     );
@@ -364,7 +367,7 @@ export default function ColmenaDetailScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text }]}>Detalle de la Colmena</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{t('hive_detail_title', 'Detalle de la Colmena')}</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{nombre}</Text>
       {ultimaLecturaChecked && (
         <View style={{ marginBottom: 16 }}>
@@ -382,7 +385,7 @@ export default function ColmenaDetailScreen() {
             onPress={() => setTimeRange(range)}
           >
             <Text style={[styles.timeRangeButtonText, { color: colors.timeRangeText }, timeRange === range && { color: colors.timeRangeSelectedText }]}>
-              {range === 'day' ? 'Día' : range === 'week' ? 'Semana' : 'Mes'}
+              {t(`range_${range}`)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -403,33 +406,33 @@ export default function ColmenaDetailScreen() {
         <View style={[styles.realtimeContainer, { backgroundColor: colors.card }]}>
           <View style={styles.realtimeHeader}>
             <Ionicons name="pulse-outline" size={18} color="#4CAF50" />
-            <Text style={[styles.realtimeTitle, { color: colors.text }]}>Lectura en Tiempo Real</Text>
+            <Text style={[styles.realtimeTitle, { color: colors.text }]}>{t('hive_realtime', 'Lectura en Tiempo Real')}</Text>
           </View>
           <Text style={[styles.realtimeTimestamp, { color: colors.textTertiary }]}>
-            {format(new Date(ultimaLectura.fecha_registro), "dd MMM yyyy, HH:mm:ss", { locale: es })}
+            {format(new Date(ultimaLectura.fecha_registro), "dd MMM yyyy, HH:mm:ss", { locale: dfLocale })}
           </Text>
           <View style={styles.realtimeGrid}>
             {ultimaLectura.temperatura !== null && (
               <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(255, 99, 132, 1)' }]}>
-                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Temperatura</Text>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>{t('temperatura', 'Temperatura')}</Text>
                 <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.temperatura.toFixed(1)} °C</Text>
               </View>
             )}
             {ultimaLectura.humedad !== null && (
               <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(54, 162, 235, 1)' }]}>
-                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Humedad</Text>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>{t('humedad', 'Humedad')}</Text>
                 <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.humedad.toFixed(1)} %</Text>
               </View>
             )}
             {ultimaLectura.peso !== null && (
               <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(75, 192, 192, 1)' }]}>
-                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Peso</Text>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>{t('peso', 'Peso')}</Text>
                 <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.peso.toFixed(2)} kg</Text>
               </View>
             )}
             {ultimaLectura.sonido !== null && (
               <View style={[styles.realtimeItem, { borderLeftColor: 'rgba(153, 102, 255, 1)' }]}>
-                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>Sonido</Text>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>{t('sonido', 'Sonido')}</Text>
                 <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.sonido.toFixed(1)} dB</Text>
               </View>
             )}
@@ -440,9 +443,9 @@ export default function ColmenaDetailScreen() {
       {/* Exportar CSV */}
       {lecturas.length > 0 && (
         <View style={[styles.exportContainer, { backgroundColor: colors.card }]}>
-          <Text style={[styles.exportTitle, { color: colors.text }]}>Exportar Datos</Text>
+          <Text style={[styles.exportTitle, { color: colors.text }]}>{t('hive_export_title', 'Exportar Datos')}</Text>
           <Text style={[styles.exportSubtitle, { color: colors.textTertiary }]}>
-            Del período &quot;{timeRange === 'day' ? 'Día' : timeRange === 'week' ? 'Semana' : 'Mes'}&quot; — te preguntamos el detalle al exportar
+            {t('hive_export_subtitle', 'Del período "{{range}}" — te preguntamos el detalle al exportar', { range: t(`range_${timeRange}`) })}
           </Text>
           <View style={styles.exportButtons}>
             <TouchableOpacity
@@ -455,7 +458,7 @@ export default function ColmenaDetailScreen() {
               ) : (
                 <Ionicons name="share-outline" size={18} color="#fff" />
               )}
-              <Text style={styles.exportButtonText}>Compartir</Text>
+              <Text style={styles.exportButtonText}>{t('share', 'Compartir')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.exportButton, { backgroundColor: '#4CAF50' }, exporting !== null && { opacity: 0.6 }]}
@@ -467,7 +470,7 @@ export default function ColmenaDetailScreen() {
               ) : (
                 <Ionicons name="download-outline" size={18} color="#fff" />
               )}
-              <Text style={styles.exportButtonText}>Guardar</Text>
+              <Text style={styles.exportButtonText}>{t('save', 'Guardar')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -495,6 +498,8 @@ interface InteractiveChartProps {
 
 const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, selectedPoint, onSetSelectedPoint }: InteractiveChartProps) => {
   const colors = useAppColors();
+  const { t, i18n } = useTranslation();
+  const dfLocale = i18n.language.startsWith('en') ? enUS : es;
   const processedData = useMemo(() => processDataForPreview(lecturas, timeRange), [lecturas, timeRange]);
   const scrollRef = useRef(false);
 
@@ -565,7 +570,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
     if (!fecha) return '';
     const d = parseISO(fecha);
     if (timeRange === 'day') return format(d, 'HH:mm');
-    if (timeRange === 'week') return format(d, 'eee', { locale: es });
+    if (timeRange === 'week') return format(d, 'eee', { locale: dfLocale });
     return format(d, 'dd/MM');
   };
 
@@ -574,7 +579,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
       return (
         <View style={[styles.selectedPointPlaceholder, { backgroundColor: colors.selectedPointPlaceholderBg, borderColor: colors.selectedPointPlaceholderBorder }]}>
           <Text style={[styles.selectedPointPlaceholderText, { color: colors.textTertiary }]}>
-            Toca un punto en el gráfico para ver sus detalles
+            {t('chart_tap_hint', 'Toca un punto en el gráfico para ver sus detalles')}
           </Text>
         </View>
       );
@@ -607,7 +612,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
                 <View style={[styles.selectedPointColorBar, { backgroundColor: colorMap[key] }]} />
                 <View style={styles.selectedPointContent}>
                   <View style={styles.selectedPointTopRow}>
-                    <Text style={[styles.selectedPointLabel, { color: colors.text }]}>{labelMap[key]}</Text>
+                    <Text style={[styles.selectedPointLabel, { color: colors.text }]}>{t(key, labelMap[key])}</Text>
                     <Text style={[styles.selectedPointValue, { color: colors.text }]}>{value.toFixed(1)} {unitMap[key]}</Text>
                   </View>
                   <View style={styles.selectedPointBottomRow}>
@@ -629,7 +634,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
        <View style={styles.chipRow}>
           {(Object.keys(labelMap) as SensorDataKey[]).map(k => (
             <Pressable key={k} style={[styles.chip, { backgroundColor: colors.chipBg }, activeKeys.includes(k) && { backgroundColor: colors.chipActiveBg }]} onPress={() => onToggleKey(k)}>
-              <Text style={{ color: activeKeys.includes(k) ? colors.chipActiveText : colors.chipText, fontWeight: '500' }}>{labelMap[k]}</Text>
+              <Text style={{ color: activeKeys.includes(k) ? colors.chipActiveText : colors.chipText, fontWeight: '500' }}>{t(k, labelMap[k])}</Text>
             </Pressable>
           ))}
         </View>
@@ -637,7 +642,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
       {processedData.length > 0 ? (
         activeKeys.map(k => (
           <View key={k} style={{ marginBottom: 4 }}>
-            <Text style={[styles.chartTitle, { color: colors.text }]}>{labelMap[k]} ({unitMap[k]})</Text>
+            <Text style={[styles.chartTitle, { color: colors.text }]}>{t(k, labelMap[k])} ({unitMap[k]})</Text>
             <VictoryChart
               width={Dimensions.get('window').width - 20}
               height={220}
@@ -645,7 +650,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
               padding={{ top: 10, bottom: 50, left: 50, right: 20 }}
               domainPadding={{ y: 20, x: 30 }}
             >
-              <VictoryAxis dependentAxis tickFormat={(t) => `${t.toFixed(0)}`} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
+              <VictoryAxis dependentAxis tickFormat={(v) => (k === 'peso' ? v.toFixed(1) : `${v.toFixed(0)}`)} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
               <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start', fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
 
               {k in SENSOR_THRESHOLDS && (
@@ -690,16 +695,16 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
             </VictoryChart>
             {k === 'peso' && (
               <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 6, gap: 16 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'green' }} /><Text style={{ fontSize: 12, color: colors.textTertiary }}>Normal</Text></View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ fontSize: 14, color: 'orange' }}>▲</Text><Text style={{ fontSize: 12, color: colors.textTertiary }}>Alerta</Text></View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ fontSize: 14, color: 'red' }}>★</Text><Text style={{ fontSize: 12, color: colors.textTertiary }}>Peligro</Text></View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'green' }} /><Text style={{ fontSize: 12, color: colors.textTertiary }}>{t('normal', 'Normal')}</Text></View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ fontSize: 14, color: 'orange' }}>▲</Text><Text style={{ fontSize: 12, color: colors.textTertiary }}>{t('alert_label', 'Alerta')}</Text></View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><Text style={{ fontSize: 14, color: 'red' }}>★</Text><Text style={{ fontSize: 12, color: colors.textTertiary }}>{t('danger', 'Peligro')}</Text></View>
               </View>
             )}
           </View>
         ))
       ) : (
         <View style={[styles.chartPlaceholder, { backgroundColor: colors.borderLight }]}>
-          <Text style={[styles.chartPlaceholderText, { color: colors.textTertiary }]}>No hay datos para mostrar.</Text>
+          <Text style={[styles.chartPlaceholderText, { color: colors.textTertiary }]}>{t('chart_no_data', 'No hay datos para mostrar.')}</Text>
         </View>
       )}
       
