@@ -48,7 +48,7 @@ const formatBotText = (text: string): React.ReactNode[] => {
 
 export default function ChatbotScreen() {
   const colors = useAppColors();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -86,7 +86,7 @@ export default function ChatbotScreen() {
     try {
       const res = await api.post<{ success: boolean; respuesta: string }>(
         '/api/chatbot',
-        { pregunta: question, historial: buildHistorial() },
+        { pregunta: question, historial: buildHistorial(), idioma: i18n.language.startsWith('en') ? 'en' : 'es' },
         { timeout: 20000 }
       );
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -213,7 +213,7 @@ export default function ChatbotScreen() {
               <View style={styles.headerAvatar}>
                 <BeeMascot size={22} />
               </View>
-              <Text style={[styles.headerTitleText, { color: colors.headerText }]}>Abeja Asistente</Text>
+              <Text style={[styles.headerTitleText, { color: colors.headerText }]}>{t('chatbot_title', 'Abeja Asistente')}</Text>
             </View>
           ),
         }}

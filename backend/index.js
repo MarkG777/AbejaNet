@@ -213,13 +213,13 @@ const chatbotLimiter = rateLimit({
 });
 
 app.post('/api/chatbot', verificarToken, chatbotLimiter, async (req, res) => {
-  const { pregunta, historial } = req.body;
+  const { pregunta, historial, idioma } = req.body;
   if (!pregunta || typeof pregunta !== 'string') {
     return res.status(400).json({ success: false, message: 'Falta la pregunta.' });
   }
 
   try {
-    const respuesta = await responderPregunta(pregunta, req.usuario.userId, historial);
+    const respuesta = await responderPregunta(pregunta, req.usuario.userId, historial, idioma);
     res.json({ success: true, respuesta });
   } catch (error) {
     console.error('Error en /api/chatbot:', error);
