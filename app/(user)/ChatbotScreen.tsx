@@ -221,7 +221,7 @@ export default function ChatbotScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} // En Android ya ajusta la ventana (adjustResize); 'height' duplicaba el ajuste y tapaba la barra de escritura
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <FlatList
