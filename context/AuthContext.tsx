@@ -7,6 +7,7 @@ import React, { createContext, ReactNode, useContext, useEffect, useRef, useStat
 import { AppState, AppStateStatus, View } from 'react-native';
 import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
 import api, { setAuthToken, setupErrorInterceptor } from '../utils/api';
+import { getApiUrl } from '../utils/ip_config';
 
 interface User {
   id: number;
@@ -225,6 +226,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = async () => {
     try {
       await GoogleSignin.signOut();
+    } catch (e) {}
+
+    // Libera el token de notificaciones push de ESTE teléfono para esta cuenta: así, al cerrar sesión, las alertas
+    // de este usuario dejan de llegar aquí (y no le llegan a quien entre después en el mismo teléfono).
+    // Se usa fetch directo (sin los interceptores de api) para que un token vencido no provoque otro logout en
+    // bucle; si falla, el servidor igualmente reasigna el token cuando otra cuenta lo registre.
+    try {
+      const tokenActual = await SecureStore.getItemAsync('accessToken');
+      if (tokenActual) {
+        const base = await getApiUrl();
+        await Promise.race([
+          fetch(`${base}/api/save-push-token`, { method: 'DELETE', headers: { Authorization: `Bearer ${tokenActual}` } }),
+          new Promise((resolve) => setTimeout(resolve, 4000)),
+        ]);
+      }
     } catch (e) {}
 
     try {

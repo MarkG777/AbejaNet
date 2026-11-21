@@ -1,6 +1,6 @@
 # Probar notificaciones push
 
-Hay dos formas de mandar una notificación de prueba. Las dos usan `test_notification.js` (el backend lo necesita:
+Hay dos formas de mandar una notificación de prueba. Las dos usan el mismo archivo, `test_notification.js` (el backend lo importa:
 no lo borres) y avisan **solo a los usuarios con acceso al apiario de esa colmena que tengan token de notificaciones**
 (se guarda cuando abren la app y aceptan los permisos).
 
@@ -15,13 +15,13 @@ Usa la base de datos del `.env` (la de Render). No necesita la clave `SETUP_SECR
 cd C:\Users\OMEN\Documents\ESCUELA\AbejaNet_Revival\backend
 
 # Colmena de prueba del BME280 (solo le llega a marcogolvera777@gmail.com) con mensaje por defecto
-node --env-file=.env run_test_notification.js
+node --env-file=.env test_notification.js
 
 # Con colmena y mensaje propios
-node --env-file=.env run_test_notification.js "Colmena BME280 Prueba" "Texto de mi prueba"
+node --env-file=.env test_notification.js "Colmena BME280 Prueba" "Texto de mi prueba"
 
 # Solo la notificación push, sin guardar una alerta de prueba en la base de datos
-node --env-file=.env run_test_notification.js "Colmena BME280 Prueba" "Solo push" --sin-alerta
+node --env-file=.env test_notification.js "Colmena BME280 Prueba" "Solo push" --sin-alerta
 ```
 
 Al terminar imprime un resumen con `"status": "ok"` por cada dispositivo alcanzado.

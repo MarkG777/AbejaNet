@@ -1,4 +1,5 @@
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import PushPermissionBanner from '@/components/PushPermissionBanner';
 import { useAppColors } from '@/hooks/useAppColors';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -364,6 +365,7 @@ const UserDashboardScreen = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        <PushPermissionBanner />
         <View style={[styles.header, { backgroundColor: colors.card }]}>
           <Ionicons name="sunny-outline" size={50} color={colors.accent} />
           <Text style={[styles.title, { color: colors.text }]}>{t('welcome', '¡Bienvenido a AbejaNet!')}</Text>

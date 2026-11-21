@@ -43,7 +43,9 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
 
   if (finalStatus !== 'granted') {
-    alert('Debes conceder permisos de notificación para recibir alertas.');
+    // Sin permiso no hay push. Ya no se muestra un alert() bloqueante en cada arranque: la app muestra un aviso
+    // permanente con un botón para activarlas (components/PushPermissionBanner.tsx).
+    console.warn('Permiso de notificaciones no concedido: no se recibirán alertas push.');
     return null;
   }
 

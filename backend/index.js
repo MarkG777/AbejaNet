@@ -13,6 +13,7 @@ import { responderPregunta } from './chatbot.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
 import { secretosIguales, verificarApiKey, verificarSetupSecret, verificarToken } from './middleware/auth.js';
+import { evaluarLectura, registrarAlertaYNotificar } from './alertas.js';
 import enviarNotificacionPrueba from './test_notification.js';
 
 // Almacenamiento temporal de códigos de reseteo de contraseña
@@ -43,7 +44,6 @@ app.disable('x-powered-by'); // no anunciar la tecnología del servidor
 // intentos (login, registro, recuperar contraseña) los compartirían TODOS los usuarios, así que bastaban 20
 // intentos de cualquiera para bloquear a todos. Con 1 salto de confianza se usa la IP real de cada cliente.
 app.set('trust proxy', 1);
-const expo = new Expo(); // Instancia de Expo
 const googleClient = new OAuth2Client();
 
 // La app móvil (axios) no envía cabecera Origin, así que siempre se permite.
@@ -206,6 +206,9 @@ app.post('/api/save-push-token', verificarToken, async (req, res) => {
       'UPDATE usuarios SET push_token = $1 WHERE id = $2',
       [token, idUsuario]
     );
+    // El token identifica al TELÉFONO, no a la cuenta: si otra cuenta lo tenía (se cerró sesión y entró alguien
+    // más en el mismo teléfono), se le quita para que las alertas de aquella cuenta no sigan llegando aquí.
+    await pool.query('UPDATE usuarios SET push_token = NULL WHERE push_token = $1 AND id <> $2', [token, idUsuario]);
 
     if (rowCount > 0) {
       console.log(`Token de notificaciones actualizado para el usuario ${idUsuario}`);
@@ -215,6 +218,17 @@ app.post('/api/save-push-token', verificarToken, async (req, res) => {
     }
   } catch (error) {
     console.error('Error al guardar el token en la base de datos:', error);
+    res.status(500).json({ mensaje: 'Error interno del servidor.' });
+  }
+});
+
+// Cierre de sesión: la app avisa para que este usuario deje de recibir push en ese teléfono.
+app.delete('/api/save-push-token', verificarToken, async (req, res) => {
+  try {
+    await pool.query('UPDATE usuarios SET push_token = NULL WHERE id = $1', [req.usuario.userId]);
+    res.json({ mensaje: 'Token de notificaciones eliminado.' });
+  } catch (error) {
+    console.error('Error al eliminar el token de notificaciones:', error);
     res.status(500).json({ mensaje: 'Error interno del servidor.' });
   }
 });
@@ -567,6 +581,9 @@ app.post('/api/sensor-data', verificarApiKey, async (req, res) => {
     await client.query('UPDATE sensores SET ultima_lectura_en = CURRENT_TIMESTAMP WHERE id = $1', [sensorId]);
 
     res.status(201).json({ success: true, message: 'Datos del sensor recibidos y guardados correctamente.' });
+
+    // Umbrales críticos → alerta + push a los usuarios de la colmena (no bloquea la respuesta al sensor).
+    evaluarLectura(sensorId, { temperatura, humedad }).catch((e) => console.error('[ALERTAS] Error al evaluar la lectura:', e.message));
 
   } catch (err) {
     console.error('Error en /api/sensor-data:', err);
@@ -1107,6 +1124,9 @@ app.post('/api/lecturas', verificarApiKey, async (req, res) => {
 
     res.status(201).json({ success: true, message, sensorId });
 
+    // Umbrales críticos → alerta + push a los usuarios de la colmena (no bloquea la respuesta al sensor).
+    evaluarLectura(sensorId, { temperatura, humedad }).catch((e) => console.error('[ALERTAS] Error al evaluar la lectura:', e.message));
+
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`Error procesando lectura de MAC ${macAddress}:`, err.message);
@@ -1186,74 +1206,17 @@ app.post('/api/alertas', verificarApiKey, async (req, res) => {
   }
 
   try {
-    // Paso 1: Insertar la nueva alerta.
-    const insertQuery = 'INSERT INTO alertas (colmena_id, tipo_alerta, valor_registrado, mensaje, leida) VALUES ($1, $2, $3, $4, FALSE)';
-    await pool.query(insertQuery, [colmena_id, tipo_alerta, valor_registrado, mensaje]);
+    // Registra la alerta y manda push a TODOS los usuarios a cargo de la colmena (lógica compartida con la
+    // evaluación automática de umbrales: backend/alertas.js).
+    const { usuariosDestino, push } = await registrarAlertaYNotificar({ colmena_id, tipo_alerta, valor_registrado, mensaje });
 
-    // Paso 2: Obtener todos los usuarios (con sus tokens) asociados a la colmena afectada.
-    const { rows: usuarios } = await pool.query(`
-      SELECT u.id, u.nombre, u.push_token
-      FROM usuarios u
-      JOIN usuarios_apiarios ua ON u.id = ua.usuario_id
-      JOIN colmenas c ON ua.apiario_id = c.apiario_id
-      WHERE c.id = $1 AND u.push_token IS NOT NULL
-    `, [colmena_id]);
-
-    // Agrupar tokens por ID de usuario para manejar múltiples dispositivos.
-    const usuariosConTokens = usuarios.reduce((acc, user) => {
-      if (user.id && user.push_token && Expo.isExpoPushToken(user.push_token)) {
-        if (!acc[user.id]) {
-          acc[user.id] = { tokens: new Set(), nombre: user.nombre };
-        }
-        acc[user.id].tokens.add(user.push_token);
-      }
-      return acc;
-    }, {});
-
-    const userIds = Object.keys(usuariosConTokens);
-    if (userIds.length === 0) {
-      console.log('Alerta registrada, pero no hay usuarios con tokens para notificar.');
-      return res.status(201).json({ success: true, message: 'Alerta registrada. No se enviaron notificaciones.' });
+    if (usuariosDestino === 0) {
+      return res.status(201).json({ success: true, message: 'Alerta registrada. No se enviaron notificaciones: ningún usuario de la colmena tiene notificaciones activas.', push });
     }
-
-    // Paso 3: Para cada usuario, obtener su conteo de alertas y construir los mensajes.
-    let allMessages = [];
-    for (const userId of userIds) {
-      const { rows: countResult } = await pool.query(`
-        SELECT COUNT(*) as "unreadCount" FROM alertas a
-        JOIN colmenas c ON a.colmena_id = c.id
-        JOIN apiarios ap ON c.apiario_id = ap.id
-        JOIN usuarios_apiarios ua ON ap.id = ua.apiario_id
-        WHERE ua.usuario_id = $1 AND a.leida = FALSE
-      `, [userId]);
-      
-      const unreadCount = parseInt(countResult[0].unreadCount, 10);
-      console.log(`DEBUG: Usuario ID ${userId} tiene un nuevo total de ${unreadCount} alertas.`);
-
-      const userTokens = Array.from(usuariosConTokens[userId].tokens);
-      const userMessages = userTokens.map(token => ({
-        to: token,
-        sound: 'default',
-        title: `🚨 Alerta en AbejaNet: ${tipo_alerta}`,
-        body: mensaje,
-        badge: unreadCount, // El contador correcto y actualizado.
-        channelId: 'default',
-        data: { colmenaId: colmena_id },
-      }));
-      allMessages.push(...userMessages);
+    if (push.enviadas === 0) {
+      return res.status(201).json({ success: true, message: 'Alerta registrada, pero NO se pudo enviar ninguna notificación push.', push });
     }
-
-    // Paso 4: Enviar todas las notificaciones.
-    const chunks = expo.chunkPushNotifications(allMessages);
-    for (const chunk of chunks) {
-      try {
-        await expo.sendPushNotificationsAsync(chunk);
-      } catch (error) {
-        console.error('Error al enviar un lote de notificaciones:', error);
-      }
-    }
-
-    res.status(201).json({ success: true, message: 'Alerta registrada y notificaciones enviadas.' });
+    res.status(201).json({ success: true, message: 'Alerta registrada y notificaciones enviadas.', usuariosNotificados: usuariosDestino, push });
 
   } catch (error) {
     console.error('Error al registrar la alerta:', error);

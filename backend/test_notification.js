@@ -1,13 +1,21 @@
 // test_notification.js
 // =================================================================
-// Módulo para disparar notificaciones de prueba en colmenas específicas
-// Este módulo es independiente y puede ser llamado desde endpoints o scripts
+// Notificaciones push de PRUEBA para una colmena. Un solo archivo con dos usos:
+//
+//  1) Como módulo: index.js lo importa para el endpoint GET /api/test-notification
+//     (protegido con la cabecera x-setup-secret). Por eso este archivo NO se debe borrar.
+//  2) Desde la terminal, ejecutándolo directamente (usa la BD del .env, o sea la de Render):
+//       node --env-file=.env test_notification.js ["<colmena>"] ["<mensaje>"] [--sin-alerta]
+//     Sin argumentos usa la colmena 'Colmena BME280 Prueba'. --sin-alerta manda solo el push, sin guardar
+//     una alerta de prueba en la base de datos.
+//
+// Comandos completos y solución de problemas: backend/TEST_NOTIFICATIONS_README.md
 // =================================================================
 
 import { Expo } from 'expo-server-sdk';
+import { pathToFileURL } from 'url';
 import pool from './db.js';
-
-const expo = new Expo();
+import { enviarPush } from './push.js';
 
 /**
  * Dispara una notificación de prueba para una colmena específica
@@ -187,19 +195,11 @@ async function enviarNotificacionPrueba(
     // ============================================================
     console.log('🚀 [PASO 5/5] Enviando notificaciones push...');
 
-    const chunks = expo.chunkPushNotifications(allMessages);
-    let notificacionesEnviadas = 0;
-    const tickets = [];
-
-    for (const chunk of chunks) {
-      try {
-        const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-        tickets.push(...ticketChunk);
-        notificacionesEnviadas += chunk.length;
-        console.log(`   ✅ Lote enviado: ${chunk.length} notificación(es)`);
-      } catch (error) {
-        console.error(`   ❌ Error al enviar lote:`, error.message);
-      }
+    // Mismo envío que las alertas reales (push.js): revisa el resultado de Expo y limpia tokens inválidos.
+    const push = await enviarPush(allMessages);
+    const notificacionesEnviadas = push.enviadas;
+    if (push.fallidas > 0) {
+      console.error(`   ❌ ${push.fallidas} notificación(es) NO se enviaron: ${push.errores.join(', ')}`);
     }
 
     console.log('\n🎉 ===============================================');
@@ -212,12 +212,15 @@ async function enviarNotificacionPrueba(
 
     return {
       success: true,
-      message: `Notificación de prueba enviada correctamente a ${notificacionesEnviadas} dispositivo(s).`,
+      message: push.fallidas === 0
+        ? `Notificación de prueba enviada correctamente a ${notificacionesEnviadas} dispositivo(s).`
+        : `Enviada a ${notificacionesEnviadas} dispositivo(s); ${push.fallidas} fallaron (${push.errores.join(', ')}).`,
       colmenaId: colmena.id,
       colmenaNombre: colmena.nombre,
       usuariosNotificados: Object.keys(usuariosConTokens).length,
       notificacionesEnviadas,
-      tickets: tickets.map((t) => ({ id: t.id, status: t.status })),
+      notificacionesFallidas: push.fallidas,
+      tokensEliminados: push.tokensEliminados,
       tokensInvalidos: tokensInvalidos.length,
     };
   } catch (error) {
@@ -242,6 +245,31 @@ export default enviarNotificacionPrueba;
 export { enviarNotificacionPrueba };
 
 
-// Cómo probarlo (comandos actualizados) → ver backend/TEST_NOTIFICATIONS_README.md
-// Resumen: `node --env-file=.env run_test_notification.js "Colmena BME280 Prueba"` desde la carpeta backend, o el
-// endpoint GET /api/test-notification con la cabecera x-setup-secret (ya NO es público).
+// ============================================================
+// Modo terminal: solo corre si ESTE archivo se ejecuta directamente (node test_notification.js ...),
+// nunca cuando index.js lo importa. pathToFileURL funciona también en Windows (comparar con
+// `file://${process.argv[1]}` falla allí por la forma de las rutas).
+// ============================================================
+const seEjecutaDirectamente = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (seEjecutaDirectamente) {
+  const todos = process.argv.slice(2);
+  const banderas = todos.filter((a) => a.startsWith('--'));
+  const [colmena = 'Colmena BME280 Prueba', mensaje] = todos.filter((a) => !a.startsWith('--'));
+
+  const opciones = {};
+  if (mensaje) opciones.mensaje = mensaje;
+  if (banderas.includes('--sin-alerta')) opciones.insertarEnBD = false;
+
+  let codigoSalida = 0;
+  try {
+    const resultado = await enviarNotificacionPrueba(colmena, opciones);
+    console.log(`\nRESUMEN FINAL\n${JSON.stringify(resultado, null, 2)}\n`);
+  } catch (error) {
+    console.error(`\n❌ ${error.message}\n`);
+    codigoSalida = 1;
+  } finally {
+    await pool.end(); // sin esto el proceso se queda abierto por el pool de conexiones
+  }
+  process.exit(codigoSalida);
+}

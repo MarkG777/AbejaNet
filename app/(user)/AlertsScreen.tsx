@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppColors } from '@/hooks/useAppColors';
 import { SkeletonLoader } from '@/components/SkeletonLoader';
+import PushPermissionBanner from '@/components/PushPermissionBanner';
 import * as Notifications from 'expo-notifications';
 import { useTranslation } from 'react-i18next';
 
@@ -202,6 +203,7 @@ const AlertsScreen = () => {
           ),
         }}
       />
+      <PushPermissionBanner />
       {renderContent()}
 
       {/* Botón flotante para marcar todas como leídas (solo visible si hay no leídas) */}
