@@ -557,6 +557,7 @@ export default function BitacoraScreen() {
               placeholderTextColor={colors.placeholder}
               value={descripcion}
               onChangeText={setDescripcion}
+              maxLength={2000} // mismo límite que valida el servidor
               multiline
               numberOfLines={3}
               textAlignVertical="top"

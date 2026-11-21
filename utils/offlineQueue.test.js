@@ -48,4 +48,28 @@ describe('offlineQueue', () => {
     expect(synced).toBe(0);
     expect(await getQueuedEvents()).toHaveLength(1);
   });
+
+  test('un evento rechazado con 400 se descarta y no bloquea a los siguientes', async () => {
+    await queueEvent({ apiario_id: 1, colmena_id: 99, tipo_evento: 'revision', descripcion: 'invalido' });
+    await queueEvent({ apiario_id: 1, colmena_id: null, tipo_evento: 'cosecha', descripcion: 'valido' });
+
+    const sendFn = jest.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('Bad Request'), { response: { status: 400 } }))
+      .mockResolvedValueOnce({});
+    const synced = await syncQueuedEvents(sendFn);
+
+    expect(synced).toBe(1); // solo el válido cuenta como sincronizado
+    expect(sendFn).toHaveBeenCalledTimes(2);
+    expect(await getQueuedEvents()).toHaveLength(0); // el inválido se descartó
+  });
+
+  test('un 401 o un 500 NO descartan el evento (pueden ser temporales)', async () => {
+    await queueEvent({ apiario_id: 1, colmena_id: null, tipo_evento: 'revision', descripcion: 'a' });
+
+    for (const status of [401, 500]) {
+      const sendFn = jest.fn().mockRejectedValue(Object.assign(new Error('x'), { response: { status } }));
+      expect(await syncQueuedEvents(sendFn)).toBe(0);
+      expect(await getQueuedEvents()).toHaveLength(1);
+    }
+  });
 });
