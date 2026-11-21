@@ -172,16 +172,21 @@ const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => 
             );
           }
 
-          const totalDelta = firstValue !== 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0;
+          // La presión varía poco en términos relativos: un % (+0.6%) no dice nada útil, se muestra la diferencia en hPa.
+          // Tampoco se pinta verde/rojo: que baje o suba la presión no es "bueno" ni "malo" por sí solo.
+          const esPresion = dataKey === 'presion';
+          const totalDelta = esPresion
+            ? lastValue - firstValue
+            : (firstValue !== 0 ? ((lastValue - firstValue) / firstValue) * 100 : 0);
           const deltaSign = totalDelta >= 0 ? '+' : '';
-          const deltaColor = totalDelta >= 0 ? '#2e7d32' : '#c62828';
+          const deltaColor = esPresion ? colors.textSecondary : (totalDelta >= 0 ? '#2e7d32' : '#c62828');
 
           return (
             <View key={dataKey} style={styles.summaryItem}>
               <Text style={[styles.summaryItemTitle, { color: colors.textTertiary }]}>{t(dataKey, title)}</Text>
               <Text style={[styles.summaryItemValue, { color: colors.text }]}>{`${lastValue.toFixed(1)} ${unit}`}</Text>
               <Text style={[styles.summaryItemDelta, { color: deltaColor }]}>
-                {`(${deltaSign}${totalDelta.toFixed(1)}%)`}
+                {`(${deltaSign}${totalDelta.toFixed(1)}${esPresion ? ' hPa' : '%'})`}
               </Text>
             </View>
           );
@@ -213,6 +218,22 @@ export default function ColmenaDetailScreen() {
 
   // Exportación: bandera para no bloquear la UI ni permitir doble-tap mientras se piden los datos crudos
   const [exporting, setExporting] = useState<'share' | 'save' | null>(null);
+
+  // Sube cada vez que el usuario pulsa "Reintentar" tras un error de carga (vuelve a ejecutar la carga).
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // expo-router puede reutilizar esta pantalla al pasar de una colmena a otra: sin esto se quedaban el rango,
+  // el punto seleccionado y la lectura en tiempo real de la colmena anterior.
+  const colmenaAnterior = useRef(colmenaId);
+  useEffect(() => {
+    if (colmenaAnterior.current === colmenaId) return;
+    colmenaAnterior.current = colmenaId;
+    setTimeRange('day');
+    setSelectedPoint(null);
+    setUltimaLectura(null);
+    setUltimaLecturaChecked(false);
+    setLecturas([]);
+  }, [colmenaId]);
 
   const toggleKey = (k: SensorDataKey) => {
     setActiveKeys(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k]);
@@ -249,7 +270,7 @@ export default function ColmenaDetailScreen() {
     // Auto-refresh cada 60 segundos
     const intervalId = setInterval(() => fetchLecturas(true), 60000);
     return () => clearInterval(intervalId);
-  }, [colmenaId, authState.accessToken, timeRange]);
+  }, [colmenaId, authState.accessToken, timeRange, reloadKey]);
 
   // Fetch última lectura cruda cada 30 segundos
   useEffect(() => {
@@ -376,13 +397,27 @@ export default function ColmenaDetailScreen() {
   }
 
   if (error) {
-    return <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>;
+    return (
+      <View style={{ alignItems: 'center', paddingHorizontal: 24 }}>
+        <Text style={[styles.errorText, { color: colors.danger }]} accessibilityRole="alert">{error}</Text>
+        {/* Antes el error no tenía salida: había que salir y volver a entrar a la pantalla. */}
+        <TouchableOpacity
+          style={[styles.exportButton, { backgroundColor: colors.primary, marginTop: 16, minHeight: 44 }]}
+          onPress={() => setReloadKey((k) => k + 1)}
+          accessibilityRole="button"
+          accessibilityLabel={t('retry', 'Reintentar')}
+        >
+          <Ionicons name="refresh-outline" size={18} color="#fff" />
+          <Text style={styles.exportButtonText}>{t('retry', 'Reintentar')}</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.title, { color: colors.text }]}>{t('hive_detail_title', 'Detalle de la Colmena')}</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{nombre}</Text>
+      {/* El encabezado de navegación ya dice "Detalle de la Colmena": aquí el título es el nombre de la colmena. */}
+      <Text style={[styles.title, { color: colors.text, marginBottom: 16 }]} accessibilityRole="header">{nombre}</Text>
       {ultimaLecturaChecked && (
         <View style={{ marginBottom: 16 }}>
           <SensorStatusBadge ultimaLecturaEn={ultimaLectura?.fecha_registro ?? null} />
@@ -397,6 +432,9 @@ export default function ColmenaDetailScreen() {
             key={range}
             style={[styles.timeRangeButton, timeRange === range && [styles.timeRangeButtonSelected, { backgroundColor: colors.timeRangeSelectedBg }]]}
             onPress={() => setTimeRange(range)}
+            accessibilityRole="button"
+            accessibilityLabel={t(`range_${range}`)}
+            accessibilityState={{ selected: timeRange === range }}
           >
             <Text style={[styles.timeRangeButtonText, { color: colors.timeRangeText }, timeRange === range && { color: colors.timeRangeSelectedText }]}>
               {t(`range_${range}`)}
@@ -472,6 +510,9 @@ export default function ColmenaDetailScreen() {
               style={[styles.exportButton, { backgroundColor: colors.primary }, exporting !== null && { opacity: 0.6 }]}
               onPress={() => handleExport('share')}
               disabled={exporting !== null}
+              accessibilityRole="button"
+              accessibilityLabel={t('share', 'Compartir')}
+              accessibilityState={{ disabled: exporting !== null, busy: exporting === 'share' }}
             >
               {exporting === 'share' ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -484,6 +525,9 @@ export default function ColmenaDetailScreen() {
               style={[styles.exportButton, { backgroundColor: '#4CAF50' }, exporting !== null && { opacity: 0.6 }]}
               onPress={() => handleExport('save')}
               disabled={exporting !== null}
+              accessibilityRole="button"
+              accessibilityLabel={t('save', 'Guardar')}
+              accessibilityState={{ disabled: exporting !== null, busy: exporting === 'save' }}
             >
               {exporting === 'save' ? (
                 <ActivityIndicator size="small" color="#fff" />
@@ -564,6 +608,19 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
     return puntos.filter((p): p is NonNullable<typeof p> => p !== null);
   };
 
+  // Texto equivalente de cada gráfica para lectores de pantalla (TalkBack/VoiceOver no pueden "ver" la línea).
+  const resumenAccesible = (k: SensorDataKey) => {
+    const valores = buildSeries(k).map((p) => p.raw);
+    if (valores.length === 0) return t('chart_no_data', 'No hay datos para mostrar.');
+    return t('chart_a11y_summary', '{{metric}}: último valor {{last}} {{unit}}, mínimo {{min}}, máximo {{max}}.', {
+      metric: t(k, labelMap[k]),
+      last: valores[valores.length - 1].toFixed(1),
+      min: Math.min(...valores).toFixed(1),
+      max: Math.max(...valores).toFixed(1),
+      unit: unitMap[k],
+    });
+  };
+
   const buildWeightSeries = () => {
     const series = buildSeries('peso');
             if (timeRange === 'day') {
@@ -619,7 +676,10 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
       <View style={[styles.selectedPointContainer, { backgroundColor: colors.card }]}>
         <View style={styles.selectedPointHeader}>
           <Text style={styles.selectedPointDate}>
-            {formatLabel(currentData.fecha_registro)}
+            {/* En "Mes" cada punto es el promedio de una semana: se aclara para que la fecha no parezca un solo día. */}
+            {timeRange === 'month'
+              ? t('week_of', 'Semana del {{date}}', { date: formatLabel(currentData.fecha_registro) })
+              : formatLabel(currentData.fecha_registro)}
           </Text>
         </View>
         <View style={styles.selectedPointDataContainer}>
@@ -628,9 +688,10 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
             if (value == null) return null;
             
             const firstValue = firstValues[key];
-            const delta = firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0;
+            const esPresion = key === 'presion'; // diferencia en hPa y sin verde/rojo (ver DetailedSummary)
+            const delta = esPresion ? value - firstValue : (firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0);
             const deltaSign = delta >= 0 ? '+' : '';
-            const deltaColor = delta >= 0 ? '#4caf50' : '#f44336';
+            const deltaColor = esPresion ? colors.textSecondary : (delta >= 0 ? '#4caf50' : '#f44336');
             
             return (
               <View key={key} style={[styles.selectedPointRow, { backgroundColor: colors.selectedPointBg }]}>
@@ -642,7 +703,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
                   </View>
                   <View style={styles.selectedPointBottomRow}>
                     <Text style={[styles.selectedPointDelta, { color: deltaColor }]}>
-                      {deltaSign}{delta.toFixed(1)}% {delta >= 0 ? '↗' : '↘'}
+                      {deltaSign}{delta.toFixed(1)}{esPresion ? ' hPa' : '%'} {delta >= 0 ? '↗' : '↘'}
                     </Text>
                   </View>
                 </View>
@@ -658,7 +719,15 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
     <View style={[styles.chartContainer, { backgroundColor: colors.chartContainerBg }]}>
        <View style={styles.chipRow}>
           {METRIC_KEYS.filter(k => k !== 'presion' || hayPresion(lecturas)).map(k => (
-            <Pressable key={k} style={[styles.chip, { backgroundColor: colors.chipBg }, activeKeys.includes(k) && { backgroundColor: colors.chipActiveBg }]} onPress={() => onToggleKey(k)}>
+            <Pressable
+              key={k}
+              style={[styles.chip, { backgroundColor: colors.chipBg }, activeKeys.includes(k) && { backgroundColor: colors.chipActiveBg }]}
+              onPress={() => onToggleKey(k)}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={t(k, labelMap[k])}
+              accessibilityState={{ selected: activeKeys.includes(k) }}
+            >
               <Text style={{ color: activeKeys.includes(k) ? colors.chipActiveText : colors.chipText, fontWeight: '500' }}>{t(k, labelMap[k])}</Text>
             </Pressable>
           ))}
@@ -668,6 +737,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
         activeKeys.map(k => (
           <View key={k} style={{ marginBottom: 4 }}>
             <Text style={[styles.chartTitle, { color: colors.text }]}>{t(k, labelMap[k])} ({unitMap[k]})</Text>
+            <View accessible accessibilityRole="image" accessibilityLabel={resumenAccesible(k)}>
             <VictoryChart
               width={Dimensions.get('window').width - 20}
               height={220}
@@ -718,6 +788,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
                 <VictoryScatter data={[{ x: selectedPoint.x, y: processedData[selectedPoint.x]?.[k] || 0 }]} size={7} style={{ data: { fill: colorMap[k], stroke: '#fff', strokeWidth: 2 } }} />
               )}
             </VictoryChart>
+            </View>
             {k === 'peso' && (
               <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 6, gap: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: 'green' }} /><Text style={{ fontSize: 12, color: colors.textTertiary }}>{t('normal', 'Normal')}</Text></View>
@@ -867,6 +938,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 14,
     margin: 5,
+    minHeight: 40, // área táctil más cómoda (la recomendación es ~44-48 dp)
+    justifyContent: 'center',
   },
   chipActive: {
     backgroundColor: '#007BFF',

@@ -143,6 +143,8 @@
   "peso": "Peso",
   "sonido": "Sonido",
   "presion": "Presión",
+  "week_of": "Semana del {{date}}",
+  "chart_a11y_summary": "{{metric}}: último valor {{last}} {{unit}}, mínimo {{min}}, máximo {{max}}.",
 
   "email_invalid": "El correo electrónico no es válido.",
   "email_placeholder": "tu@email.com",
