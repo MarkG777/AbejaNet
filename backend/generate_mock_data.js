@@ -29,9 +29,12 @@ const DEFAULT_COLMENA_NOMBRE = 'Colmena Beta Lab';
 const DEFAULT_SENSOR_MAC = 'A2:04:2A:B9:C1:D9';
 const DEFAULT_DIAS_A_GENERAR = 30;
 const DEFAULT_LECTURAS_POR_HORA = 4;
+// Presión ABSOLUTA de la estación, que es la que mide el BME280: ≈815 hPa a ~1,800 m de altitud
+// (Querétaro), no los 1013 hPa del nivel del mar. Se puede cambiar con opciones.presionBase.
+const DEFAULT_PRESION_BASE_HPA = 815;
 
 
-// --- Funciones de Simulación de Datos (sin cambios) ---
+// --- Funciones de Simulación de Datos ---
 
 const simularTemperatura = (date) => {
   const hora = date.getHours();
@@ -61,6 +64,16 @@ const simularSonido = (date) => {
   return parseFloat((baseSound + Math.random() * 10).toFixed(2));
 };
 
+// Presión en hPa: variación lenta de varios días (frentes), una oscilación diaria de ~0.6 hPa y ruido
+// del sensor. Con base 815 queda entre ~808 y ~822 hPa, dentro del rango válido (300–1100).
+const simularPresion = (date, dia, base) => {
+  const clima = 4 * Math.sin((dia / 6) * 2 * Math.PI) + 2 * Math.sin((dia / 2.3) * 2 * Math.PI);
+  const hora = date.getHours() + date.getMinutes() / 60;
+  const marea = 0.6 * Math.sin(((hora - 4) / 12) * 2 * Math.PI);
+  const ruido = (Math.random() - 0.5) * 0.3;
+  return parseFloat((base + clima + marea + ruido).toFixed(2));
+};
+
 // --- Script Principal (Adaptado para PostgreSQL) ---
 
 const generarDatos = async (cerrarPool = true, opciones = {}) => {
@@ -68,6 +81,7 @@ const generarDatos = async (cerrarPool = true, opciones = {}) => {
   const SENSOR_MAC = opciones.mac || DEFAULT_SENSOR_MAC;
   const DIAS_A_GENERAR = opciones.dias || DEFAULT_DIAS_A_GENERAR;
   const LECTURAS_POR_HORA = opciones.lecturasPorHora || DEFAULT_LECTURAS_POR_HORA;
+  const PRESION_BASE = opciones.presionBase || DEFAULT_PRESION_BASE_HPA;
   const FECHA_INICIO = new Date();
   FECHA_INICIO.setDate(FECHA_INICIO.getDate() - DIAS_A_GENERAR);
 
@@ -123,6 +137,7 @@ const generarDatos = async (cerrarPool = true, opciones = {}) => {
       const peso = simularPeso(diaSimulacion);
       const sonido = simularSonido(fechaActual);
       const lluvia = Math.random() < 0.05;
+      const presion = simularPresion(fechaActual, diaSimulacion, PRESION_BASE);
 
       lecturas.push([
         sensorId,
@@ -131,6 +146,7 @@ const generarDatos = async (cerrarPool = true, opciones = {}) => {
         peso,
         sonido,
         lluvia,
+        presion,
         new Date(fechaActual)
       ]);
       
@@ -140,8 +156,8 @@ const generarDatos = async (cerrarPool = true, opciones = {}) => {
     const BATCH_SIZE = 100;
     for (let i = 0; i < lecturas.length; i += BATCH_SIZE) {
       const batch = lecturas.slice(i, i + BATCH_SIZE);
-      const valuesPlaceholder = batch.map((_, index) => `($${index * 7 + 1}, $${index * 7 + 2}, $${index * 7 + 3}, $${index * 7 + 4}, $${index * 7 + 5}, $${index * 7 + 6}, $${index * 7 + 7})`).join(',');
-      const insertQuery = `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, fecha_registro) VALUES ${valuesPlaceholder}`;
+      const valuesPlaceholder = batch.map((_, index) => `($${index * 8 + 1}, $${index * 8 + 2}, $${index * 8 + 3}, $${index * 8 + 4}, $${index * 8 + 5}, $${index * 8 + 6}, $${index * 8 + 7}, $${index * 8 + 8})`).join(',');
+      const insertQuery = `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, presion, fecha_registro) VALUES ${valuesPlaceholder}`;
       await client.query(insertQuery, batch.flat());
       console.log(`- Lote insertado: ${i + batch.length} de ${lecturas.length} registros.`);
     }
