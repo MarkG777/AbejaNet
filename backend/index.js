@@ -600,9 +600,15 @@ app.get('/api/dashboard-summary', verificarToken, async (req, res) => {
 
 // Noticias del sector. La API key de NewsAPI vive solo en el servidor (NEWS_API_KEY); la app ya no la lleva.
 const NEWS_QUERIES = {
-  en: '(beekeeping OR beekeeper OR hives OR pollination OR "honey production" OR (bees AND (honey OR agriculture OR nature OR insect OR flower OR swarm OR nectar OR farm OR environmental))) NOT (team OR game OR clothing OR baby OR sports OR club OR league OR movie OR film OR trailer OR actor OR celebrity)',
-  es: '(apicultura OR apicultor OR colmenas OR polinización OR "producción de miel" OR (abejas AND (miel OR agricultura OR naturaleza OR insecto OR flor OR enjambre OR néctar OR campo OR ambiental))) NOT (equipo OR juego OR ropa OR bebé OR deportes OR club OR liga OR fútbol OR película OR cine OR tráiler OR actor OR famoso)',
+  en: '(beekeeping OR beekeeper OR hives OR pollination OR "honey production" OR (bees AND (honey OR agriculture OR nature OR insect OR flower OR swarm OR nectar OR farm OR environmental))) NOT (team OR game OR clothing OR baby OR sports OR club OR league OR movie OR film OR trailer OR actor OR celebrity OR reality OR Netflix OR "Love Is Blind" OR engaged OR dating OR bachelor)',
+  es: '(apicultura OR apicultor OR colmenas OR polinización OR "producción de miel" OR (abejas AND (miel OR agricultura OR naturaleza OR insecto OR flor OR enjambre OR néctar OR campo OR ambiental))) NOT (equipo OR juego OR ropa OR bebé OR deportes OR club OR liga OR fútbol OR película OR cine OR tráiler OR actor OR famoso OR reality OR Netflix OR "Love Is Blind" OR noviazgo OR telenovela)',
 };
+// NewsAPI no filtra bien por consulta (se colaban reality shows, películas y notas de finanzas con "hive" o
+// "beekeeper" en el título), así que además se filtra por título: debe hablar de abejas/miel/colmenas y no
+// coincidir con temas ajenos. Si quedan muy pocas noticias se conserva la lista original.
+const TEMAS_APICOLAS = /(abeja|apic|colmen|miel\b|polin|enjambre|avisp|varroa|n[eé]ctar|\bbee|honey|hive|apiar|pollinat|swarm|nectar)/i;
+const TEMAS_AJENOS = /(love is blind|statham|bond king|anthropic|netflix|movie|\bfilm\b|poster|trailer|tr[aá]iler|pel[ií]cula|celebrity|reality|engaged|dating|bachelor|noviazgo|telenovela|drone deliver)/i;
+const esNoticiaRelevante = (titulo) => TEMAS_APICOLAS.test(titulo) && !TEMAS_AJENOS.test(titulo);
 const NEWS_CACHE_TTL_MS = 15 * 60 * 1000;
 const newsCache = new Map(); // idioma -> { at, articles }
 
@@ -623,7 +629,7 @@ app.get('/api/noticias', verificarToken, async (req, res) => {
       params: { q: NEWS_QUERIES[lang], searchIn: 'title', language: lang, sortBy: 'publishedAt', apiKey },
       timeout: 10000,
     });
-    const articles = (data.articles || [])
+    const todas = (data.articles || [])
       .filter((a) => a.title && a.title !== '[Removed]')
       .map((a) => ({
         title: a.title,
@@ -632,6 +638,8 @@ app.get('/api/noticias', verificarToken, async (req, res) => {
         publishedAt: a.publishedAt,
         source: { name: a.source?.name || '' },
       }));
+    const relevantes = todas.filter((a) => esNoticiaRelevante(a.title));
+    const articles = relevantes.length >= 3 ? relevantes : todas;
     newsCache.set(lang, { at: Date.now(), articles });
     res.json({ success: true, articles });
   } catch (err) {
