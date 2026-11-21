@@ -62,6 +62,7 @@ interface QueuedBitacoraPayload {
   colmena_id: number | null;
   tipo_evento: string;
   descripcion: string;
+  fecha?: string; // AAAA-MM-DD; si falta, el servidor usa la fecha de hoy
 }
 
 interface QueuedBitacoraEvent {
@@ -218,6 +219,9 @@ export default function BitacoraScreen() {
           colmena_id: selectedColmena,
           tipo_evento: selectedType,
           descripcion,
+          // Si estás viendo el calendario con un día elegido, el evento se crea en ESE día (antes se creaba
+          // siempre con la fecha de hoy y parecía que no se había guardado).
+          ...(viewMode === 'calendar' && selectedDay ? { fecha: selectedDay } : {}),
         };
         const netState = await NetInfo.fetch();
         let queuedOffline = false;
@@ -299,7 +303,7 @@ export default function BitacoraScreen() {
     colmena_nombre: null,
     autor_nombre: currentUser?.nombre ?? '',
     autor_apellido: null,
-    fecha: q.queuedAt,
+    fecha: q.payload.fecha ? `${q.payload.fecha}T12:00:00` : q.queuedAt,
     tipo_evento: q.payload.tipo_evento,
     descripcion: q.payload.descripcion,
     created_at: q.queuedAt,
