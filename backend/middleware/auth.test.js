@@ -79,6 +79,23 @@ describe('verificarApiKey', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  test('si ESP32_API_KEY no está definida, rechaza siempre', () => {
+    const guardada = process.env.ESP32_API_KEY;
+    delete process.env.ESP32_API_KEY;
+    try {
+      const req = { headers: { 'x-api-key': 'cualquiera' } };
+      const res = mockRes();
+      const next = jest.fn();
+
+      verificarApiKey(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).not.toHaveBeenCalled();
+    } finally {
+      process.env.ESP32_API_KEY = guardada;
+    }
+  });
+
   test('acepta la API key correcta', () => {
     const req = { headers: { 'x-api-key': 'clave-correcta' } };
     const res = mockRes();
@@ -104,6 +121,34 @@ describe('verificarSetupSecret', () => {
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
+  });
+
+  test('rechaza un secret incorrecto aunque tenga otra longitud', () => {
+    const req = { headers: { 'x-setup-secret': 'x' }, body: {} };
+    const res = mockRes();
+    const next = jest.fn();
+
+    verificarSetupSecret(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('si SETUP_SECRET no está definido, rechaza siempre (incluso sin secret ni body)', () => {
+    const guardado = process.env.SETUP_SECRET;
+    delete process.env.SETUP_SECRET;
+    try {
+      const req = { headers: {}, body: undefined };
+      const res = mockRes();
+      const next = jest.fn();
+
+      verificarSetupSecret(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(next).not.toHaveBeenCalled();
+    } finally {
+      process.env.SETUP_SECRET = guardado;
+    }
   });
 
   test('acepta el secret correcto vía header', () => {

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import bcrypt from 'bcryptjs';
 import cors from 'cors';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { Expo } from 'expo-server-sdk';
 import express from 'express';
@@ -11,12 +12,19 @@ import asignarUsuariosAApiario from './assign_users.js';
 import { responderPregunta } from './chatbot.js';
 import pool from './db.js';
 import generarDatos from './generate_mock_data.js';
-import { verificarApiKey, verificarSetupSecret, verificarToken } from './middleware/auth.js';
+import { secretosIguales, verificarApiKey, verificarSetupSecret, verificarToken } from './middleware/auth.js';
 import enviarNotificacionPrueba from './test_notification.js';
 
 // Almacenamiento temporal de códigos de reseteo de contraseña
-// Formato: { email: { code, expiresAt } }
+// Formato: { email: { code, expiresAt, intentos } }
 const resetCodes = new Map();
+const MAX_INTENTOS_CODIGO = 5; // tras 5 códigos incorrectos hay que pedir uno nuevo (evita adivinarlo por fuerza bruta)
+
+// Correo enmascarado para los logs (a***@gmail.com): los logs de Render no deben guardar correos completos.
+const enmascararCorreo = (correo) => {
+  const [usuario = '', dominio = ''] = String(correo).split('@');
+  return `${usuario.slice(0, 1)}***@${dominio}`;
+};
 
 // Carga variables de entorno desde .env
 dotenv.config();
@@ -30,6 +38,11 @@ if (missingEnvVars.length > 0) {
 }
 
 const app = express();
+app.disable('x-powered-by'); // no anunciar la tecnología del servidor
+// Render coloca un proxy delante de la app: sin esto req.ip es siempre la IP del proxy y los límites de
+// intentos (login, registro, recuperar contraseña) los compartirían TODOS los usuarios, así que bastaban 20
+// intentos de cualquiera para bloquear a todos. Con 1 salto de confianza se usa la IP real de cada cliente.
+app.set('trust proxy', 1);
 const expo = new Expo(); // Instancia de Expo
 const googleClient = new OAuth2Client();
 
@@ -96,7 +109,8 @@ app.get('/test-db', async (req, res) => {
     await pool.query('SELECT 1');
     res.json({ success: true, message: 'Conexión a la base de datos exitosa.' });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Error al conectar con la base de datos.', error: err.message });
+    console.error('Error en /test-db:', err.message);
+    res.status(500).json({ success: false, message: 'Error al conectar con la base de datos.' });
   }
 });
 
@@ -235,7 +249,17 @@ app.post('/api/register', authLimiter, async (req, res) => {
   if (!correo_electronico || !contrasena) {
     return res.status(400).json({ success: false, message: 'Correo y contraseña son requeridos.' });
   }
+  // Validación en el servidor (antes solo la hacía la app): tipos correctos, formato de correo y longitud mínima.
+  if (typeof correo_electronico !== 'string' || typeof contrasena !== 'string') {
+    return res.status(400).json({ success: false, message: 'Correo y contraseña no válidos.' });
+  }
   const correoNormalizado = correo_electronico.trim().toLowerCase();
+  if (correoNormalizado.length > 120 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoNormalizado)) {
+    return res.status(400).json({ success: false, message: 'El formato del correo electrónico no es válido.' });
+  }
+  if (contrasena.length < 8 || contrasena.length > 128) {
+    return res.status(400).json({ success: false, message: 'La contraseña debe tener entre 8 y 128 caracteres.' });
+  }
 
   try {
     const { rows: existingUsers } = await pool.query('SELECT id FROM usuarios WHERE LOWER(correo_electronico) = $1', [correoNormalizado]);
@@ -261,6 +285,10 @@ app.post('/api/register', authLimiter, async (req, res) => {
 
 app.post('/api/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
+  // Con tipos incorrectos bcrypt lanzaba una excepción y el cliente recibía un 500 en vez de "credenciales incorrectas".
+  if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+    return res.status(400).json({ success: false, message: 'Correo y contraseña son requeridos.' });
+  }
   try {
     const { rows } = await pool.query(
        `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
@@ -380,10 +408,14 @@ app.post('/api/auth/google', async (req, res) => {
       // Lanzamos un error específico para que el bloque catch lo identifique.
       throw new Error(`Wrong recipient: la audiencia del token (${tokenAudience}) no está en la lista de clientes autorizados.`);
     }
-    const { email, name, given_name, family_name } = payload;
+    const { email, name, given_name, family_name, email_verified } = payload;
 
     if (!email) {
       return res.status(400).json({ success: false, message: 'El token de Google no contenía un correo electrónico.' });
+    }
+    // Solo se confía en correos que Google marca como verificados (se usan para localizar/crear la cuenta).
+    if (email_verified === false) {
+      return res.status(401).json({ success: false, message: 'El correo de tu cuenta de Google no está verificado.' });
     }
     const emailNormalizado = email.trim().toLowerCase();
 
@@ -392,7 +424,7 @@ app.post('/api/auth/google', async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      let { rows: users } = await client.query('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE LOWER(u.correo_electronico) = $1', [emailNormalizado]);
+      let { rows: users } = await client.query('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.esta_activo, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE LOWER(u.correo_electronico) = $1', [emailNormalizado]);
       let user = users[0];
 
       if (!user) {
@@ -404,6 +436,10 @@ app.post('/api/auth/google', async (req, res) => {
         `;
         const { rows: newUsers } = await client.query(insertQuery, [emailNormalizado, given_name || name, family_name || '', '']);
         user = newUsers[0];
+      } else if (user.esta_activo === false) {
+        // Igual que en el login normal: una cuenta desactivada por el administrador no puede entrar con Google.
+        await client.query('ROLLBACK');
+        return res.status(403).json({ success: false, message: 'La cuenta de usuario está inactiva.' });
       }
 
       await client.query('COMMIT');
@@ -891,9 +927,9 @@ app.post('/api/change-password', verificarToken, async (req, res) => {
 
 app.post('/api/forgot-password', authLimiter, async (req, res) => {
   const { email } = req.body;
-  console.log(`[forgot-password] Solicitud recibida para: ${email}`);
+  console.log(`[forgot-password] Solicitud recibida para: ${enmascararCorreo(email)}`);
 
-  if (!email) {
+  if (!email || typeof email !== 'string') {
     console.warn('[forgot-password] Email no proporcionado.');
     return res.status(400).json({ success: false, message: 'El correo electrónico es requerido.' });
   }
@@ -913,11 +949,12 @@ app.post('/api/forgot-password', authLimiter, async (req, res) => {
       return res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    // crypto.randomInt es criptográficamente seguro (Math.random es predecible).
+    const code = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = Date.now() + 15 * 60 * 1000;
 
-    resetCodes.set(email.toLowerCase(), { code, expiresAt });
-    console.log(`[forgot-password] Código generado para ${email}. Intentando enviar email...`);
+    resetCodes.set(email.toLowerCase(), { code, expiresAt, intentos: 0 });
+    console.log(`[forgot-password] Código generado para ${enmascararCorreo(email)}. Intentando enviar email...`);
 
     const brevoResponse = await axios.post('https://api.brevo.com/v3/smtp/email', {
       sender: { name: 'AbejaNet', email: process.env.BREVO_SENDER_EMAIL || 'noreply@abejanet.com' },
@@ -940,7 +977,7 @@ app.post('/api/forgot-password', authLimiter, async (req, res) => {
     }, { headers: { 'api-key': process.env.BREVO_API_KEY, 'Content-Type': 'application/json', 'accept': 'application/json' } });
     console.log('[forgot-password] Brevo API response:', JSON.stringify(brevoResponse.data));
 
-    console.log(`Código de recuperación enviado a ${email}`);
+    console.log(`Código de recuperación enviado a ${enmascararCorreo(email)}`);
     res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
 
   } catch (error) {
@@ -960,6 +997,9 @@ app.post('/api/reset-password', authLimiter, async (req, res) => {
   if (!email || !code || !newPassword) {
     return res.status(400).json({ success: false, message: 'Correo, código y nueva contraseña son requeridos.' });
   }
+  if (typeof email !== 'string' || typeof code !== 'string' || typeof newPassword !== 'string') {
+    return res.status(400).json({ success: false, message: 'Datos no válidos.' });
+  }
 
   if (newPassword.length < 6) {
     return res.status(400).json({ success: false, message: 'La nueva contraseña debe tener al menos 6 caracteres.' });
@@ -976,14 +1016,22 @@ app.post('/api/reset-password', authLimiter, async (req, res) => {
     return res.status(400).json({ success: false, message: 'El código ha expirado. Solicita uno nuevo.' });
   }
 
-  if (stored.code !== code) {
+  if (!secretosIguales(stored.code, code)) {
+    stored.intentos = (stored.intentos || 0) + 1;
+    if (stored.intentos >= MAX_INTENTOS_CODIGO) {
+      // Demasiados intentos fallidos: el código se invalida y hay que solicitar uno nuevo.
+      resetCodes.delete(email.toLowerCase());
+      return res.status(429).json({ success: false, message: 'Demasiados intentos incorrectos. Solicita un código nuevo.' });
+    }
     return res.status(400).json({ success: false, message: 'El código de verificación es incorrecto.' });
   }
 
   try {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const { rowCount } = await pool.query(
-      'UPDATE usuarios SET contrasena = $1 WHERE LOWER(correo_electronico) = $2',
+      // refresh_token = NULL: al restablecer la contraseña se cierran las sesiones abiertas en otros dispositivos
+      // (un refresh token robado dejaba de ser inútil solo a los 7 días).
+      'UPDATE usuarios SET contrasena = $1, refresh_token = NULL WHERE LOWER(correo_electronico) = $2',
       [hashedPassword, email.trim().toLowerCase()]
     );
 
@@ -1054,8 +1102,12 @@ app.post('/api/lecturas', verificarApiKey, async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`Error procesando lectura de MAC ${macAddress}:`, err.message);
-    const statusCode = err.message.includes('no está activo') ? 403 : 500;
-    res.status(statusCode).json({ success: false, message: err.message });
+    // Solo se devuelve el motivo cuando es el rechazo esperado (sensor no activo); los errores de la BD no se exponen.
+    const sensorNoActivo = err.message.includes('no está activo');
+    res.status(sensorNoActivo ? 403 : 500).json({
+      success: false,
+      message: sensorNoActivo ? err.message : 'Error interno del servidor al procesar la lectura.',
+    });
   } finally {
     client.release();
   }
@@ -1205,10 +1257,37 @@ app.post('/api/alertas', verificarApiKey, async (req, res) => {
 // ENDPOINTS PARA BITÁCORA APÍCOLA
 // ==============================================
 
+// Validaciones de la bitácora (antes un dato mal formado llegaba a PostgreSQL y el cliente recibía un 500).
+const esEnteroPositivo = (valor) => Number.isInteger(Number(valor)) && Number(valor) > 0;
+const esFechaISO = (valor) => {
+  if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+  const d = new Date(`${valor}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === valor;
+};
+// Devuelve un mensaje de error si algún campo opcional viene mal formado; null si todo está bien.
+const errorEnCamposBitacora = ({ fecha, tipo_evento, descripcion }) => {
+  if (tipo_evento !== undefined && (typeof tipo_evento !== 'string' || !tipo_evento.trim() || tipo_evento.length > 50)) {
+    return 'tipo_evento debe ser un texto de hasta 50 caracteres.';
+  }
+  if (descripcion !== undefined && descripcion !== null && (typeof descripcion !== 'string' || descripcion.length > 2000)) {
+    return 'La descripción debe ser un texto de hasta 2000 caracteres.';
+  }
+  if (fecha !== undefined && fecha !== null && fecha !== '' && !esFechaISO(fecha)) {
+    return 'La fecha debe tener el formato AAAA-MM-DD.';
+  }
+  return null;
+};
+
 // Obtener eventos de bitácora del usuario
 app.get('/api/bitacora', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
-  const { apiario_id, limit = 50, offset = 0 } = req.query;
+  const { apiario_id } = req.query;
+  // limit/offset acotados: valores no numéricos o enormes provocaban errores o consultas innecesariamente grandes.
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  if (apiario_id && !esEnteroPositivo(apiario_id)) {
+    return res.status(400).json({ success: false, message: 'apiario_id no válido.' });
+  }
 
   try {
     let query = `
@@ -1232,7 +1311,7 @@ app.get('/api/bitacora', verificarToken, async (req, res) => {
     }
 
     query += ` ORDER BY b.fecha DESC, b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(parseInt(limit), parseInt(offset));
+    params.push(limit, offset);
 
     const { rows } = await pool.query(query, params);
     res.json({ success: true, events: rows });
@@ -1250,6 +1329,10 @@ app.post('/api/bitacora', verificarToken, async (req, res) => {
   if (!apiario_id || !tipo_evento) {
     return res.status(400).json({ success: false, message: 'Faltan campos requeridos: apiario_id, tipo_evento.' });
   }
+  const errorCampos = errorEnCamposBitacora({ fecha, tipo_evento, descripcion });
+  if (errorCampos || !esEnteroPositivo(apiario_id) || (colmena_id && !esEnteroPositivo(colmena_id))) {
+    return res.status(400).json({ success: false, message: errorCampos || 'apiario_id o colmena_id no válidos.' });
+  }
 
   try {
     // Los admin tienen acceso a todos los apiarios
@@ -1260,6 +1343,15 @@ app.post('/api/bitacora', verificarToken, async (req, res) => {
       );
       if (accessCheck.rows.length === 0) {
         return res.status(403).json({ success: false, message: 'No tienes acceso a este apiario.' });
+      }
+    }
+
+    // La colmena debe pertenecer al apiario indicado: antes se podía ligar un evento a la colmena de otro usuario
+    // y la consulta devolvía el nombre de esa colmena.
+    if (colmena_id) {
+      const colmenaOk = await pool.query('SELECT 1 FROM colmenas WHERE id = $1 AND apiario_id = $2', [colmena_id, apiario_id]);
+      if (colmenaOk.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'La colmena no pertenece a ese apiario.' });
       }
     }
 
@@ -1280,8 +1372,23 @@ app.put('/api/bitacora/:id', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   const { id } = req.params;
   const { fecha, tipo_evento, descripcion, colmena_id } = req.body;
+  const errorCampos = errorEnCamposBitacora({ fecha, tipo_evento, descripcion });
+  if (errorCampos || !esEnteroPositivo(id) || (colmena_id && !esEnteroPositivo(colmena_id))) {
+    return res.status(400).json({ success: false, message: errorCampos || 'id o colmena_id no válidos.' });
+  }
 
   try {
+    if (colmena_id) {
+      // La colmena nueva debe pertenecer al mismo apiario del evento (y el evento debe ser del usuario).
+      const colmenaOk = await pool.query(
+        `SELECT 1 FROM bitacora b JOIN colmenas c ON c.apiario_id = b.apiario_id
+         WHERE b.id = $1 AND b.usuario_id = $2 AND c.id = $3`,
+        [id, userId, colmena_id]
+      );
+      if (colmenaOk.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'La colmena no pertenece al apiario de este evento.' });
+      }
+    }
     const result = await pool.query(
       `UPDATE bitacora SET fecha = COALESCE($1, fecha), tipo_evento = COALESCE($2, tipo_evento),
        descripcion = COALESCE($3, descripcion), colmena_id = COALESCE($4, colmena_id)
@@ -1302,6 +1409,9 @@ app.put('/api/bitacora/:id', verificarToken, async (req, res) => {
 app.delete('/api/bitacora/:id', verificarToken, async (req, res) => {
   const userId = req.usuario.userId;
   const { id } = req.params;
+  if (!esEnteroPositivo(id)) {
+    return res.status(400).json({ success: false, message: 'id no válido.' });
+  }
 
   try {
     const result = await pool.query(
@@ -1323,7 +1433,9 @@ app.delete('/api/bitacora/:id', verificarToken, async (req, res) => {
 // ==============================================
 // Este endpoint utiliza el módulo test_notification.js para disparar
 // una notificación de prueba. Mantiene index.js limpio y modular.
-app.get('/api/test-notification', async (req, res) => {
+// Protegido con la clave de administración (cabecera x-setup-secret): antes cualquiera en internet podía
+// disparar notificaciones push a los celulares de los apicultores.
+app.get('/api/test-notification', verificarSetupSecret, async (req, res) => {
   try {
     const colmenaNombre = req.query.colmena || 'Colmena Gamma Ppal';
     const mensaje = req.query.mensaje;
@@ -1346,17 +1458,10 @@ app.get('/api/test-notification', async (req, res) => {
 // ENDPOINT DE SETUP DE BASE DE DATOS (PROTEGIDO)
 // ==============================================
 // Solo se ejecuta si se proporciona la clave secreta correcta
-app.post('/debug/setup-database', async (req, res) => {
+// Usa verificarSetupSecret (acepta el secreto en la cabecera x-setup-secret o en body.secret, como antes).
+// La comparación anterior (secret !== SETUP_SECRET) dejaba pasar a cualquiera si la variable no estaba definida.
+app.post('/debug/setup-database', verificarSetupSecret, async (req, res) => {
   try {
-    // Protección: requiere clave secreta
-    const { secret } = req.body;
-    if (secret !== process.env.SETUP_SECRET) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'Acceso denegado. Clave secreta incorrecta.' 
-      });
-    }
-
     console.log('🚀 Ejecutando setup de base de datos...');
     
     const fs = await import('fs');
@@ -1365,7 +1470,8 @@ app.post('/debug/setup-database', async (req, res) => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     
-    const sqlPath = path.join(__dirname, '..', 'abeja_net_v5_postgres.sql');
+    // v6 = v5 + columna `presion` (BME280). Los datos se borran: el script empieza con DROP TABLE.
+    const sqlPath = path.join(__dirname, '..', 'abeja_net_v6_postgres.sql');
     const sqlScript = fs.readFileSync(sqlPath, 'utf8');
     
     await pool.query(sqlScript);

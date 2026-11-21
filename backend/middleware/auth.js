@@ -1,4 +1,14 @@
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
+
+// Compara dos secretos en tiempo constante (evita ataques de temporización) y nunca da por buena una
+// comparación si falta alguno de los dos: p. ej. si la variable de entorno no está definida.
+export const secretosIguales = (recibido, esperado) => {
+  if (typeof recibido !== 'string' || typeof esperado !== 'string' || !recibido || !esperado) return false;
+  const a = crypto.createHash('sha256').update(recibido).digest();
+  const b = crypto.createHash('sha256').update(esperado).digest();
+  return crypto.timingSafeEqual(a, b);
+};
 
 // Verifica el JWT de sesión de usuario (rutas /api/*)
 export const verificarToken = (req, res, next) => {
@@ -24,7 +34,7 @@ export const verificarToken = (req, res, next) => {
 // Verifica la clave secreta compartida con endpoints de administración/debug
 export const verificarSetupSecret = (req, res, next) => {
   const secret = req.headers['x-setup-secret'] || req.body?.secret;
-  if (!secret || secret !== process.env.SETUP_SECRET) {
+  if (!secretosIguales(secret, process.env.SETUP_SECRET)) {
     return res.status(403).json({ success: false, message: 'Acceso denegado. Clave secreta incorrecta o no proporcionada.' });
   }
   next();
@@ -36,7 +46,7 @@ export const verificarApiKey = (req, res, next) => {
   const expectedApiKey = process.env.ESP32_API_KEY;
 
   console.log(`[AUTH DEBUG] API Key recibida: ${apiKey === expectedApiKey ? 'coincide' : 'no coincide'}`);
-  if (!apiKey || apiKey !== expectedApiKey) {
+  if (!secretosIguales(apiKey, expectedApiKey)) {
     return res.status(401).json({ success: false, message: 'API Key no válida o no proporcionada.' });
   }
   next();
