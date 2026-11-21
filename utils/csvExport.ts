@@ -9,6 +9,7 @@ export interface CsvRow {
   humedad: number | null;
   peso: number | null;
   sonido: number | null;
+  presion?: number | null; // hPa (BME280); opcional: solo las colmenas con ese sensor la tienen
 }
 
 /**
@@ -52,11 +53,16 @@ const generateCsvContent = (data: CsvRow[], colmenaName: string): string => {
     ``,
   ];
 
-  const header = ['Fecha', 'Hora', 'Temperatura (C)', 'Humedad (%)', 'Peso (kg)', 'Sonido (dB)'].join(SEP);
+  // La columna de presión va al final y solo si alguna fila la trae: las colmenas sin BME280 se exportan igual que antes.
+  const conPresion = data.some(row => row.presion !== null && row.presion !== undefined);
+
+  const header = ['Fecha', 'Hora', 'Temperatura (C)', 'Humedad (%)', 'Peso (kg)', 'Sonido (dB)', ...(conPresion ? ['Presion (hPa)'] : [])].join(SEP);
 
   const rows = data.map(row => {
     const { fecha, hora } = formatDateTime(row.fecha_registro);
-    return [fecha, hora, fmt(row.temperatura), fmt(row.humedad), fmt(row.peso), fmt(row.sonido)].join(SEP);
+    const celdas = [fecha, hora, fmt(row.temperatura), fmt(row.humedad), fmt(row.peso), fmt(row.sonido)];
+    if (conPresion) celdas.push(fmt(row.presion ?? null));
+    return celdas.join(SEP);
   });
 
   return BOM + [...meta, header, ...rows].join('\n');
