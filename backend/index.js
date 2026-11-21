@@ -83,6 +83,8 @@ app.get('/', (req, res) => res.send('API de AbejaNet online.'));
     // Columna colmena_id (opcional) para bitácora, agregada en v5 pero faltante en la tabla ya existente
     await pool.query('ALTER TABLE bitacora ADD COLUMN IF NOT EXISTS colmena_id INT REFERENCES colmenas(id) ON DELETE SET NULL;');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_bitacora_colmena ON bitacora(colmena_id);');
+    // Presión atmosférica (BME280), en hPa. Opcional: el firmware anterior no la manda y queda NULL.
+    await pool.query('ALTER TABLE lecturas_ambientales ADD COLUMN IF NOT EXISTS presion DECIMAL(7,2) CHECK (presion IS NULL OR (presion >= 300 AND presion <= 1100));');
     console.log('Migraciones automáticas aplicadas correctamente.');
   } catch (err) {
     console.error('Error en migraciones automáticas:', err.message);
@@ -471,8 +473,21 @@ app.post('/api/auth/google', async (req, res) => {
 // =================================================================
 // ENDPOINT PARA RECEPCIÓN DE DATOS DE SENSORES (ESP32)
 // =================================================================
+// Presión en hPa (BME280: 300–1100). Es opcional porque el firmware anterior no la manda; si llega algo
+// no numérico o fuera de rango se guarda NULL para no perder el resto de la lectura.
+const normalizarPresion = (valor) => {
+  if (valor === undefined || valor === null || valor === '') return null;
+  const n = Number(valor);
+  if (!Number.isFinite(n) || n < 300 || n > 1100) {
+    console.warn(`[WARN] Presión inválida o fuera de rango, se guarda NULL: ${String(valor).slice(0, 20)}`);
+    return null;
+  }
+  return Math.round(n * 100) / 100;
+};
+
 app.post('/api/sensor-data', verificarApiKey, async (req, res) => {
   const { mac_address, temperatura, humedad, peso, sonido, lluvia } = req.body;
+  const presion = normalizarPresion(req.body.presion);
 
   if (!mac_address) {
     return res.status(400).json({ success: false, message: 'La mac_address es obligatoria.' });
@@ -507,9 +522,9 @@ app.post('/api/sensor-data', verificarApiKey, async (req, res) => {
 
     // 2. Insertar la nueva lectura ambiental
     await client.query(
-      `INSERT INTO lecturas_ambientales (sensor_id, humedad, temperatura, peso, sonido, lluvia)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [sensorId, humedad, temperatura, peso, sonido, lluvia]
+      `INSERT INTO lecturas_ambientales (sensor_id, humedad, temperatura, peso, sonido, lluvia, presion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [sensorId, humedad, temperatura, peso, sonido, lluvia, presion]
     );
 
     // 3. Actualizar la fecha de última lectura en la tabla de sensores
@@ -688,16 +703,16 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
       let groupBy = '';
 
       if (granularity === 'raw') {
-        selectCols = 'l.fecha_registro, l.temperatura, l.humedad, l.peso, l.sonido';
+        selectCols = 'l.fecha_registro, l.temperatura, l.humedad, l.peso, l.sonido, l.presion';
       } else if (granularity === 'hour') {
         selectCols = `date_trunc('hour', l.fecha_registro) as fecha_registro,
                       AVG(l.temperatura) as temperatura, AVG(l.humedad) as humedad,
-                      AVG(l.peso) as peso, AVG(l.sonido) as sonido`;
+                      AVG(l.peso) as peso, AVG(l.sonido) as sonido, AVG(l.presion) as presion`;
         groupBy = `GROUP BY date_trunc('hour', l.fecha_registro)`;
       } else {
         selectCols = `l.fecha_registro::date as fecha_registro,
                       AVG(l.temperatura) as temperatura, AVG(l.humedad) as humedad,
-                      AVG(l.peso) as peso, AVG(l.sonido) as sonido`;
+                      AVG(l.peso) as peso, AVG(l.sonido) as sonido, AVG(l.presion) as presion`;
         groupBy = `GROUP BY l.fecha_registro::date`;
       }
 
@@ -725,7 +740,8 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
                    AVG(l.temperatura) as temperatura,
                    AVG(l.humedad) as humedad,
                    AVG(l.peso) as peso,
-                   AVG(l.sonido) as sonido
+                   AVG(l.sonido) as sonido,
+                   AVG(l.presion) as presion
                  FROM lecturas_ambientales l
                  JOIN sensores s ON l.sensor_id = s.id
                  WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '1 MONTH'
@@ -739,7 +755,8 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
                    AVG(l.temperatura) as temperatura,
                    AVG(l.humedad) as humedad,
                    AVG(l.peso) as peso,
-                   AVG(l.sonido) as sonido
+                   AVG(l.sonido) as sonido,
+                   AVG(l.presion) as presion
                  FROM lecturas_ambientales l
                  JOIN sensores s ON l.sensor_id = s.id
                  WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '1 WEEK'
@@ -753,7 +770,8 @@ app.get('/api/colmenas/:colmenaId/lecturas', verificarToken, async (req, res) =>
                    AVG(l.temperatura) as temperatura,
                    AVG(l.humedad) as humedad,
                    AVG(l.peso) as peso,
-                   AVG(l.sonido) as sonido
+                   AVG(l.sonido) as sonido,
+                   AVG(l.presion) as presion
                  FROM lecturas_ambientales l
                  JOIN sensores s ON l.sensor_id = s.id
                  WHERE s.colmena_id = $1 AND l.fecha_registro >= NOW() - INTERVAL '1 DAY'
@@ -786,7 +804,7 @@ app.get('/api/colmenas/:colmenaId/ultima-lectura', verificarToken, async (req, r
     }
 
     const { rows } = await pool.query(
-      `SELECT l.temperatura, l.humedad, l.peso, l.sonido, l.lluvia, l.fecha_registro
+      `SELECT l.temperatura, l.humedad, l.peso, l.sonido, l.lluvia, l.presion, l.fecha_registro
        FROM lecturas_ambientales l
        JOIN sensores s ON l.sensor_id = s.id
        WHERE s.colmena_id = $1
@@ -987,6 +1005,7 @@ app.post('/api/reset-password', authLimiter, async (req, res) => {
 
 app.post('/api/lecturas', verificarApiKey, async (req, res) => {
   const { macAddress, temperatura, humedad, peso, lluvia, sonido } = req.body;
+  const presion = normalizarPresion(req.body.presion);
 
   if (!macAddress) {
     return res.status(400).json({ success: false, message: 'Falta el campo macAddress.' });
@@ -1018,8 +1037,8 @@ app.post('/api/lecturas', verificarApiKey, async (req, res) => {
     }
 
     await client.query(
-      `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia) VALUES ($1, $2, $3, $4, $5, $6)`,
-      [sensorId, temperatura, humedad, peso, sonido, lluvia]
+      `INSERT INTO lecturas_ambientales (sensor_id, temperatura, humedad, peso, sonido, lluvia, presion) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [sensorId, temperatura, humedad, peso, sonido, lluvia, presion]
     );
 
     await client.query('UPDATE sensores SET ultima_lectura_en = NOW() WHERE id = $1', [sensorId]);
