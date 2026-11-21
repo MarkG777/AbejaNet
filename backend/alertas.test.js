@@ -11,24 +11,36 @@ const crearDb = (respuestas = {}) => ({
   }),
 });
 
-describe('clasificarLectura (umbrales provisionales: temperatura 29–38 °C, humedad 40–70 %)', () => {
+// Umbrales de humedad de ejemplo (por defecto la humedad está APAGADA hasta validar valores con literatura).
+const CON_HUMEDAD = { ...UMBRALES, humedad: { ...UMBRALES.humedad, min: 40, max: 70 } };
+
+describe('clasificarLectura (temperatura 29–38 °C provisional; humedad apagada por defecto)', () => {
+  test('por defecto la humedad NO genera alertas (ni 95 % ni 10 %): sin valores validados daría falsas alarmas', () => {
+    expect(clasificarLectura({ humedad: 95 })).toEqual([]);
+    expect(clasificarLectura({ humedad: 10 })).toEqual([]);
+  });
   test('una lectura normal no genera alertas', () => {
     expect(clasificarLectura({ temperatura: 34.5, humedad: 55 })).toEqual([]);
   });
   test('en el límite exacto no es crítica (solo fuera del rango)', () => {
-    expect(clasificarLectura({ temperatura: UMBRALES.temperatura.max, humedad: UMBRALES.humedad.min })).toEqual([]);
-    expect(clasificarLectura({ temperatura: UMBRALES.temperatura.min, humedad: UMBRALES.humedad.max })).toEqual([]);
+    expect(clasificarLectura({ temperatura: UMBRALES.temperatura.max, humedad: CON_HUMEDAD.humedad.min }, CON_HUMEDAD)).toEqual([]);
+    expect(clasificarLectura({ temperatura: UMBRALES.temperatura.min, humedad: CON_HUMEDAD.humedad.max }, CON_HUMEDAD)).toEqual([]);
   });
   test('exceso de calor y frío extremo', () => {
     expect(clasificarLectura({ temperatura: 40.1 }).map((c) => c.tipo_alerta)).toEqual(['TEMPERATURA_ALTA']);
     expect(clasificarLectura({ temperatura: 20 }).map((c) => c.tipo_alerta)).toEqual(['TEMPERATURA_BAJA']);
   });
-  test('humedad alta y baja', () => {
-    expect(clasificarLectura({ humedad: 85 }).map((c) => c.tipo_alerta)).toEqual(['HUMEDAD_ALTA']);
-    expect(clasificarLectura({ humedad: 30 }).map((c) => c.tipo_alerta)).toEqual(['HUMEDAD_BAJA']);
+  test('humedad alta y baja (cuando se configuran sus límites)', () => {
+    expect(clasificarLectura({ humedad: 85 }, CON_HUMEDAD).map((c) => c.tipo_alerta)).toEqual(['HUMEDAD_ALTA']);
+    expect(clasificarLectura({ humedad: 30 }, CON_HUMEDAD).map((c) => c.tipo_alerta)).toEqual(['HUMEDAD_BAJA']);
+  });
+  test('un límite en null (desactivado) no alerta de ese lado', () => {
+    const soloAlta = { ...UMBRALES, temperatura: { ...UMBRALES.temperatura, min: null } };
+    expect(clasificarLectura({ temperatura: 10 }, soloAlta)).toEqual([]);
+    expect(clasificarLectura({ temperatura: 45 }, soloAlta)).toHaveLength(1);
   });
   test('temperatura y humedad críticas a la vez dan dos alertas', () => {
-    expect(clasificarLectura({ temperatura: 41, humedad: 30 })).toHaveLength(2);
+    expect(clasificarLectura({ temperatura: 41, humedad: 30 }, CON_HUMEDAD)).toHaveLength(2);
   });
   test('valores ausentes, nulos o no numéricos se ignoran (sensor sin esa magnitud)', () => {
     expect(clasificarLectura({ temperatura: null, humedad: undefined })).toEqual([]);
@@ -110,7 +122,7 @@ describe('evaluarLectura', () => {
       'FROM lecturas_ambientales': [{ temperatura: 41, humedad: 30 }],
       'FROM alertas': (params) => (params[1] === 'HUMEDAD_BAJA' ? [{ '?column?': 1 }] : []),
     });
-    const r = await evaluarLectura(1, { temperatura: 41, humedad: 30 }, { db, notificar });
+    const r = await evaluarLectura(1, { temperatura: 41, humedad: 30 }, { db, notificar, umbrales: CON_HUMEDAD });
     expect(r.map((a) => a.tipo_alerta)).toEqual(['TEMPERATURA_ALTA']);
   });
 });

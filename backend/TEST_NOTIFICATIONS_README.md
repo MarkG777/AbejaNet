@@ -54,3 +54,8 @@ La primera petición puede tardar hasta ~50 s si Render tiene el servicio dormid
 - `No se encontró la colmena`: el nombre debe coincidir exactamente (mayúsculas y acentos).
 - `403` en la Forma 2: falta la cabecera `x-setup-secret` o no coincide con la de Render.
 - La app necesita internet y notificaciones permitidas; en Android también revisa el modo "No molestar".
+
+## Alertas automáticas (las reales)
+Estas pruebas mandan una notificación manual. Las alertas reales las genera el backend solo, con cada lectura del
+ESP32, y llegan por push a **todos** los usuarios con acceso al apiario de la colmena. Cómo funcionan, los umbrales
+(provisionales) y las variables para cambiarlos: `docs/UMBRALES_ALERTAS.md`.

@@ -15,14 +15,15 @@ import pool from './db.js';
 import { enviarPush } from './push.js';
 
 // Umbrales CRÍTICOS — ⚠️ PROVISIONALES, PENDIENTES DE VALIDAR CON LITERATURA CIENTÍFICA.
-// Los valores por defecto son las zonas de "peligro" que ya usa la app en la pantalla de detalle
-// (SENSOR_THRESHOLDS en app/(user)/ColmenaDetailScreen.tsx):
-//   temperatura: peligro ≤ 28 °C y ≥ 39 °C  → crítica si < 29 o > 38
-//   humedad:     peligro ≤ 39 %  y ≥ 71 %   → crítica si < 40 o > 70
-// Se pueden cambiar SIN tocar el código con variables de entorno (en Render → Environment):
-//   ALERT_TEMP_MIN, ALERT_TEMP_MAX, ALERT_HUM_MIN, ALERT_HUM_MAX   (un número, o "off" para desactivar ese límite)
+//   temperatura: por defecto, las zonas de "peligro" que ya usa la app (SENSOR_THRESHOLDS en
+//                app/(user)/ColmenaDetailScreen.tsx): ≤ 28 °C y ≥ 39 °C → crítica si < 29 o > 38.
+//   humedad:     APAGADA por defecto. La literatura revisada indica que la humedad dentro de colmenas sanas varía
+//                entre 40 y 95 %, así que 40–70 % daría falsas alarmas. Para activarla en Render → Environment:
+//                ALERT_HUM_MIN=40  y/o  ALERT_HUM_MAX=70  (o los valores que se validen).
+// Se pueden cambiar SIN tocar el código con variables de entorno (un número, o "off" para desactivar ese límite):
+//   ALERT_TEMP_MIN, ALERT_TEMP_MAX, ALERT_HUM_MIN, ALERT_HUM_MAX
 //   ALERTAS_AUTOMATICAS=off   (apaga por completo la generación automática de alertas)
-// Fundamento y estado de la validación: docs/UMBRALES_ALERTAS.md
+// Fundamento, fuentes y estado de la validación: docs/UMBRALES_ALERTAS.md
 const leerLimite = (variable, porDefecto) => {
   const crudo = process.env[variable];
   if (crudo === undefined || crudo.trim() === '') return porDefecto;
@@ -33,7 +34,7 @@ const leerLimite = (variable, porDefecto) => {
 
 export const UMBRALES = {
   temperatura: { min: leerLimite('ALERT_TEMP_MIN', 29), max: leerLimite('ALERT_TEMP_MAX', 38), unidad: '°C', nombre: 'Temperatura', tipoBaja: 'TEMPERATURA_BAJA', tipoAlta: 'TEMPERATURA_ALTA' },
-  humedad: { min: leerLimite('ALERT_HUM_MIN', 40), max: leerLimite('ALERT_HUM_MAX', 70), unidad: '%', nombre: 'Humedad', tipoBaja: 'HUMEDAD_BAJA', tipoAlta: 'HUMEDAD_ALTA' },
+  humedad: { min: leerLimite('ALERT_HUM_MIN', null), max: leerLimite('ALERT_HUM_MAX', null), unidad: '%', nombre: 'Humedad', tipoBaja: 'HUMEDAD_BAJA', tipoAlta: 'HUMEDAD_ALTA' },
 };
 
 export const ALERTAS_AUTOMATICAS_ACTIVAS = (process.env.ALERTAS_AUTOMATICAS || '').trim().toLowerCase() !== 'off';
@@ -55,10 +56,10 @@ const numero = (v) => (v === null || v === undefined || v === '' ? NaN : Number(
  * Qué alertas críticas corresponden a una lectura (función pura).
  * @returns {{tipo_alerta:string, valor:number, unidad:string, limite:number, direccion:'alta'|'baja', metrica:string}[]}
  */
-export function clasificarLectura({ temperatura, humedad } = {}) {
+export function clasificarLectura({ temperatura, humedad } = {}, umbrales = UMBRALES) {
   const valores = { temperatura: numero(temperatura), humedad: numero(humedad) };
   const criticas = [];
-  for (const [metrica, u] of Object.entries(UMBRALES)) {
+  for (const [metrica, u] of Object.entries(umbrales)) {
     const valor = valores[metrica];
     if (!Number.isFinite(valor)) continue;
     if (u.min !== null && valor < u.min) criticas.push({ tipo_alerta: u.tipoBaja, valor, unidad: u.unidad, limite: u.min, direccion: 'baja', metrica });
@@ -67,8 +68,8 @@ export function clasificarLectura({ temperatura, humedad } = {}) {
   return criticas;
 }
 
-const mensajeDe = (c, nombreColmena) => {
-  const { nombre } = UMBRALES[c.metrica];
+const mensajeDe = (c, nombreColmena, umbrales = UMBRALES) => {
+  const { nombre } = umbrales[c.metrica];
   const redondeado = Math.round(c.valor * 10) / 10;
   return c.direccion === 'alta'
     ? `${nombreColmena}: ${nombre.toLowerCase()} crítica de ${redondeado} ${c.unidad} (máximo seguro: ${c.limite} ${c.unidad}).`
@@ -135,9 +136,9 @@ export async function registrarAlertaYNotificar({ colmena_id, tipo_alerta, valor
  * Nunca debe romper la recepción de datos: quien la llame debe capturar los errores.
  * @returns {Promise<object[]>} las alertas que se generaron
  */
-export async function evaluarLectura(sensorId, lectura, { db = pool, notificar = registrarAlertaYNotificar, cooldownMin = COOLDOWN_MINUTOS, activas = ALERTAS_AUTOMATICAS_ACTIVAS } = {}) {
+export async function evaluarLectura(sensorId, lectura, { db = pool, notificar = registrarAlertaYNotificar, cooldownMin = COOLDOWN_MINUTOS, activas = ALERTAS_AUTOMATICAS_ACTIVAS, umbrales = UMBRALES } = {}) {
   if (!activas) return [];
-  const criticas = clasificarLectura(lectura);
+  const criticas = clasificarLectura(lectura, umbrales);
   if (criticas.length === 0) return [];
 
   const { rows: sensores } = await db.query('SELECT colmena_id FROM sensores WHERE id = $1', [sensorId]);
@@ -150,7 +151,7 @@ export async function evaluarLectura(sensorId, lectura, { db = pool, notificar =
     [sensorId]
   );
   if (previas.length === 0) return [];
-  const tiposPrevios = new Set(clasificarLectura(previas[0]).map((c) => c.tipo_alerta));
+  const tiposPrevios = new Set(clasificarLectura(previas[0], umbrales).map((c) => c.tipo_alerta));
 
   const { rows: colmenas } = await db.query('SELECT nombre FROM colmenas WHERE id = $1', [colmenaId]);
   const nombreColmena = colmenas[0]?.nombre ?? `#${colmenaId}`;
@@ -170,7 +171,7 @@ export async function evaluarLectura(sensorId, lectura, { db = pool, notificar =
       colmena_id: colmenaId,
       tipo_alerta: c.tipo_alerta,
       valor_registrado: `${Math.round(c.valor * 10) / 10} ${c.unidad}`,
-      mensaje: mensajeDe(c, nombreColmena),
+      mensaje: mensajeDe(c, nombreColmena, umbrales),
     };
     const resultado = await notificar(alerta);
     generadas.push({ ...alerta, ...resultado });
