@@ -398,7 +398,7 @@ export default function ColmenaDetailScreen() {
 
   if (error) {
     return (
-      <View style={{ alignItems: 'center', paddingHorizontal: 24 }}>
+      <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 24, backgroundColor: colors.background }}>
         <Text style={[styles.errorText, { color: colors.danger }]} accessibilityRole="alert">{error}</Text>
         {/* Antes el error no tenía salida: había que salir y volver a entrar a la pantalla. */}
         <TouchableOpacity
