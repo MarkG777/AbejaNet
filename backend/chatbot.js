@@ -54,6 +54,11 @@ Reglas:
   completamente en inglés (If the user writes in English, answer fully in English). Si no queda claro, usa
   el idioma configurado en la app del usuario (se indica al final de estas instrucciones).
 - Nunca inventes datos de sensores, alertas o colmenas. Si necesitas datos, usa las herramientas.
+- LA AUSENCIA DE DATOS NO ES UNA BUENA NOTICIA: nunca digas que "no hay problemas" o que "todo está bien" solo
+  porque una herramienta devolvió una lista vacía. Solo puedes afirmarlo si hay lecturas recientes de una colmena
+  y no tiene alertas. Si el usuario no tiene colmenas, si la colmena que menciona no existe entre las suyas, o si
+  una colmena no tiene sensor ni lecturas, dilo de forma explícita y clara (por ejemplo: "Todavía no tienes
+  colmenas registradas; pide acceso al administrador de tu apiario").
 - Solo puedes ver información de las colmenas del usuario que está preguntando (ya filtrado por el backend).
 - Si detectas una tendencia preocupante (ej. peso bajando fuerte, temperatura muy alta), sugiere revisar
   la colmena en persona, pero deja claro que no reemplazas el criterio del apicultor.
@@ -108,6 +113,9 @@ function buildToolRunners(usuarioId) {
          ORDER BY c.nombre`,
         [usuarioId]
       );
+      if (rows.length === 0) {
+        return { colmenas: [], mensaje: 'El usuario NO tiene ninguna colmena asignada ni acceso a ningún apiario.' };
+      }
       return rows;
     },
     consultar_alertas_recientes: async ({ colmena_nombre, limite }) => {
@@ -123,6 +131,27 @@ function buildToolRunners(usuarioId) {
          LIMIT $3`,
         [usuarioId, colmena_nombre ?? null, limite ?? 10]
       );
+      if (rows.length === 0) {
+        // Una lista vacía no significa "sin problemas": hay que distinguir por qué está vacía.
+        const { rows: propias } = await pool.query(
+          `SELECT c.nombre FROM colmenas c
+           JOIN usuarios_apiarios ua ON ua.apiario_id = c.apiario_id
+           WHERE ua.usuario_id = $1 AND ($2::text IS NULL OR c.nombre = $2)`,
+          [usuarioId, colmena_nombre ?? null]
+        );
+        if (propias.length === 0) {
+          return {
+            alertas: [],
+            mensaje: colmena_nombre
+              ? `No existe ninguna colmena llamada "${colmena_nombre}" entre las colmenas del usuario.`
+              : 'El usuario NO tiene ninguna colmena asignada, por eso no hay alertas.',
+          };
+        }
+        return {
+          alertas: [],
+          mensaje: 'No hay alertas registradas. Esto por sí solo no confirma que todo esté bien: verifica con consultar_tendencia_sensor que la colmena tenga lecturas recientes.',
+        };
+      }
       return rows;
     },
     consultar_tendencia_sensor: async ({ colmena_nombre, dias }) => {
@@ -147,7 +176,14 @@ function buildToolRunners(usuarioId) {
            AND la.fecha_registro >= NOW() - ($3 || ' days')::interval`,
         [usuarioId, colmena_nombre, String(dias ?? 7)]
       );
-      return rows[0] ?? null;
+      const resumen = rows[0];
+      if (!resumen || Number(resumen.lecturas_analizadas) === 0) {
+        return {
+          lecturas_analizadas: 0,
+          mensaje: `No hay lecturas en los últimos ${dias ?? 7} días para la colmena "${colmena_nombre}": puede que no exista entre las colmenas del usuario, que no tenga sensor asignado o que el sensor esté sin conexión.`,
+        };
+      }
+      return resumen;
     },
   };
 }
@@ -184,9 +220,34 @@ const instruccionIdiomaApp = (idioma) =>
   'Úsalo SOLO como respaldo cuando el mensaje del usuario no deje claro su idioma (por ejemplo "ok" o "hola"); ' +
   'si el usuario escribe en otro idioma, responde en el idioma del usuario.';
 
+// Dato real del servidor (no del modelo) sobre cuántas colmenas tiene el usuario, para que el asistente no
+// confunda "sin colmenas" con "sin problemas". Si la consulta falla no se bloquea el chat.
+async function estadoColmenasUsuario(usuarioId) {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS total
+       FROM colmenas c
+       JOIN usuarios_apiarios ua ON ua.apiario_id = c.apiario_id
+       WHERE ua.usuario_id = $1`,
+      [usuarioId]
+    );
+    const total = rows[0]?.total ?? 0;
+    if (total === 0) {
+      return 'DATO VERIFICADO DEL SERVIDOR: este usuario NO tiene ninguna colmena asignada. Si pregunta por sus colmenas, ' +
+        'alertas, problemas, estado o datos, respóndele claramente que todavía no tiene colmenas registradas ni acceso ' +
+        'a ningún apiario y que debe pedir acceso al administrador. Nunca digas que no hay problemas. ' +
+        'Puedes seguir respondiendo preguntas generales sobre cómo usar la app.';
+    }
+    return `DATO VERIFICADO DEL SERVIDOR: este usuario tiene acceso a ${total} colmena(s).`;
+  } catch (error) {
+    console.error('No se pudo consultar el estado de colmenas del usuario para el chatbot:', error.message);
+    return '';
+  }
+}
+
 export async function responderPregunta(pregunta, usuarioId, historial = [], idioma = 'es') {
   const runners = buildToolRunners(usuarioId);
-  const systemInstruction = `${SYSTEM_PROMPT}\n${instruccionIdiomaApp(idioma)}`;
+  const systemInstruction = `${SYSTEM_PROMPT}\n${instruccionIdiomaApp(idioma)}\n${await estadoColmenasUsuario(usuarioId)}`;
   const contents = [
     ...construirHistorial(historial),
     { role: 'user', parts: [{ text: pregunta }] },
