@@ -267,6 +267,9 @@ export default function ColmenaDetailScreen() {
             presion: l.presion != null ? parseFloat(l.presion) : null,
             fecha_registro: l.fecha_registro,
           });
+        } else {
+          // Colmena sin lecturas (p. ej. sin sensor): no dejar la lectura de la colmena anterior en pantalla
+          setUltimaLectura(null);
         }
       } catch (e) {
         console.error('Error al obtener última lectura:', e);
