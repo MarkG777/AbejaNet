@@ -373,10 +373,16 @@ export default function BitacoraScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.navigate('/(user)/dashboard')} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.navigate('/(user)/dashboard')}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('back', 'Volver')}
+        >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>{t('bitacora_title', 'Bitácora Apícola')}</Text>
+        {/* El título ya está en el encabezado de navegación; repetirlo aquí lo duplicaba. */}
+        <View style={{ flex: 1 }} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <TouchableOpacity
             onPress={() => { setViewMode(viewMode === 'list' ? 'calendar' : 'list'); setSelectedDay(null); }}
@@ -385,7 +391,12 @@ export default function BitacoraScreen() {
           >
             <Ionicons name={viewMode === 'list' ? 'calendar-outline' : 'list-outline'} size={24} color={colors.primary} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => openModal()} style={styles.addBtn}>
+          <TouchableOpacity
+            onPress={() => openModal()}
+            style={styles.addBtn}
+            accessibilityRole="button"
+            accessibilityLabel={t('bitacora_new', 'Nuevo Evento')}
+          >
             <Ionicons name="add-circle" size={28} color={colors.primary} />
           </TouchableOpacity>
         </View>

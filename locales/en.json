@@ -165,6 +165,7 @@
   "bitacora_empty_day": "No events on this day.",
   "bitacora_select_day": "Tap a day to see its events.",
   "bitacora_new": "New Event",
+  "back": "Back",
   "bitacora_edit": "Edit Event",
   "bitacora_apiary": "Apiary",
   "bitacora_event_type": "Event Type",

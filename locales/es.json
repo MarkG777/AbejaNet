@@ -165,6 +165,7 @@
   "bitacora_empty_day": "No hay eventos este día.",
   "bitacora_select_day": "Toca un día para ver sus eventos.",
   "bitacora_new": "Nuevo Evento",
+  "back": "Volver",
   "bitacora_edit": "Editar Evento",
   "bitacora_apiary": "Apiario",
   "bitacora_event_type": "Tipo de Evento",
