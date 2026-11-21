@@ -84,7 +84,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: 'consultar_tendencia_sensor',
-    description: 'Promedios y últimos valores de temperatura, humedad y peso de una colmena del usuario en los últimos N días.',
+    description: 'Promedios y últimos valores de temperatura, humedad, peso y presión atmosférica (hPa; puede ser nula si la colmena no tiene sensor de presión) de una colmena del usuario en los últimos N días.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -133,6 +133,9 @@ function buildToolRunners(usuarioId) {
            ROUND(AVG(la.peso)::numeric, 2) AS peso_promedio,
            (ARRAY_AGG(la.peso ORDER BY la.fecha_registro DESC))[1] AS peso_mas_reciente,
            (ARRAY_AGG(la.peso ORDER BY la.fecha_registro ASC))[1] AS peso_mas_antiguo,
+           ROUND(AVG(la.presion)::numeric, 1) AS presion_promedio_hpa,
+           (ARRAY_AGG(la.presion ORDER BY la.fecha_registro DESC) FILTER (WHERE la.presion IS NOT NULL))[1] AS presion_mas_reciente_hpa,
+           (ARRAY_AGG(la.presion ORDER BY la.fecha_registro ASC) FILTER (WHERE la.presion IS NOT NULL))[1] AS presion_mas_antigua_hpa,
            COUNT(*) AS lecturas_analizadas
          FROM lecturas_ambientales la
          JOIN sensores s ON la.sensor_id = s.id

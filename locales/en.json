@@ -142,6 +142,7 @@
   "humedad": "Humidity",
   "peso": "Weight",
   "sonido": "Sound",
+  "presion": "Pressure",
 
   "email_invalid": "The email address is not valid.",
   "email_placeholder": "your@email.com",

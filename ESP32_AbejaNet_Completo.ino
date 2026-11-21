@@ -1,11 +1,19 @@
 // ================================================================
 // ESP32 - AbejaNet Sensor Client
-// MAX4466 + DHT11 + HX711 → Backend Render
+// MAX4466 + BME280 (temp/humedad/presión) + DHT11 (respaldo) + HX711 → Backend Render
+//
+// ⚠ BME280: cambio SIN PROBAR en hardware (se escribió sin poder compilar ni flashear).
+//   Librerías (Gestor de bibliotecas): "Adafruit BME280 Library" y "Adafruit Unified Sensor".
+//   Conexión I2C: VIN→3V3, GND→GND, SDA→GPIO21, SCL→GPIO22 (dirección 0x76 u 0x77, se prueban ambas).
+//   Si no encuentra el BME280 el programa sigue funcionando como antes (DHT11) y no manda presión.
 // ================================================================
 
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME280.h>
 #include <DHT.h>
 #include "HX711.h"
 
@@ -27,8 +35,13 @@ void setupADC() {
   analogSetPinAttenuation(ADC_PIN, ADC_11db);
 }
 
-// -------- DHT11 --------
-#define DHTPIN 15 
+// -------- BME280 (I2C: SDA=21, SCL=22) --------
+// Temperatura (°C), humedad (%) y presión ABSOLUTA (hPa; ≈815 en Querétaro, no 1013).
+Adafruit_BME280 bme;
+bool bmeDisponible = false;
+
+// -------- DHT11 (respaldo si el BME280 no responde) --------
+#define DHTPIN 15
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -64,6 +77,10 @@ void setup() {
   setupADC();
   dht.begin();
 
+  // BME280: se prueba la dirección 0x76 y luego la 0x77
+  Wire.begin();
+  bmeDisponible = bme.begin(0x76) || bme.begin(0x77);
+
   // HX711
   scale.begin(HX_DT, HX_SCK);
   scale.set_scale(calibration_factor);  
@@ -71,7 +88,8 @@ void setup() {
 
   Serial.println("✓ Sensores inicializados");
   Serial.println("  - MAX4466 (Micrófono)");
-  Serial.println("  - DHT11 (Temp/Humedad)");
+  Serial.println(bmeDisponible ? "  - BME280 (Temp/Humedad/Presión)" : "  - BME280 NO detectado: se usa solo el DHT11 y no se envía presión");
+  Serial.println("  - DHT11 (Temp/Humedad, respaldo)");
   Serial.println("  - HX711 (Peso)\n");
 
   // Conectar a WiFi
@@ -117,9 +135,18 @@ void loop() {
   const float FS_SINE_RMS = (2047.0f / 1.4142f);
   float dbfs = 20.0f * log10f((vrms_counts + 1e-9) / FS_SINE_RMS);
 
-  // ---------- DHT11 ----------
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  // ---------- BME280 (principal) y DHT11 (respaldo) ----------
+  float t = NAN, h = NAN, presion = NAN;
+  if (bmeDisponible) {
+    t = bme.readTemperature();
+    h = bme.readHumidity();
+    presion = bme.readPressure() / 100.0F;  // Pa → hPa
+    // El backend solo acepta 300–1100 hPa; fuera de ese rango es una lectura inválida
+    if (!(presion >= 300.0F && presion <= 1100.0F)) presion = NAN;
+  }
+  // El DHT11 solo se consulta si el BME280 no dio el dato (es lento: ~250 ms)
+  if (isnan(t)) t = dht.readTemperature();
+  if (isnan(h)) h = dht.readHumidity();
 
   // ---------- HX711 Peso ----------
   float lectura_raw = scale.get_units(1);  
@@ -137,7 +164,13 @@ void loop() {
     Serial.print(h);
     Serial.print("%");
   } else {
-    Serial.print(" | DHT11 Error");
+    Serial.print(" | Temp/Hum Error");
+  }
+
+  if (!isnan(presion)) {
+    Serial.print(" | Presion=");
+    Serial.print(presion, 1);
+    Serial.print(" hPa");
   }
 
   Serial.print(" | Peso=");
@@ -158,7 +191,7 @@ void loop() {
     }
     
     if (WiFi.status() == WL_CONNECTED) {
-      enviarDatos(dbfs, t, h, peso);
+      enviarDatos(dbfs, t, h, peso, presion);
     }
   }
 
@@ -199,7 +232,12 @@ void conectarWiFi() {
 // FUNCIÓN: Enviar datos al backend
 // ================================================================
 
-void enviarDatos(float sonido, float temperatura, float humedad, float peso) {
+// Número como texto JSON; un valor no disponible (NaN) viaja como null, porque "nan" no es JSON válido
+String numeroJson(float valor, int decimales) {
+  return isnan(valor) ? String("null") : String(valor, decimales);
+}
+
+void enviarDatos(float sonido, float temperatura, float humedad, float peso, float presion) {
   HTTPClient http;
   
   Serial.println("\n--- Enviando datos al servidor ---");
@@ -210,10 +248,11 @@ void enviarDatos(float sonido, float temperatura, float humedad, float peso) {
   // Construir JSON payload
   String jsonPayload = "{";
   jsonPayload += "\"macAddress\":\"" + macAddress + "\",";
-  jsonPayload += "\"sonido\":" + String(sonido, 2) + ",";
-  jsonPayload += "\"temperatura\":" + String(temperatura, 2) + ",";
-  jsonPayload += "\"humedad\":" + String(humedad, 2) + ",";
-  jsonPayload += "\"peso\":" + String(peso, 2) + ",";
+  jsonPayload += "\"sonido\":" + numeroJson(sonido, 2) + ",";
+  jsonPayload += "\"temperatura\":" + numeroJson(temperatura, 2) + ",";
+  jsonPayload += "\"humedad\":" + numeroJson(humedad, 2) + ",";
+  jsonPayload += "\"peso\":" + numeroJson(peso, 2) + ",";
+  jsonPayload += "\"presion\":" + numeroJson(presion, 2) + ",";  // hPa (null si no hay BME280)
   jsonPayload += "\"lluvia\":false";  // Actualmente no tienes sensor de lluvia
   jsonPayload += "}";
   

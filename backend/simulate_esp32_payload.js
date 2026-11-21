@@ -9,8 +9,18 @@ import axios from 'axios';
 // --- Configuración ---
 // Asegúrate de que esta URL apunta a tu backend en ejecución.
 // Si ejecutas este script en la misma máquina que el servidor, localhost es correcto.
-const API_ENDPOINT = 'https://abejanet-backend.onrender.com/api/sensor-data';
-const API_KEY = 'abeja-maestra-secreta-777'; // mi API Key
+// Se puede apuntar a otro servidor con API_ENDPOINT (p. ej. http://localhost:3000/api/sensor-data).
+const API_ENDPOINT = process.env.API_ENDPOINT || 'https://abejanet-backend.onrender.com/api/sensor-data';
+
+// La API key ya NO va escrita en el código (estaba subida a git). Debe ser la ESP32_API_KEY del servidor al que
+// le mandas los datos. Ejemplos:
+//   PowerShell:  $env:ESP32_API_KEY = '<tu clave>'; node simulate_esp32_payload.js
+//   .env local:  node --env-file=.env simulate_esp32_payload.js   (solo sirve contra tu backend local)
+const API_KEY = process.env.ESP32_API_KEY;
+if (!API_KEY) {
+  console.error('Falta la variable de entorno ESP32_API_KEY (ver ejemplos en este archivo).');
+  process.exit(1);
+}
 
 // Datos de ejemplo que simulan la lectura de un sensor.
 // Este es el JSON exacto que enviría un ESP32.
@@ -20,7 +30,8 @@ const payload = {
   "humedad": 68.9,
   "peso": 42.1,
   "sonido": 58.3,
-  "lluvia": false
+  "lluvia": false,
+  "presion": 815.42 // hPa, presión absoluta del BME280 (opcional: sin este campo se guarda NULL)
 };
 
 // --- Función de envío ---

@@ -29,6 +29,7 @@ const labelMap: Record<SensorDataKey, string> = {
   humedad: 'Humedad',
   peso: 'Peso',
   sonido: 'Sonido',
+  presion: 'Presión',
 };
 
 const unitMap: Record<SensorDataKey, string> = {
@@ -36,6 +37,7 @@ const unitMap: Record<SensorDataKey, string> = {
   humedad: '%',
   peso: 'kg',
   sonido: 'dB',
+  presion: 'hPa',
 };
 
 const colorMap: Record<SensorDataKey, string> = {
@@ -43,7 +45,26 @@ const colorMap: Record<SensorDataKey, string> = {
   humedad: 'rgba(54,162,235,1)',
   peso: 'rgba(75,192,192,1)',
   sonido: 'rgba(153,102,255,1)',
+  presion: 'rgba(255,159,64,1)',
 };
+
+// Todas las métricas que trae una lectura (orden de los chips y del resumen).
+const METRIC_KEYS: SensorDataKey[] = ['temperatura', 'humedad', 'peso', 'sonido', 'presion'];
+const sinSumas = (): Record<SensorDataKey, number> => ({ temperatura: 0, humedad: 0, peso: 0, sonido: 0, presion: 0 });
+
+// La presión (BME280) es opcional: solo las colmenas con ese sensor la tienen. Se oculta si no hay ningún dato.
+const hayPresion = (lecturas: Lectura[]) => lecturas.some(l => l.presion != null);
+
+// Convierte los campos numéricos que llegan como texto desde la API. `presion` usa `!= null` para que un
+// backend anterior (sin ese campo) produzca null en vez de NaN.
+const parsearLectura = (l: any) => ({
+  ...l,
+  temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
+  humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
+  peso: l.peso !== null ? parseFloat(l.peso) : null,
+  sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
+  presion: l.presion != null ? parseFloat(l.presion) : null,
+});
 
 const SENSOR_THRESHOLDS = {
   temperatura: {
@@ -77,12 +98,12 @@ const processDataForPreview = (lecturas: Lectura[], timeRange: TimeRange): Lectu
     const hour = format(parseISO(lectura.fecha_registro), 'yyyy-MM-dd HH:00');
     if (!hourlyData[hour]) {
       hourlyData[hour] = {
-        sums: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
-        counts: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
+        sums: sinSumas(),
+        counts: sinSumas(),
       };
     }
 
-    (['temperatura', 'humedad', 'peso', 'sonido'] as SensorDataKey[]).forEach(key => {
+    METRIC_KEYS.forEach(key => {
       if (lectura[key] !== null && typeof lectura[key] === 'number') {
         hourlyData[hour].sums[key] += lectura[key]!;
         hourlyData[hour].counts[key]++;
@@ -98,6 +119,7 @@ const processDataForPreview = (lecturas: Lectura[], timeRange: TimeRange): Lectu
       humedad: data.counts.humedad > 0 ? data.sums.humedad / data.counts.humedad : null,
       peso: data.counts.peso > 0 ? data.sums.peso / data.counts.peso : null,
       sonido: data.counts.sonido > 0 ? data.sums.sonido / data.counts.sonido : null,
+      presion: data.counts.presion > 0 ? data.sums.presion / data.counts.presion : null,
     } as Lectura;
   });
 
@@ -108,7 +130,8 @@ const allChartProps: Omit<SensorChartProps, 'data' | 'timeRange'>[] = [
   { title: "Temperatura", dataKey: "temperatura", color: "rgba(255, 99, 132, 1)", unit: "°C" },
   { title: "Humedad", dataKey: "humedad", color: "rgba(54, 162, 235, 1)", unit: "%" },
   { title: "Peso", dataKey: "peso", color: "rgba(75, 192, 192, 1)", unit: "kg" },
-  { title: "Sonido", dataKey: "sonido", color: "rgba(153, 102, 255, 1)", unit: "dB" }
+  { title: "Sonido", dataKey: "sonido", color: "rgba(153, 102, 255, 1)", unit: "dB" },
+  { title: "Presión", dataKey: "presion", color: "rgba(255, 159, 64, 1)", unit: "hPa" }
 ];
 
 
@@ -136,7 +159,7 @@ const DetailedSummary = ({ data, colors }: { data: Lectura[]; colors: any }) => 
         })}
       </Text>
       <View style={styles.summaryGrid}>
-        {allChartProps.map(({ dataKey, title, unit }) => {
+        {allChartProps.filter(({ dataKey }) => dataKey !== 'presion' || hayPresion(data)).map(({ dataKey, title, unit }) => {
           const lastValue = lastDataPoint[dataKey];
           const firstValue = firstDataPoint[dataKey];
 
@@ -210,14 +233,7 @@ export default function ColmenaDetailScreen() {
         });
 
         if (response.data && response.data.lecturas) {
-          const processedLecturas = response.data.lecturas.map((l: any) => ({
-            ...l,
-            temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
-            humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
-            peso: l.peso !== null ? parseFloat(l.peso) : null,
-            sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
-          }));
-          setLecturas(processedLecturas);
+          setLecturas(response.data.lecturas.map(parsearLectura));
         }
       } catch (err) {
         console.error("Error al cargar lecturas:", err);
@@ -248,8 +264,12 @@ export default function ColmenaDetailScreen() {
             humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
             peso: l.peso !== null ? parseFloat(l.peso) : null,
             sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
+            presion: l.presion != null ? parseFloat(l.presion) : null,
             fecha_registro: l.fecha_registro,
           });
+        } else {
+          // Colmena sin lecturas (p. ej. sin sensor): no dejar la lectura de la colmena anterior en pantalla
+          setUltimaLectura(null);
         }
       } catch (e) {
         console.error('Error al obtener última lectura:', e);
@@ -274,8 +294,8 @@ export default function ColmenaDetailScreen() {
       const hour = format(parseISO(lectura.fecha_registro), 'yyyy-MM-dd HH:00');
       if (!hourlyData[hour]) {
         hourlyData[hour] = {
-          sums: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
-          counts: { temperatura: 0, humedad: 0, peso: 0, sonido: 0 },
+          sums: sinSumas(),
+          counts: sinSumas(),
         };
       }
       allChartProps.forEach(({ dataKey }) => {
@@ -306,13 +326,7 @@ export default function ColmenaDetailScreen() {
     const response = await api.get<{ lecturas: Lectura[] }>(`/api/colmenas/${colmenaId}/lecturas`, {
       params: { range: timeRange, granularity },
     });
-    return (response.data?.lecturas || []).map((l: any) => ({
-      ...l,
-      temperatura: l.temperatura !== null ? parseFloat(l.temperatura) : null,
-      humedad: l.humedad !== null ? parseFloat(l.humedad) : null,
-      peso: l.peso !== null ? parseFloat(l.peso) : null,
-      sonido: l.sonido !== null ? parseFloat(l.sonido) : null,
-    }));
+    return (response.data?.lecturas || []).map(parsearLectura);
   };
 
   const runExport = async (mode: 'share' | 'save', granularity: ExportGranularity) => {
@@ -436,6 +450,12 @@ export default function ColmenaDetailScreen() {
                 <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.sonido.toFixed(1)} dB</Text>
               </View>
             )}
+            {ultimaLectura.presion != null && (
+              <View style={[styles.realtimeItem, { borderLeftColor: colorMap.presion }]}>
+                <Text style={[styles.realtimeLabel, { color: colors.textTertiary }]}>{t('presion', 'Presión')}</Text>
+                <Text style={[styles.realtimeValue, { color: colors.text }]}>{ultimaLectura.presion.toFixed(1)} hPa</Text>
+              </View>
+            )}
           </View>
         </View>
       )}
@@ -512,7 +532,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
 
   const firstValues = useMemo(() => {
     if (processedData.length === 0) {
-      return { temperatura: 0, humedad: 0, peso: 0, sonido: 0 };
+      return sinSumas();
     }
     const first = processedData[0];
     return {
@@ -520,12 +540,16 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
       humedad: first?.humedad ?? 0,
       peso: first?.peso ?? 0,
       sonido: first?.sonido ?? 0,
+      // Primer valor de presión que exista (las primeras lecturas pueden no traerla)
+      presion: processedData.find(d => d.presion != null)?.presion ?? 0,
     } as Record<SensorDataKey, number>;
   }, [processedData]);
 
-      const buildSeries = (k: SensorDataKey) => {
-    const firstValue = processedData.length > 0 ? (processedData[0][k] || 0) : 0;
-    return processedData.map((d: Lectura, i: number) => {
+  const buildSeries = (k: SensorDataKey) => {
+    const firstValue = k === 'presion' ? firstValues.presion : (processedData.length > 0 ? (processedData[0][k] || 0) : 0);
+    const puntos = processedData.map((d: Lectura, i: number) => {
+      // Una lectura sin presión no debe dibujarse como 0 hPa (arruinaría la escala): se omite el punto.
+      if (k === 'presion' && d.presion == null) return null;
       const currentValue = d[k] || 0;
       const delta = firstValue !== 0 ? ((currentValue - firstValue) / firstValue) * 100 : 0;
       return {
@@ -537,6 +561,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
         delta: delta,
       };
     });
+    return puntos.filter((p): p is NonNullable<typeof p> => p !== null);
   };
 
   const buildWeightSeries = () => {
@@ -600,7 +625,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
         <View style={styles.selectedPointDataContainer}>
           {activeKeys.map(key => {
             const value = currentData[key];
-            if (value === null) return null;
+            if (value == null) return null;
             
             const firstValue = firstValues[key];
             const delta = firstValue !== 0 ? ((value - firstValue) / firstValue) * 100 : 0;
@@ -632,7 +657,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
   return (
     <View style={[styles.chartContainer, { backgroundColor: colors.chartContainerBg }]}>
        <View style={styles.chipRow}>
-          {(Object.keys(labelMap) as SensorDataKey[]).map(k => (
+          {METRIC_KEYS.filter(k => k !== 'presion' || hayPresion(lecturas)).map(k => (
             <Pressable key={k} style={[styles.chip, { backgroundColor: colors.chipBg }, activeKeys.includes(k) && { backgroundColor: colors.chipActiveBg }]} onPress={() => onToggleKey(k)}>
               <Text style={{ color: activeKeys.includes(k) ? colors.chipActiveText : colors.chipText, fontWeight: '500' }}>{t(k, labelMap[k])}</Text>
             </Pressable>
@@ -650,7 +675,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
               padding={{ top: 10, bottom: 50, left: 50, right: 20 }}
               domainPadding={{ y: 20, x: 30 }}
             >
-              <VictoryAxis dependentAxis tickFormat={(v) => (k === 'peso' ? v.toFixed(1) : `${v.toFixed(0)}`)} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
+              <VictoryAxis dependentAxis tickFormat={(v) => (k === 'peso' || k === 'presion' ? v.toFixed(1) : `${v.toFixed(0)}`)} style={{ tickLabels: { fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
               <VictoryAxis tickValues={tickValues} tickFormat={(t) => formatLabel(processedData[t]?.fecha_registro)} style={{ tickLabels: { fontSize: 10, angle: 30, padding: 20, textAnchor: 'start', fill: colors.textTertiary }, axis: { stroke: colors.border } }} />
 
               {k in SENSOR_THRESHOLDS && (
@@ -689,7 +714,7 @@ const InteractiveChart = ({ lecturas, timeRange, activeKeys, onToggleKey, select
                 }]}
               />
 
-              {selectedPoint && selectedPoint.x !== undefined && selectedPoint.x < processedData.length && (
+              {selectedPoint && selectedPoint.x !== undefined && selectedPoint.x < processedData.length && (k !== 'presion' || processedData[selectedPoint.x]?.presion != null) && (
                 <VictoryScatter data={[{ x: selectedPoint.x, y: processedData[selectedPoint.x]?.[k] || 0 }]} size={7} style={{ data: { fill: colorMap[k], stroke: '#fff', strokeWidth: 2 } }} />
               )}
             </VictoryChart>

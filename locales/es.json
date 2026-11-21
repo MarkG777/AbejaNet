@@ -142,6 +142,7 @@
   "humedad": "Humedad",
   "peso": "Peso",
   "sonido": "Sonido",
+  "presion": "Presión",
 
   "email_invalid": "El correo electrónico no es válido.",
   "email_placeholder": "tu@email.com",

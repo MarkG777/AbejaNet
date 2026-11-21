@@ -13,6 +13,7 @@ export interface Lectura {
   peso: number | null;
   sonido: number | null;
   lluvia: number | null;
+  presion: number | null; // hPa (BME280); null si la colmena no tiene sensor de presión
 }
 
 export type TimeRange = 'day' | 'week' | 'month';
