@@ -153,6 +153,11 @@
     "TEMPERATURA_BAJA": "Low Temperature",
     "HUMEDAD_ALTA": "High Humidity",
     "HUMEDAD_BAJA": "Low Humidity",
+    "AVISO_TEMPERATURA_ALTA": "Warning: High Temperature",
+    "AVISO_TEMPERATURA_BAJA": "Warning: Low Temperature",
+    "AVISO_HUMEDAD_ALTA": "Warning: High Humidity",
+    "AVISO_HUMEDAD_BAJA": "Warning: Low Humidity",
+    "CAMBIO_BRUSCO_TEMPERATURA": "Sudden Temperature Change",
     "PESO_BAJO": "Low Weight",
     "BATERIA_BAJA": "Low Battery",
     "PERDIDA_CONEXION": "Connection Lost"

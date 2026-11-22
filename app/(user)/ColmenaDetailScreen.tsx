@@ -66,18 +66,21 @@ const parsearLectura = (l: any) => ({
   presion: l.presion != null ? parseFloat(l.presion) : null,
 });
 
+// Bandas de las gráficas. Deben coincidir con los umbrales de las alertas del backend (backend/alertas.js) y se
+// apoyan en la misma evidencia: docs/UMBRALES_ALERTAS.md (primera propuesta, a afinar con datos reales).
+//  - temperatura: nido de cría 32–36 °C (óptimo); fuera de 29–37 °C el desarrollo de la cría falla (peligro).
+//  - humedad: dentro de colmenas sanas ronda 40–95 %; por debajo de 40 % se considera peligro. No hay un límite
+//    superior de daño respaldado todavía, por eso no se dibuja una banda de peligro alta.
 const SENSOR_THRESHOLDS = {
   temperatura: {
     optimal: [32, 36],
-    warning: [29, 38],
-    danger: [0, 28],
-    danger_high: [39, 50]
+    warning: [29, 37],
+    danger: [0, 29],
+    danger_high: [37, 50]
   },
   humedad: {
-    optimal: [50, 60],
-    warning: [40, 70],
-    danger: [0, 39],
-    danger_high: [71, 100]
+    optimal: [40, 95],
+    danger: [0, 40]
   },
 } as const;
 
