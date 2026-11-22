@@ -29,6 +29,8 @@ Todo se cambia en Render → Environment sin tocar código (un número, o `off` 
 - **Chatbot:** el asistente de la app conoce estas alertas. Al preguntarle consulta las de tus colmenas (nivel, si
   ya las leíste, valor y fecha), explica qué significan con estos mismos umbrales y qué revisar.
 - Las bandas de las gráficas de la app (`SENSOR_THRESHOLDS`) usan los mismos valores.
+- ⚠️ **Invierno:** el límite de frío de 29 °C puede dar falsas alarmas en colmenas sin cría o con el ambiente muy frío
+  (ver §2.4). Está pendiente decidir cómo adaptarlo a la época del año.
 
 ## 2. Cómo se leyó la literatura (y qué tan verificado está cada dato)
 
@@ -109,6 +111,54 @@ La varianza se usará **después, con datos reales** de cada colmena (línea bas
 No encontré un umbral validado para alertar por peso (enjambrazón). Meikle & Holst 2015 es la lectura recomendada
 (identidad verificada, contenido sin leer, nivel C). Se definirá con datos reales de peso del prototipo.
 
+### 2.4 Invierno y bajadas temporales (investigado 2026-11-22)
+
+**¿Cuánto baja la temperatura en la época fría?**
+
+| Hallazgo | Fuente | Nivel |
+|---|---|---|
+| Con ambiente de 13.9 °C (el más frío probado) la cría operculada estuvo a **34.8 °C**; con 32.2 °C ambiente, a 35.9 °C: **≈ 1 °C menos** | Stabentheiner 2021 | **A** |
+| En ese mismo ensayo, el **panal completo** promedió 32.3 °C (frente a 35.7 °C) y el **aire junto a las abejas 29.5 °C** (frente a 35.0 °C): **≈ 3.4 y 5.5 °C menos**. Fue una colmena de observación de 2 panales, con ambiente de 13.9 a 40.6 °C | Stabentheiner 2021 | **A** |
+| **Sin cría** la temperatura de la colonia ronda **21 °C**; con cría se mantiene en 33–36 °C | Ulgezen 2025 (cita a Fahrenholz y a Jones & Oldroyd) | B |
+| Criterio de "colonia criando": temperatura de la colmena **≥ 33 °C durante ≥ 3 días seguidos** (evita falsos positivos por fluctuaciones breves) | Ulgezen 2025 (95 colonias, 8 países) | **A** (método) |
+| En invierno una colonia con cría se reconoce por temperatura de panal **> 30 °C con amplitud diaria ≤ 1.5 °C**, aunque el ambiente varíe mucho | Nürnberger 2018 (cámaras de −3 a 11 °C) | **A** |
+| Tras una racha cálida, volver a 0 °C **no redujo de forma significativa** la actividad de cría | Nürnberger 2018 | **A** |
+| La temperatura de la colonia suele fluctuar solo ~1 °C en un día | Ulgezen 2025 (cita a Seeley) | B |
+
+**Lectura:** la bajada de 1–2 °C que mencionas es real para la cría operculada. Pero lo que mide **un sensor de aire**
+entre cuadros puede bajar bastante más, y una colmena **sin cría** vive a ~21 °C. Un límite fijo de 29 °C daría
+**falsas alarmas todo el invierno** en colmenas sin cría y podría rozar el límite en días fríos. Lo que lee el sensor
+depende de su posición. No encontré estudios del clima subtropical de altura (Querétaro): faltan datos locales.
+
+**¿Bajar un poco y volver a subir es malo?**
+
+| Hallazgo (experimentos con cría operculada a **20 °C**, no con bajadas pequeñas) | Fuente | Nivel |
+|---|---|---|
+| El daño depende de la **profundidad, la duración y la etapa** de la cría | Wang 2016 | **A** |
+| Etapa más sensible: **60–90 min a 20 °C → ~10 % de desorientación** al emerger (0 % en el control); **36 h → 41.1 %** | Wang 2016 | **A** |
+| Prepupa tardía: LT50 de **19.3 h**; **100 % de mortalidad con ≥ 48 h**. Otras etapas toleran bien < 48–60 h | Wang 2016 | **A** |
+| La vida de las adultas **se acorta significativamente incluso tras 12 h** a 20 °C; > 15 días menos tras 96 h | Wang 2016 | **A** |
+| Desviaciones **constantes** de 1–2.5 °C durante todo el desarrollo (32 vs 34.5–36 °C) alteran el cerebro y el rendimiento de adultas | Tautz 2003; Groh 2004 (vía Wang 2016) | B |
+| En drones, el peso adulto depende del **momento** del cambio de temperatura (más pesados con alta al inicio y baja al final) | Czekońska & Tofilski 2020 | C (resumen) |
+
+**Lectura:** no encontré ningún estudio que cuantifique bajadas **pequeñas (1–3 °C) y breves** (minutos). Lo que sí está
+medido es que, en la cría más sensible, **una hora o más de frío profundo ya deja secuelas**. Por eso no puedo afirmar que
+una bajada breve sea inocua, ni que sea dañina: la mejor evidencia es de enfriamientos grandes. Lo razonable es que el
+daño crece con la profundidad y con el tiempo acumulado.
+
+**Qué cubre hoy la regla:** una bajada < 15 min no avisa; una caída ≥ 10 °C en ≤ 5 min avisa de inmediato; **varias
+bajadas cortas repetidas no se acumulan** (no hay alerta).
+
+**Opciones propuestas (pendiente de decisión):**
+1. **"Modo cría" automático** (recomendada): si la temperatura mediana de los últimos 3 días es ≥ 33 °C se asume que hay
+   cría y rige 29–37 °C; si no, el frío se evalúa con un límite mucho más bajo (o se apaga), manteniendo calor, extremo y
+   cambio brusco, y se agrega "posible pérdida de colonia" si tras un periodo con cría la temperatura cae al ambiente
+   (Cook 2022: una colonia ausente registró 5.5 °C menos). Se apoya en el método de Ulgezen 2025 y Nürnberger 2018.
+2. **Interruptor manual por colmena** ("invierno / sin cría") con su propio límite de frío.
+3. **Bajar el límite de frío** (p. ej. a 27–28 °C) con sensor de aire: necesita datos reales.
+4. **Acumular el frío**: alertar si suma ≥ 60 min por debajo de 29 °C en 24 h, aunque no sea continuo.
+Sea cual sea, hay que calibrar con las primeras semanas de datos del prototipo (mediana y MAD por colmena y época).
+
 ## 3. Correcciones a la versión anterior de este documento
 - Atribuí a **Sarmad & Ryšánek 2025** o a **PMC384730** el dato "emergencia 89–100 % entre 31–36 °C y cero a 28 y 38 °C".
   **Era un error:** PMC384730 es Groh et al. 2004 (organización sináptica) y Sarmad & Ryšánek 2025 estudia la supervivencia de
@@ -119,7 +169,7 @@ No encontré un umbral validado para alertar por peso (enjambrazón). Meikle & H
   calor > 37 °C inmediato, frío < 29 °C tras 15 min, y cambio brusco inmediato. Todos los títulos llevan "Crítico:".
 
 ## 4. Pendiente / decisiones del proyecto
-1. **Dónde está colocado el sensor** (entre cuadros del nido de cría, tapa, exterior) cambia el significado de todos los valores.
+1. **Cómo adaptar el límite de frío al invierno y a las colmenas sin cría** (ver §2.4) y **dónde está colocado el sensor** (entre cuadros del nido de cría, tapa, exterior) cambia el significado de todos los valores.
 2. **Afinar con datos reales** (mediana y MAD por colmena, estación, época de cría) cuando el prototipo esté en una colmena.
    El conjunto de datos abierto de Senger 2024 (6 sensores de temperatura + **BME280**, igual que el prototipo, y peso)
    sirve para calibrar.
@@ -148,6 +198,12 @@ Los DOI/PMCID se comprobaron contra Europe PMC o Crossref. "Texto completo" = lo
 15. Human H, Nicolson SW, Dietemann V. (2006). Do honeybees, *Apis mellifera scutellata*, regulate humidity in their nest? *Naturwissenschaften* 93: 397–401. https://doi.org/10.1007/s00114-006-0117-y — **Nivel C** (identidad verificada en Crossref; contenido no leído).
 16. Meikle WG, Holst N. (2015). Application of continuous monitoring of honeybee colonies. *Apidologie* 46: 10–22 (publicado en línea 2014). https://doi.org/10.1007/s13592-014-0298-x — **Nivel C** (identidad verificada en Crossref; contenido no leído).
 17. Himmer A. — citado en Stabentheiner 2021 por las malformaciones por debajo de 32 °C (no consultado directamente).
+
+18. Nürnberger F, Härtel S, Steffan-Dewenter I. (2018). The influence of temperature and photoperiod on the timing of brood onset in hibernating honey bee colonies. *PeerJ* 6: e4801. https://doi.org/10.7717/peerj.4801 — PMC5971834. Texto completo.
+19. Ulgezen ZN, van Dooremalen C, van Langevelde F. (2025). Photoperiod and temperature as seasonal cues for the initiation of brood rearing in honeybees. *Ecology and Evolution* 15(9): e72066. https://doi.org/10.1002/ece3.72066 — PMC12391022. Texto completo.
+20. Czekońska K, Tofilski A. (2020). Body mass of honey bee drones developing in constant and in changing temperatures. *Apidologie*. https://doi.org/10.1007/s13592-020-00738-5 — **Nivel C** (abstract de Crossref).
+21. Vojvodic S, et al. (2011). Temperature dependent virulence of obligate and facultative fungal pathogens of honeybee brood. *Vet Microbiol*. https://doi.org/10.1016/j.vetmic.2010.10.001 — **Nivel C** (solo identidad; contenido no leído; no se usa para ningún umbral).
+22. Citados dentro de Ulgezen 2025 y no consultados directamente: Fahrenholz et al. (colonia sin cría ≈ 21 °C), Jones & Oldroyd (33–36 °C con cría), Seeley (fluctuación diaria ≈ 1 °C).
 
 **Revisados y no usados:** Sarmad & Ryšánek (2025), *Apidologie*, https://doi.org/10.1007/s13592-025-01191-y (supervivencia de adultas a temperaturas constantes; solo abstract de Crossref).
 Kablau, Berg & Rutschmann (2020), *Apidologie*, https://doi.org/10.1007/s13592-020-00743-8 (hipertermia larval; solo identidad).
