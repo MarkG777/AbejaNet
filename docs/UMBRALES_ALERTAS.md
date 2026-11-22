@@ -9,20 +9,26 @@ Hoja de cálculo con cada dato, su fuente y su nivel de verificación: [`umbrale
 
 ## 1. Qué hace el sistema
 
-Con cada lectura del ESP32, `backend/alertas.js` evalúa niveles y manda **push a todos los usuarios con acceso al
-apiario de la colmena**. Todo se cambia en Render → Environment sin tocar código (un número, o `off` para desactivar).
+Con cada lectura del ESP32, `backend/alertas.js` evalúa las reglas y manda **push a todos los usuarios con acceso al
+apiario de la colmena**. Hay **un solo nivel: CRÍTICO** (todos los títulos empiezan con "Crítico:").
+Todo se cambia en Render → Environment sin tocar código (un número, o `off` para desactivar).
 
-| Nivel | Regla | Variables | Se repite cada |
+| Regla | Cuándo se alerta | Variables | Se repite cada |
 |---|---|---|---|
-| **Aviso** (temperatura) | fuera de **32–36 °C** durante **≥ 30 min** seguidos | `ALERT_TEMP_AVISO_MIN/MAX`, `ALERT_AVISO_MINUTOS` | 4 h |
-| **Crítico** (temperatura) | fuera de **29–37 °C** (confirmado con la lectura anterior) | `ALERT_TEMP_MIN/MAX` | 2 h |
-| **Extremo** (temperatura) | **≥ 43 °C**, inmediato | `ALERT_TEMP_EXTREMA_MAX/MIN` | 30 min |
-| **Cambio brusco** (temperatura) | cambio **≥ 10 °C en ≤ 5 min**, sube o baja (p. ej. 30 → 50 °C en 2 min) | `ALERT_TEMP_SALTO_GRADOS/MINUTOS` | 30 min |
-| **Crítica baja** (humedad) | **< 40 %** (confirmado con la lectura anterior) | `ALERT_HUM_MIN/MAX`, `ALERT_HUM_AVISO_MIN/MAX` | 2 h |
-| Apagadas por defecto | humedad alta, humedad de aviso, temperatura extrema baja | las mismas variables | — |
+| **Calor crítico** | temperatura **> 37 °C**, **de inmediato** | `ALERT_TEMP_MAX`, `ALERT_CALOR_MINUTOS` (0) | 60 min |
+| **Frío crítico** | temperatura **< 29 °C** durante **más de 15 min** | `ALERT_TEMP_MIN`, `ALERT_FRIO_MINUTOS` (15) | 60 min |
+| **Temperatura extrema** | **≥ 43 °C**, inmediato (el mensaje advierte de un posible incendio) | `ALERT_TEMP_EXTREMA_MAX/MIN` | 30 min |
+| **Cambio brusco** | cambio **≥ 10 °C en ≤ 5 min**, sube o baja (p. ej. 30 → 50 °C en 2 min), inmediato | `ALERT_TEMP_SALTO_GRADOS/MINUTOS` | 30 min |
+| **Humedad baja crítica** | humedad **< 40 %** durante más de 5 min | `ALERT_HUM_MIN`, `ALERT_HUM_BAJA_MINUTOS` (5) | 60 min |
+| Apagado por defecto | humedad alta, humedad extrema, temperatura extrema baja | `ALERT_HUM_MAX`, `ALERT_HUM_EXTREMA_*`, `ALERT_TEMP_EXTREMA_MIN` | — |
 
-`ALERTAS_AUTOMATICAS=off` apaga todo. `ALERT_COOLDOWN_MINUTES` cambia el tiempo base de repetición (2 h).
-Las bandas de las gráficas de la app (`SENSOR_THRESHOLDS`) usan los mismos valores.
+- **Por qué el frío espera y el calor no:** una colmena abierta para inspeccionarla baja de temperatura unos minutos
+  y no es una emergencia; el calor (o un salto brusco hacia arriba) puede ser un incendio y no se espera.
+- Las reglas "sostenidas" exigen al menos 3 lecturas que cubran el 80 % de la ventana; el ESP32 envía cada 60 s.
+- `ALERTAS_AUTOMATICAS=off` apaga todo. `ALERT_COOLDOWN_MINUTES` cambia el tiempo base de repetición (60 min).
+- **Chatbot:** el asistente de la app conoce estas alertas. Al preguntarle consulta las de tus colmenas (nivel, si
+  ya las leíste, valor y fecha), explica qué significan con estos mismos umbrales y qué revisar.
+- Las bandas de las gráficas de la app (`SENSOR_THRESHOLDS`) usan los mismos valores.
 
 ## 2. Cómo se leyó la literatura (y qué tan verificado está cada dato)
 
@@ -65,12 +71,14 @@ La varianza se usará **después, con datos reales** de cada colmena (línea bas
 | Mediana de la temperatura de colmena en su experimento: **33.5 °C** (IC 95 % 33.0–33.5) | Kutby 2024 | **A** |
 
 **Decisiones y su respaldo**
-- **Aviso 32–36 °C sostenido 30 min:** rango del nido de cría (varias fuentes, B). *La duración de 30 min es una decisión
-  de diseño*: ninguna fuente cuantifica cuánto es "demasiado tiempo".
-- **Crítico 29–37 °C:** límites fuera de los cuales el desarrollo de la cría falla (Palmer-Young 2023, B).
+- **Rango ideal 32–36 °C:** es el rango del nido de cría (varias fuentes, B). **Ya no genera alertas por sí mismo**
+  (decisión del proyecto: un solo nivel crítico); se usa como referencia y como banda "óptima" en las gráficas.
+- **Crítico 29–37 °C:** límites fuera de los cuales el desarrollo de la cría falla (Palmer-Young 2023, B). Por arriba
+  se alerta **de inmediato**; por abajo, **tras más de 15 min**. *Los 15 min son una decisión de diseño*: ninguna
+  fuente cuantifica cuánto es "demasiado tiempo" (Stabentheiner 2021 y Li 2016 solo dicen "demasiado"/"prolongado").
 - **Extremo ≥ 43 °C:** decisión de seguridad del proyecto. Está muy por encima de lo que tolera la cría (> 37 °C) y por
-  debajo del límite letal de adultos (~50 °C, Kovac 2014, A), de modo que avisa antes de la muerte de los adultos.
-  *Aviso:* una hipertermia deliberada contra *Varroa* (reportada en 41–44 °C en resúmenes, nivel C) podría disparar esta alerta.
+  debajo del límite letal de adultos (~50 °C, Kovac 2014, A). *Ojo:* una hipertermia deliberada contra *Varroa*
+  (41–44 °C en resúmenes, nivel C) podría disparar esta alerta.
 - **Cambio brusco ≥ 10 °C en ≤ 5 min:** decisión de ingeniería. Se apoya en que la colonia mantiene la cría en
   34.8–35.9 °C aun con 13–41 °C de ambiente (Stabentheiner 2021, A) y en que una colonia ausente cambia la temperatura
   media y el rango (Cook 2022, A). Una inspección con la colmena abierta puede dispararla (es esperable).
@@ -91,9 +99,9 @@ La varianza se usará **después, con datos reales** de cada colmena (línea bas
 | Las obreras solo regulan la humedad dentro de límites subóptimos | Human 2006 | **C** (solo título verificado) |
 
 **Decisiones y su respaldo**
-- **Crítica baja < 40 %:** es el límite inferior del rango observado en colmenas sanas (Kutby 2024, B). No es un valor de
+- **Crítica baja < 40 % (más de 5 min):** es el límite inferior del rango observado en colmenas sanas (Kutby 2024, B). No es un valor de
   daño medido directamente, pero un valor por debajo de lo que muestran colmenas sanas es "algo raro".
-- **Candidato a aviso < 50 %** (apagado): los huevos no eclosionan por debajo de ~50 % (Doull, nivel C). Hay que leer
+- **Candidato a alerta < 50 %** (apagado): los huevos no eclosionan por debajo de ~50 % (Doull, nivel C). Hay que leer
   el texto original y ver el comportamiento real del sensor antes de activarlo (puede dar falsas alarmas en clima seco).
 - **Humedad alta apagada:** no encontré un umbral de daño respaldado (el rango sano llega a 95 %).
 
@@ -107,6 +115,8 @@ No encontré un umbral validado para alertar por peso (enjambrazón). Meikle & H
   abejas *adultas*. **No logré identificar el estudio de emergencia de pupas; ese dato se descartó y no se usa.**
 - Pasé de usar 29–38 °C (rango de la app) a **29–37 °C**, que es lo que respalda Palmer-Young 2023.
 - La humedad pasó de "apagada" a **crítica baja < 40 %** con el respaldo de Kutby 2024.
+- **Decisión del proyecto (2026-11-22):** se eliminó el nivel "aviso" (32–36 °C). Queda solo el nivel **crítico**:
+  calor > 37 °C inmediato, frío < 29 °C tras 15 min, y cambio brusco inmediato. Todos los títulos llevan "Crítico:".
 
 ## 4. Pendiente / decisiones del proyecto
 1. **Dónde está colocado el sensor** (entre cuadros del nido de cría, tapa, exterior) cambia el significado de todos los valores.

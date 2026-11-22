@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type, createPartFromFunctionResponse } from '@google/genai';
+import { describirAlerta, glosarioDeAlertas } from './alertas.js';
 import pool from './db.js';
 
 // Free tier: sin tarjeta, sin costo. Se desactivan los reintentos internos del SDK (5 intentos con espera de
@@ -62,6 +63,13 @@ Reglas:
 - Solo puedes ver información de las colmenas del usuario que está preguntando (ya filtrado por el backend).
 - Si detectas una tendencia preocupante (ej. peso bajando fuerte, temperatura muy alta), sugiere revisar
   la colmena en persona, pero deja claro que no reemplazas el criterio del apicultor.
+- ALERTAS: si el usuario pregunta por alertas, avisos, notificaciones o "si pasó algo", usa
+  consultar_alertas_recientes (no respondas de memoria). Resume por colmena empezando por lo más grave (EXTREMA y
+  CAMBIO BRUSCO primero) y por las no leídas. De cada alerta di qué ocurrió (valor y fecha), qué significa (usa el
+  campo "significado" y el glosario de alertas) y qué revisar. Para calor extremo o cambio brusco recomienda revisar la
+  colmena DE INMEDIATO (posible incendio o fallo del sensor). Si pregunta por qué se alertó, explica el umbral. Una alerta
+  antigua y ya leída es menos urgente: dilo. Todas las alertas automáticas son críticas y le llegan a TODOS los usuarios a
+  cargo de la colmena como notificación push.
 - Respuestas breves y claras, pensadas para alguien usando un celular.`;
 
 // ------------------------------------------------------------------
@@ -78,7 +86,7 @@ const TOOL_DECLARATIONS = [
   },
   {
     name: 'consultar_alertas_recientes',
-    description: 'Devuelve las alertas más recientes de una colmena del usuario (o de todas si no se especifica nombre).',
+    description: 'Devuelve las alertas más recientes de una colmena del usuario (o de todas si no se especifica nombre). Cada alerta trae su tipo, valor, mensaje, fecha, si ya fue leída, su nivel (critico, extremo, salto u otro) y un texto "significado" que explica qué quiere decir.',
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -152,7 +160,9 @@ function buildToolRunners(usuarioId) {
           mensaje: 'No hay alertas registradas. Esto por sí solo no confirma que todo esté bien: verifica con consultar_tendencia_sensor que la colmena tenga lecturas recientes.',
         };
       }
-      return rows;
+      // Cada alerta lleva su nivel y su significado (con los umbrales reales del sistema) para que el asistente la explique.
+      const alertas = rows.map((a) => ({ ...a, ...describirAlerta(a.tipo_alerta) }));
+      return { total: alertas.length, no_leidas: alertas.filter((a) => !a.leida).length, alertas };
     },
     consultar_tendencia_sensor: async ({ colmena_nombre, dias }) => {
       const { rows } = await pool.query(
@@ -247,7 +257,7 @@ async function estadoColmenasUsuario(usuarioId) {
 
 export async function responderPregunta(pregunta, usuarioId, historial = [], idioma = 'es') {
   const runners = buildToolRunners(usuarioId);
-  const systemInstruction = `${SYSTEM_PROMPT}\n${instruccionIdiomaApp(idioma)}\n${await estadoColmenasUsuario(usuarioId)}`;
+  const systemInstruction = `${SYSTEM_PROMPT}\n${glosarioDeAlertas()}\n${instruccionIdiomaApp(idioma)}\n${await estadoColmenasUsuario(usuarioId)}`;
   const contents = [
     ...construirHistorial(historial),
     { role: 'user', parts: [{ text: pregunta }] },

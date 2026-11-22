@@ -15,22 +15,24 @@ import pool from './db.js';
 import { enviarPush } from './push.js';
 
 // =================================================================
-// UMBRALES — criterio: MINIMIZAR EL DAÑO a la colmena. Se avisa donde EMPIEZA el daño, no donde ya es letal.
+// UMBRALES — criterio: MINIMIZAR EL DAÑO a la colmena. Un solo nivel: CRÍTICO.
 // Respaldo bibliográfico de cada valor, nivel de verificación y límites: docs/UMBRALES_ALERTAS.md
 // (⚠️ siguen siendo una primera propuesta: se afinarán con datos reales del prototipo en una colmena).
 //
-// Niveles de la temperatura:
-//   aviso    fuera de 32–36 °C de forma SOSTENIDA (≥ ALERT_AVISO_MINUTOS): rango del nido de cría.
-//   crítico  fuera de 29–37 °C (confirmado con la lectura anterior): fuera de este rango el desarrollo de la cría falla.
-//   extremo  ≥ 43 °C: inmediato, sin confirmar (muy por encima de lo que tolera la cría; el límite letal de adultos ronda 50 °C).
-//   salto    cambio ≥ 10 °C en ≤ 5 min (en cualquier sentido): la colonia regula la cría con mucha precisión, así que un
-//            salto así indica un evento anómalo (colmena abierta, fuego, enjambre, colonia ausente) o un sensor fallando.
-// Humedad: crítica baja < 40 % (la humedad en colmenas sanas ronda 40–95 %). El resto, apagado hasta tener datos.
+// Temperatura (rango en el que se desarrolla la cría: 29–37 °C):
+//   FRÍO  (< 29 °C):  alerta si dura más de ALERT_FRIO_MINUTOS (15 min). Un descenso corto (p. ej. colmena abierta
+//                     para inspeccionarla) no avisa.
+//   CALOR (> 37 °C):  alerta INMEDIATA (ALERT_CALOR_MINUTOS = 0): el calor es el riesgo más urgente.
+//   EXTREMO (≥ 43 °C): inmediato; el mensaje advierte de un posible incendio o fallo grave.
+//   CAMBIO BRUSCO (≥ 10 °C en ≤ 5 min, sube o baja): inmediato. La colonia regula la cría con mucha precisión, así que
+//                     un salto así indica un evento anómalo (colmena abierta, fuego, colonia ausente) o un sensor fallando.
+// Humedad: crítica baja < 40 % durante más de ALERT_HUM_BAJA_MINUTOS (5 min); la humedad en colmenas sanas ronda 40–95 %.
+//          Humedad alta apagada hasta tener datos.
 //
-// Cada límite se puede cambiar en Render → Environment SIN tocar el código (un número, o "off" para desactivarlo):
-//   ALERT_TEMP_AVISO_MIN/MAX, ALERT_TEMP_MIN/MAX (crítico), ALERT_TEMP_EXTREMA_MAX/MIN,
-//   ALERT_TEMP_SALTO_GRADOS, ALERT_TEMP_SALTO_MINUTOS, ALERT_AVISO_MINUTOS,
-//   ALERT_HUM_AVISO_MIN/MAX, ALERT_HUM_MIN/MAX (crítico), ALERT_HUM_EXTREMA_MAX/MIN
+// Cada valor se puede cambiar en Render → Environment SIN tocar el código (un número, o "off" para desactivar un límite):
+//   ALERT_TEMP_MIN, ALERT_TEMP_MAX, ALERT_TEMP_EXTREMA_MAX/MIN, ALERT_TEMP_SALTO_GRADOS, ALERT_TEMP_SALTO_MINUTOS,
+//   ALERT_FRIO_MINUTOS, ALERT_CALOR_MINUTOS, ALERT_HUM_MIN/MAX, ALERT_HUM_EXTREMA_MAX/MIN,
+//   ALERT_HUM_BAJA_MINUTOS, ALERT_HUM_ALTA_MINUTOS, ALERT_COOLDOWN_MINUTES
 //   ALERTAS_AUTOMATICAS=off  (apaga por completo la generación automática de alertas)
 // =================================================================
 const leerLimite = (variable, porDefecto) => {
@@ -43,41 +45,38 @@ const leerLimite = (variable, porDefecto) => {
 
 export const UMBRALES = {
   temperatura: {
-    unidad: '°C', nombre: 'Temperatura', tipoBaja: 'TEMPERATURA_BAJA', tipoAlta: 'TEMPERATURA_ALTA',
-    avisoMin: leerLimite('ALERT_TEMP_AVISO_MIN', 32), avisoMax: leerLimite('ALERT_TEMP_AVISO_MAX', 36),
+    unidad: '°C', nombre: 'Temperatura',
+    tipoBaja: 'TEMPERATURA_BAJA', tipoAlta: 'TEMPERATURA_ALTA', tipoExtremo: 'TEMPERATURA_EXTREMA',
     criticoMin: leerLimite('ALERT_TEMP_MIN', 29), criticoMax: leerLimite('ALERT_TEMP_MAX', 37),
     extremoMin: leerLimite('ALERT_TEMP_EXTREMA_MIN', null), extremoMax: leerLimite('ALERT_TEMP_EXTREMA_MAX', 43),
+    minutosBaja: leerLimite('ALERT_FRIO_MINUTOS', 15) ?? 0, minutosAlta: leerLimite('ALERT_CALOR_MINUTOS', 0) ?? 0,
     saltoGrados: leerLimite('ALERT_TEMP_SALTO_GRADOS', 10), saltoMinutos: leerLimite('ALERT_TEMP_SALTO_MINUTOS', 5),
   },
   humedad: {
-    unidad: '%', nombre: 'Humedad', tipoBaja: 'HUMEDAD_BAJA', tipoAlta: 'HUMEDAD_ALTA',
-    avisoMin: leerLimite('ALERT_HUM_AVISO_MIN', null), avisoMax: leerLimite('ALERT_HUM_AVISO_MAX', null),
+    unidad: '%', nombre: 'Humedad',
+    tipoBaja: 'HUMEDAD_BAJA', tipoAlta: 'HUMEDAD_ALTA', tipoExtremo: 'HUMEDAD_EXTREMA',
     criticoMin: leerLimite('ALERT_HUM_MIN', 40), criticoMax: leerLimite('ALERT_HUM_MAX', null),
     extremoMin: leerLimite('ALERT_HUM_EXTREMA_MIN', null), extremoMax: leerLimite('ALERT_HUM_EXTREMA_MAX', null),
+    minutosBaja: leerLimite('ALERT_HUM_BAJA_MINUTOS', 5) ?? 0, minutosAlta: leerLimite('ALERT_HUM_ALTA_MINUTOS', 0) ?? 0,
     saltoGrados: null, saltoMinutos: null,
   },
 };
 
 export const ALERTAS_AUTOMATICAS_ACTIVAS = (process.env.ALERTAS_AUTOMATICAS || '').trim().toLowerCase() !== 'off';
 
-// Minutos que debe durar un valor fuera del rango de AVISO para avisar.
-export const AVISO_MINUTOS = leerLimite('ALERT_AVISO_MINUTOS', 30) ?? 30;
-
-// Mientras la condición siga, no se repite la MISMA alerta (misma colmena y tipo) antes de este tiempo, según el
-// nivel. Evita un push por minuto (el ESP32 envía cada 60 s). COOLDOWN_MINUTOS aplica a las críticas.
-export const COOLDOWN_MINUTOS = Number(process.env.ALERT_COOLDOWN_MINUTES) || 120;
-export const COOLDOWN_POR_NIVEL = (critico = COOLDOWN_MINUTOS) => ({ extremo: 30, salto: 30, critico, aviso: critico * 2 });
+// Mientras la condición siga, no se repite la MISMA alerta (misma colmena y tipo) antes de este tiempo.
+// Evita un push por minuto (el ESP32 envía cada 60 s). Las extremas y los cambios bruscos se repiten cada 30 min.
+export const COOLDOWN_MINUTOS = Number(process.env.ALERT_COOLDOWN_MINUTES) || 60;
+export const COOLDOWN_POR_NIVEL = (critico = COOLDOWN_MINUTOS) => ({ extremo: 30, salto: 30, critico });
 
 const TITULOS = {
-  TEMPERATURA_ALTA: 'Temperatura alta',
-  TEMPERATURA_BAJA: 'Temperatura baja',
-  HUMEDAD_ALTA: 'Humedad alta',
-  HUMEDAD_BAJA: 'Humedad baja',
-  AVISO_TEMPERATURA_ALTA: 'Aviso: temperatura alta',
-  AVISO_TEMPERATURA_BAJA: 'Aviso: temperatura baja',
-  AVISO_HUMEDAD_ALTA: 'Aviso: humedad alta',
-  AVISO_HUMEDAD_BAJA: 'Aviso: humedad baja',
-  CAMBIO_BRUSCO_TEMPERATURA: 'Cambio brusco de temperatura',
+  TEMPERATURA_ALTA: 'Crítico: temperatura alta',
+  TEMPERATURA_BAJA: 'Crítico: temperatura baja',
+  TEMPERATURA_EXTREMA: 'Crítico: temperatura extrema',
+  HUMEDAD_ALTA: 'Crítico: humedad alta',
+  HUMEDAD_BAJA: 'Crítico: humedad baja',
+  HUMEDAD_EXTREMA: 'Crítico: humedad extrema',
+  CAMBIO_BRUSCO_TEMPERATURA: 'Crítico: cambio brusco de temperatura',
 };
 
 const numero = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
@@ -87,24 +86,22 @@ const redondea = (v) => Math.round(v * 10) / 10;
 const ladoFuera = (valor, min, max) => (min !== null && valor < min ? 'baja' : max !== null && valor > max ? 'alta' : null);
 
 /**
- * Nivel INSTANTÁNEO de un valor (función pura): { nivel: 'extremo'|'critico'|'aviso', direccion, limite } o null.
- * ('aviso' aquí solo dice que está fuera del rango; que sea sostenido lo comprueba evaluarLectura.)
+ * Nivel INSTANTÁNEO de un valor (función pura): { nivel: 'extremo'|'critico', direccion, limite } o null.
+ * ('critico' aquí solo dice que está fuera del rango; que haya durado lo suficiente lo comprueba evaluarLectura.)
  */
 export function nivelDeValor(valor, u) {
   if (!Number.isFinite(valor)) return null;
   if (u.extremoMax !== null && valor >= u.extremoMax) return { nivel: 'extremo', direccion: 'alta', limite: u.extremoMax };
   if (u.extremoMin !== null && valor <= u.extremoMin) return { nivel: 'extremo', direccion: 'baja', limite: u.extremoMin };
-  const critico = ladoFuera(valor, u.criticoMin, u.criticoMax);
-  if (critico) return { nivel: 'critico', direccion: critico, limite: critico === 'baja' ? u.criticoMin : u.criticoMax };
-  const aviso = ladoFuera(valor, u.avisoMin, u.avisoMax);
-  if (aviso) return { nivel: 'aviso', direccion: aviso, limite: aviso === 'baja' ? u.avisoMin : u.avisoMax };
+  const lado = ladoFuera(valor, u.criticoMin, u.criticoMax);
+  if (lado) return { nivel: 'critico', direccion: lado, limite: lado === 'baja' ? u.criticoMin : u.criticoMax };
   return null;
 }
 
-const tipoDe = (u, nivel, direccion) => (nivel === 'aviso' ? 'AVISO_' : '') + (direccion === 'alta' ? u.tipoAlta : u.tipoBaja);
+const tipoDe = (u, nivel, direccion) => (nivel === 'extremo' ? u.tipoExtremo : direccion === 'alta' ? u.tipoAlta : u.tipoBaja);
 
 /**
- * Qué niveles alcanza una lectura, valor por valor (función pura, sin historial).
+ * Qué nivel alcanza una lectura, valor por valor (función pura, sin historial ni duración).
  * @returns {{metrica:string, valor:number, nivel:string, direccion:string, limite:number, unidad:string, tipo_alerta:string}[]}
  */
 export function clasificarLectura({ temperatura, humedad } = {}, umbrales = UMBRALES) {
@@ -122,19 +119,49 @@ const mensajeDe = (c, nombreColmena, umbrales = UMBRALES, extra = {}) => {
   const nombre = u.nombre.toLowerCase();
   const v = `${redondea(c.valor)} ${c.unidad}`;
   if (c.nivel === 'salto') {
-    return `${nombreColmena}: la ${nombre} cambió ${redondea(extra.diferencia)} ${c.unidad} en menos de ${u.saltoMinutos} min (de ${redondea(extra.referencia)} a ${v}). Revisa la colmena: puede ser un evento anómalo o un fallo del sensor.`;
+    return `${nombreColmena}: la ${nombre} cambió ${redondea(extra.diferencia)} ${c.unidad} en menos de ${u.saltoMinutos} min (de ${redondea(extra.referencia)} a ${v}). Revisa la colmena de inmediato: puede ser un evento anómalo (posible incendio) o un fallo del sensor.`;
   }
   if (c.nivel === 'extremo') {
-    return `${nombreColmena}: ${nombre} EXTREMA de ${v} (límite: ${c.limite} ${c.unidad}). Revisa la colmena de inmediato.`;
+    return `${nombreColmena}: ${nombre} EXTREMA de ${v} (límite: ${c.limite} ${c.unidad}). Posible incendio o fallo grave: revisa la colmena de inmediato.`;
   }
-  if (c.nivel === 'aviso') {
-    const rango = `${u.avisoMin ?? '…'}–${u.avisoMax ?? '…'} ${c.unidad}`;
-    return `${nombreColmena}: ${nombre} fuera del rango seguro (${rango}) durante más de ${extra.ventanaMin} min: ${v}.`;
+  if (c.direccion === 'alta') {
+    return `${nombreColmena}: ${nombre} crítica de ${v} (máximo seguro: ${c.limite} ${c.unidad}). Revisa la colmena.`;
   }
-  return c.direccion === 'alta'
-    ? `${nombreColmena}: ${nombre} crítica de ${v} (máximo seguro: ${c.limite} ${c.unidad}).`
-    : `${nombreColmena}: ${nombre} crítica de ${v} (mínimo seguro: ${c.limite} ${c.unidad}).`;
+  const duracion = extra.minutos > 0 ? ` durante más de ${extra.minutos} min` : '';
+  return `${nombreColmena}: ${nombre} crítica de ${v} (mínimo seguro: ${c.limite} ${c.unidad})${duracion}.`;
 };
+
+// ---------------------------------------------------------------
+// Descripciones para el chatbot (siempre salen de los mismos valores que usa el sistema)
+// ---------------------------------------------------------------
+const minTxt = (m) => (m > 0 ? ` durante más de ${m} min` : ' de inmediato');
+
+/** Significado de un tipo de alerta, en palabras. Los tipos que no son por umbral se describen de forma genérica. */
+export function describirAlerta(tipo, umbrales = UMBRALES) {
+  const t = umbrales.temperatura; const h = umbrales.humedad;
+  const catalogo = {
+    TEMPERATURA_ALTA: { nivel: 'critico', significado: `Temperatura por encima de ${t.criticoMax} °C (la cría no se desarrolla bien por encima de ese valor). Se avisa${minTxt(t.minutosAlta)}.` },
+    TEMPERATURA_BAJA: { nivel: 'critico', significado: `Temperatura por debajo de ${t.criticoMin} °C (la cría no se desarrolla bien por debajo de ese valor). Se avisa si dura más de ${t.minutosBaja} min, para no alertar por una inspección breve.` },
+    TEMPERATURA_EXTREMA: { nivel: 'extremo', significado: `Temperatura de ${t.extremoMax} °C o más: muy por encima de lo que tolera la cría. Posible incendio o fallo grave; revisar de inmediato.` },
+    CAMBIO_BRUSCO_TEMPERATURA: { nivel: 'salto', significado: `La temperatura cambió ${t.saltoGrados} °C o más en menos de ${t.saltoMinutos} min. La colonia regula su temperatura con mucha precisión, así que indica un evento anómalo (colmena abierta, fuego, colonia ausente) o un sensor con fallo.` },
+    HUMEDAD_BAJA: { nivel: 'critico', significado: `Humedad por debajo de ${h.criticoMin} %${minTxt(h.minutosBaja)}: por debajo del rango observado en colmenas sanas (40–95 %).` },
+  };
+  if (h.criticoMax !== null) catalogo.HUMEDAD_ALTA = { nivel: 'critico', significado: `Humedad por encima de ${h.criticoMax} %.` };
+  return catalogo[tipo] ?? { nivel: 'otro', significado: 'Alerta registrada manualmente o por otro sistema (no es una alerta automática por umbral).' };
+}
+
+/** Texto para las instrucciones del chatbot: cómo funcionan las alertas automáticas y qué significa cada tipo. */
+export function glosarioDeAlertas(umbrales = UMBRALES) {
+  const t = umbrales.temperatura;
+  const tipos = ['TEMPERATURA_ALTA', 'TEMPERATURA_BAJA', 'TEMPERATURA_EXTREMA', 'CAMBIO_BRUSCO_TEMPERATURA', 'HUMEDAD_BAJA'];
+  return [
+    'ALERTAS AUTOMÁTICAS DE AbejaNet (datos reales del servidor):',
+    `- Todas son de nivel CRÍTICO. El rango de temperatura en el que se desarrolla la cría es ${t.criticoMin}–${t.criticoMax} °C.`,
+    '- Llegan al celular como notificación push a todos los usuarios con acceso al apiario de la colmena.',
+    ...tipos.map((tipo) => `- ${tipo}: ${describirAlerta(tipo, umbrales).significado}`),
+    '- Los umbrales son una PRIMERA PROPUESTA basada en literatura científica y se ajustarán con datos reales de las colmenas; dilo si te preguntan por qué se alertó o si es correcto.',
+  ].join('\n');
+}
 
 /**
  * Crea la alerta en la BD y manda push a TODOS los usuarios con acceso al apiario de la colmena
@@ -188,24 +215,34 @@ export async function registrarAlertaYNotificar({ colmena_id, tipo_alerta, valor
   return { usuariosDestino: mensajes.length, push };
 }
 
+// ¿Todas las lecturas de los últimos `minutos` min estuvieron fuera del rango crítico del mismo lado?
+// Con 0 minutos no se espera nada (inmediato). Exige al menos 3 lecturas que cubran ≥ 80 % de la ventana
+// (el ESP32 envía cada 60 s: si enviara con menos frecuencia que ventana/3, esta regla no podría cumplirse).
+const sostenido = (hist, metrica, u, direccion, minutos, tAhora) => {
+  if (!minutos) return true;
+  const ventanaMs = minutos * 60000;
+  const enVentana = hist.filter((h) => h.t >= tAhora - ventanaMs);
+  if (enVentana.length < 3 || tAhora - enVentana[enVentana.length - 1].t < ventanaMs * 0.8) return false;
+  return enVentana.every((h) => ladoFuera(h[metrica], u.criticoMin, u.criticoMax) === direccion);
+};
+
 /**
- * Se llama con cada lectura guardada. Genera alertas por niveles (ver cabecera) y notifica por push.
- *  - extremo: inmediato.
- *  - crítico: la lectura ANTERIOR del mismo sensor también debe estar fuera del rango crítico del mismo lado.
- *  - aviso: TODAS las lecturas de los últimos AVISO_MINUTOS (al menos 3, cubriendo ≥ 80 % de la ventana) fuera del rango.
- *  - salto: la temperatura difiere ≥ saltoGrados de alguna lectura de los últimos saltoMinutos.
+ * Se llama con cada lectura guardada. Genera alertas críticas y notifica por push.
+ *  - extremo (≥ 43 °C): inmediato.
+ *  - fuera del rango crítico: según el lado — calor inmediato; frío solo si dura más de ALERT_FRIO_MINUTOS.
+ *  - cambio brusco: la temperatura difiere ≥ saltoGrados de alguna lectura de los últimos saltoMinutos (inmediato).
  *  - Enfriamiento por tipo y nivel: la misma alerta de la misma colmena no se repite antes del tiempo del nivel.
  * Nunca debe romper la recepción de datos: quien la llame debe capturar los errores.
  * @returns {Promise<object[]>} las alertas que se generaron
  */
 export async function evaluarLectura(sensorId, lectura, {
   db = pool, notificar = registrarAlertaYNotificar, cooldownMin = COOLDOWN_MINUTOS, activas = ALERTAS_AUTOMATICAS_ACTIVAS,
-  umbrales = UMBRALES, avisoMinutos = AVISO_MINUTOS,
+  umbrales = UMBRALES,
 } = {}) {
   if (!activas) return [];
 
   const actuales = { temperatura: numero(lectura?.temperatura), humedad: numero(lectura?.humedad) };
-  // Atajo: si ningún valor sale ni siquiera del rango de aviso y no hay regla de salto aplicable, no se consulta nada.
+  // Atajo: si ningún valor sale del rango y no hay regla de salto aplicable, no se consulta nada.
   const hayAlgo = Object.entries(umbrales).some(([m, u]) => nivelDeValor(actuales[m], u) || (u.saltoGrados !== null && Number.isFinite(actuales[m])));
   if (!hayAlgo) return [];
 
@@ -220,7 +257,6 @@ export async function evaluarLectura(sensorId, lectura, {
   );
   const hist = filas.map((f) => ({ t: new Date(f.fecha_registro).getTime(), temperatura: numero(f.temperatura), humedad: numero(f.humedad) }));
   const tAhora = hist[0]?.t ?? Date.now();
-  const previa = hist[1];
 
   const { rows: colmenas } = await db.query('SELECT nombre FROM colmenas WHERE id = $1', [colmenaId]);
   const nombreColmena = colmenas[0]?.nombre ?? `#${colmenaId}`;
@@ -236,16 +272,10 @@ export async function evaluarLectura(sensorId, lectura, {
     if (r?.nivel === 'extremo') {
       candidatas.push({ ...base, ...r, tipo_alerta: tipoDe(u, 'extremo', r.direccion), extra: {} });
     } else if (r?.nivel === 'critico') {
-      const prev = previa ? nivelDeValor(previa[metrica], u) : null;
-      if (prev && prev.nivel !== 'aviso' && prev.direccion === r.direccion) {
-        candidatas.push({ ...base, ...r, tipo_alerta: tipoDe(u, 'critico', r.direccion), extra: {} });
+      const minutos = r.direccion === 'baja' ? u.minutosBaja : u.minutosAlta;
+      if (sostenido(hist, metrica, u, r.direccion, minutos, tAhora)) {
+        candidatas.push({ ...base, ...r, tipo_alerta: tipoDe(u, 'critico', r.direccion), extra: { minutos } });
       }
-    } else if (r?.nivel === 'aviso') {
-      const ventanaMs = avisoMinutos * 60000;
-      const enVentana = hist.filter((h) => h.t >= tAhora - ventanaMs);
-      const cubre = enVentana.length >= 3 && tAhora - enVentana[enVentana.length - 1].t >= ventanaMs * 0.8;
-      const todasFuera = enVentana.every((h) => ladoFuera(h[metrica], u.avisoMin, u.avisoMax) === r.direccion);
-      if (cubre && todasFuera) candidatas.push({ ...base, ...r, tipo_alerta: tipoDe(u, 'aviso', r.direccion), extra: { ventanaMin: avisoMinutos } });
     }
 
     // Cambio brusco (solo magnitudes con regla de salto, p. ej. la temperatura)

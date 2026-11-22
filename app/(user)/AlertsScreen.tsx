@@ -94,15 +94,14 @@ const AlertsScreen = () => {
     switch (tipo) {
       case 'TEMPERATURA_ALTA':
       case 'TEMPERATURA_BAJA':
-      case 'AVISO_TEMPERATURA_ALTA':
-      case 'AVISO_TEMPERATURA_BAJA':
         return { name: 'thermometer-outline', color: '#FF6347' };
+      case 'TEMPERATURA_EXTREMA':
+        return { name: 'flame-outline', color: '#D32F2F' };
       case 'CAMBIO_BRUSCO_TEMPERATURA':
         return { name: 'pulse-outline', color: '#FF8C00' };
       case 'HUMEDAD_ALTA':
       case 'HUMEDAD_BAJA':
-      case 'AVISO_HUMEDAD_ALTA':
-      case 'AVISO_HUMEDAD_BAJA':
+      case 'HUMEDAD_EXTREMA':
         return { name: 'water-outline', color: '#1E90FF' };
       case 'MOVIMIENTO_BRUSCO':
         return { name: 'move-outline', color: '#FFD700' };
