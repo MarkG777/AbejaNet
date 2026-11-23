@@ -4,16 +4,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dimensions, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
   const colors = useAppColors();
   const { setHasSeenOnboarding } = useAuth();
   const { t } = useTranslation();
+  const { width } = useWindowDimensions();
   const [currentIndex, setCurrentIndex] = useState(0);
+  // El índice vive también en una referencia: el estado se actualiza con retraso y, si el usuario toca "Siguiente"
+  // varias veces seguidas, cada toque debe partir de la diapositiva REAL en la que va.
+  const indexRef = useRef(0);
+  const terminando = useRef(false);
   const flatListRef = useRef<FlatList>(null);
 
   const SLIDES = [
@@ -37,29 +40,41 @@ export default function OnboardingScreen() {
     },
   ];
 
+  // Antes el índice solo se actualizaba en onMomentumScrollEnd, que Android NO siempre dispara cuando el
+  // desplazamiento lo hace el código (scrollToIndex): el índice se quedaba atrasado y "Siguiente" repetía la
+  // misma diapositiva. Ahora se actualiza al instante y se desplaza con scrollToOffset (no exige getItemLayout).
+  const irA = (indice: number) => {
+    indexRef.current = indice;
+    setCurrentIndex(indice);
+    flatListRef.current?.scrollToOffset({ offset: indice * width, animated: true });
+  };
+
   const handleNext = () => {
-    if (currentIndex < SLIDES.length - 1) {
-      flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
+    if (indexRef.current < SLIDES.length - 1) {
+      irA(indexRef.current + 1);
     } else {
       handleFinish();
     }
   };
 
   const handleFinish = async () => {
+    if (terminando.current) return; // evita doble toque en "Comenzar"/"Omitir"
+    terminando.current = true;
     await setHasSeenOnboarding();
     router.replace('/(auth)/login');
   };
 
+  // Al deslizar con el dedo, sincroniza el índice con la diapositiva que quedó visible.
   const updateCurrentIndex = (e: any) => {
-    const contentOffsetX = e.nativeEvent.contentOffset.x;
-    const newIndex = Math.round(contentOffsetX / width);
-    setCurrentIndex(newIndex);
+    const nuevo = Math.round(e.nativeEvent.contentOffset.x / width);
+    indexRef.current = nuevo;
+    setCurrentIndex(nuevo);
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleFinish}>
+        <TouchableOpacity onPress={handleFinish} accessibilityRole="button" accessibilityLabel={t('skip', 'Omitir')} hitSlop={10}>
           <Text style={[styles.skipText, { color: colors.textSecondary }]}>{t('skip', 'Omitir')}</Text>
         </TouchableOpacity>
       </View>
@@ -72,6 +87,7 @@ export default function OnboardingScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         bounces={false}
+        getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
         onMomentumScrollEnd={updateCurrentIndex}
         renderItem={({ item }) => (
           <View style={[styles.slide, { width }]}>
@@ -101,6 +117,7 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.primary }]}
           onPress={handleNext}
+          accessibilityRole="button"
         >
           <Text style={styles.buttonText}>
             {currentIndex === SLIDES.length - 1 ? t('start', 'Comenzar') : t('next', 'Siguiente')}
