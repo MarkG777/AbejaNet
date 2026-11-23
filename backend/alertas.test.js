@@ -1,5 +1,5 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import { clasificarLectura, describirAlerta, evaluarLectura, glosarioDeAlertas, nivelDeValor, registrarAlertaYNotificar, UMBRALES } from './alertas.js';
+import { clasificarLectura, describirAlerta, detectarModoCria, evaluarLectura, glosarioDeAlertas, minutosBajoLimite, nivelDeValor, registrarAlertaYNotificar, UMBRALES } from './alertas.js';
 
 // BD falsa: responde según un fragmento del SQL.
 const crearDb = (respuestas = {}) => ({
@@ -14,12 +14,16 @@ const crearDb = (respuestas = {}) => ({
 // Historial de lecturas: cada elemento { hace: minutos, temperatura, humedad }; el primero (hace: 0) es la lectura actual.
 const BASE = Date.UTC(2026, 10, 21, 12, 0, 0);
 const historial = (lecturas) => lecturas.map((l) => ({ temperatura: l.temperatura ?? 34, humedad: l.humedad ?? 60, fecha_registro: new Date(BASE - l.hace * 60000) }));
-const dbCon = (lecturas, extra = {}) => crearDb({
-  'FROM sensores': [{ colmena_id: 4 }],
-  'FROM lecturas_ambientales': historial(lecturas),
-  'SELECT nombre FROM colmenas': [{ nombre: 'Colmena Prueba' }],
-  ...extra,
-});
+// Las respuestas de "extra" (más específicas: percentile_cont, LEAD(, FROM alertas...) van PRIMERO: la BD falsa responde con la
+// primera coincidencia y esas consultas también contienen "FROM lecturas_ambientales".
+const dbCon = (lecturas, extra = {}) => {
+  const porDefecto = {
+    'FROM sensores': [{ colmena_id: 4 }],
+    'FROM lecturas_ambientales': historial(lecturas),
+    'SELECT nombre FROM colmenas': [{ nombre: 'Colmena Prueba' }],
+  };
+  return crearDb({ ...extra, ...Object.fromEntries(Object.entries(porDefecto).filter(([k]) => !(k in extra))) });
+};
 const noti = () => jest.fn().mockResolvedValue({ usuariosDestino: 2, push: { enviadas: 2, fallidas: 0 } });
 const minutos = (n, props) => Array.from({ length: n }, (_, i) => ({ hace: i, ...props })); // n lecturas, una por minuto
 const T = UMBRALES.temperatura;
@@ -234,5 +238,122 @@ describe('registrarAlertaYNotificar: TODOS los usuarios a cargo de la colmena re
     expect(db.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO alertas'), expect.any(Array));
     expect(enviar).not.toHaveBeenCalled();
     expect(r).toMatchObject({ usuariosDestino: 0, push: { enviadas: 0 } });
+  });
+});
+
+// =================================================================
+// MODO CRÍA y BAJADAS REPETIDAS
+// =================================================================
+const MODO = (mediana, lecturas = 3000, horas = 70) => ({ 'percentile_cont': [{ mediana, lecturas, horas }] });
+
+describe('detectarModoCria (mediana de 72 h ≥ 33 °C = hay cría)', () => {
+  const dbModo = (fila) => crearDb({ 'percentile_cont': [fila] });
+  test('mediana 34 °C con datos suficientes: cría', async () => {
+    expect(await detectarModoCria(dbModo({ mediana: 34, lecturas: 3000, horas: 70 }), 1, T)).toBe('cria');
+  });
+  test('mediana 21 °C: sin cría (p. ej. invierno)', async () => {
+    expect(await detectarModoCria(dbModo({ mediana: 21, lecturas: 3000, horas: 70 }), 1, T)).toBe('sin_cria');
+  });
+  test('justo en el límite (33 °C) cuenta como cría', async () => {
+    expect(await detectarModoCria(dbModo({ mediana: 33, lecturas: 3000, horas: 70 }), 1, T)).toBe('cria');
+  });
+  test('pocos datos (menos de ~48 h o menos de 30 lecturas): desconocido', async () => {
+    expect(await detectarModoCria(dbModo({ mediana: 21, lecturas: 3000, horas: 20 }), 1, T)).toBe('desconocido');
+    expect(await detectarModoCria(dbModo({ mediana: 21, lecturas: 10, horas: 70 }), 1, T)).toBe('desconocido');
+    expect(await detectarModoCria(dbModo({ mediana: null, lecturas: 0, horas: 0 }), 1, T)).toBe('desconocido');
+  });
+});
+
+describe('minutosBajoLimite', () => {
+  test('devuelve el número de minutos acumulados que calcula la consulta', async () => {
+    const db = crearDb({ 'LEAD(': [{ minutos: '75.5' }] });
+    expect(await minutosBajoLimite(db, 1, 29, 24)).toBe(75.5);
+    expect(db.query).toHaveBeenCalledWith(expect.stringContaining('LEAD('), [1, '24', 29]);
+  });
+  test('sin filas devuelve 0', async () => {
+    expect(await minutosBajoLimite(crearDb({}), 1, 29, 24)).toBe(0);
+  });
+});
+
+describe('frío según el modo cría', () => {
+  test('CON cría: frío sostenido > 15 min avisa con el límite de 29 °C', async () => {
+    const r = await evaluarLectura(1, { temperatura: 28 }, { db: dbCon(minutos(17, { temperatura: 28 }), MODO(34)), notificar: noti() });
+    expect(r.map((a) => a.tipo_alerta)).toEqual(['TEMPERATURA_BAJA']);
+    expect(r[0].mensaje).toContain('mínimo seguro: 29');
+  });
+
+  test('SIN cría (invierno, ~21 °C): 21 °C sostenido NO avisa (es lo normal sin cría)', async () => {
+    const notificar = noti();
+    const r = await evaluarLectura(1, { temperatura: 21 }, { db: dbCon(minutos(40, { temperatura: 21 }), MODO(21)), notificar });
+    expect(r).toEqual([]);
+    expect(notificar).not.toHaveBeenCalled();
+  });
+
+  test('SIN cría: por debajo de 10 °C sostenido SÍ avisa, indicando que no hay cría', async () => {
+    const r = await evaluarLectura(1, { temperatura: 9 }, { db: dbCon(minutos(17, { temperatura: 9 }), MODO(21)), notificar: noti() });
+    expect(r.map((a) => a.tipo_alerta)).toEqual(['TEMPERATURA_BAJA']);
+    expect(r[0].mensaje).toContain('mínimo seguro: 10');
+    expect(r[0].mensaje).toContain('sin cría');
+  });
+
+  test('datos insuficientes: se asume que hay cría (lo más prudente) y rige 29 °C', async () => {
+    const r = await evaluarLectura(1, { temperatura: 28 }, { db: dbCon(minutos(17, { temperatura: 28 }), MODO(21, 5, 1)), notificar: noti() });
+    expect(r.map((a) => a.tipo_alerta)).toEqual(['TEMPERATURA_BAJA']);
+  });
+
+  test('SIN cría el calor, el extremo y el cambio brusco siguen funcionando igual', async () => {
+    const r = await evaluarLectura(1, { temperatura: 44 }, { db: dbCon([{ hace: 0, temperatura: 44 }, { hace: 1, temperatura: 21 }], MODO(21)), notificar: noti() });
+    expect(r.map((a) => a.tipo_alerta).sort()).toEqual(['CAMBIO_BRUSCO_TEMPERATURA', 'TEMPERATURA_EXTREMA']);
+  });
+});
+
+describe('BAJADAS REPETIDAS (frío acumulado aunque cada bajada sea corta)', () => {
+  // Lectura actual a 28 °C con 34 °C justo antes: no es frío sostenido ni un salto (6 °C), pero el historial de 24 h suma frío.
+  const lecturas = [{ hace: 0, temperatura: 28 }, { hace: 1, temperatura: 34 }];
+
+  test('≥ 60 min acumulados en 24 h con cría: AVISA aunque no sean seguidos', async () => {
+    const notificar = noti();
+    const db = dbCon(lecturas, { ...MODO(34), 'LEAD(': [{ minutos: 75 }] });
+    const r = await evaluarLectura(1, { temperatura: 28 }, { db, notificar });
+    expect(r.map((a) => a.tipo_alerta)).toEqual(['BAJADAS_REPETIDAS_TEMPERATURA']);
+    expect(r[0].mensaje).toContain('75 min');
+    expect(r[0].mensaje).toContain('24 h');
+    expect(r[0].nivel).toBe('acumulado');
+  });
+
+  test('menos de 60 min acumulados: no avisa', async () => {
+    const r = await evaluarLectura(1, { temperatura: 28 }, { db: dbCon(lecturas, { ...MODO(34), 'LEAD(': [{ minutos: 40 }] }), notificar: noti() });
+    expect(r).toEqual([]);
+  });
+
+  test('sin cría no se acumula el frío (21 °C es lo normal)', async () => {
+    const r = await evaluarLectura(1, { temperatura: 28 }, { db: dbCon(lecturas, { ...MODO(21), 'LEAD(': [{ minutos: 500 }] }), notificar: noti() });
+    expect(r).toEqual([]);
+  });
+
+  test('si ya hay una alerta de frío SOSTENIDO no se manda además la acumulada', async () => {
+    const db = dbCon(minutos(17, { temperatura: 28 }), { ...MODO(34), 'LEAD(': [{ minutos: 300 }] });
+    const r = await evaluarLectura(1, { temperatura: 28 }, { db, notificar: noti() });
+    expect(r.map((a) => a.tipo_alerta)).toEqual(['TEMPERATURA_BAJA']);
+  });
+
+  test('enfriamiento propio de 3 h: una acumulada reciente no se repite', async () => {
+    const notificar = noti();
+    const db = dbCon(lecturas, { ...MODO(34), 'LEAD(': [{ minutos: 75 }], 'FROM alertas': (p) => (p[1] === 'BAJADAS_REPETIDAS_TEMPERATURA' && p[2] === '180' ? [{ '?column?': 1 }] : []) });
+    expect(await evaluarLectura(1, { temperatura: 28 }, { db, notificar })).toEqual([]);
+    expect(notificar).not.toHaveBeenCalled();
+  });
+
+  test('el chatbot la conoce: descripción y glosario', () => {
+    expect(describirAlerta('BAJADAS_REPETIDAS_TEMPERATURA')).toMatchObject({ nivel: 'acumulado', significado: expect.stringContaining('60 min') });
+    expect(glosarioDeAlertas()).toContain('BAJADAS_REPETIDAS_TEMPERATURA');
+    expect(glosarioDeAlertas()).toMatch(/SIN cría/);
+  });
+
+  test('el título del push lleva "Crítico"', async () => {
+    const enviar = jest.fn().mockResolvedValue({ enviadas: 1, fallidas: 0, tokensEliminados: 0, errores: [] });
+    const db = crearDb({ 'JOIN usuarios_apiarios ua ON u.id': [{ id: 3, push_token: 'ExponentPushToken[aaa]' }], 'unreadCount': [{ unreadCount: '1' }] });
+    await registrarAlertaYNotificar({ colmena_id: 4, tipo_alerta: 'BAJADAS_REPETIDAS_TEMPERATURA', valor_registrado: '28 °C', mensaje: 'm' }, { db, enviar });
+    expect(enviar.mock.calls[0][0][0].title).toContain('Crítico: bajadas de temperatura repetidas');
   });
 });

@@ -51,6 +51,16 @@ export const UMBRALES = {
     extremoMin: leerLimite('ALERT_TEMP_EXTREMA_MIN', null), extremoMax: leerLimite('ALERT_TEMP_EXTREMA_MAX', 43),
     minutosBaja: leerLimite('ALERT_FRIO_MINUTOS', 15) ?? 0, minutosAlta: leerLimite('ALERT_CALOR_MINUTOS', 0) ?? 0,
     saltoGrados: leerLimite('ALERT_TEMP_SALTO_GRADOS', 10), saltoMinutos: leerLimite('ALERT_TEMP_SALTO_MINUTOS', 5),
+    // MODO CRÍA (método de Ulgezen 2025 y Nürnberger 2018): una colonia con cría mantiene 33–36 °C, una sin cría ronda
+    // 21 °C. Si la temperatura MEDIANA de las últimas criaHoras (72 h) es ≥ criaTemp (33 °C) se asume que hay cría y rige
+    // el límite de frío normal (29 °C). Si no, el frío se evalúa con criticoMinSinCria (10 °C: por debajo las abejas
+    // entran en coma por frío). Con menos de ~48 h de datos no se puede saber: se asume que hay cría (lo más prudente).
+    criticoMinSinCria: leerLimite('ALERT_TEMP_MIN_SIN_CRIA', 10),
+    criaTemp: leerLimite('ALERT_CRIA_TEMP', 33) ?? 33, criaHoras: leerLimite('ALERT_CRIA_HORAS', 72) ?? 72,
+    // BAJADAS REPETIDAS: si en las últimas frioAcumHoras (24 h) la temperatura suma ≥ frioAcumMinutos (60 min) por debajo
+    // del límite de frío —aunque cada bajada sea corta y no seguida— también se avisa (en la cría más sensible, 60–90 min
+    // de frío profundo ya dejan secuelas: Wang 2016).
+    frioAcumMinutos: leerLimite('ALERT_FRIO_ACUMULADO_MINUTOS', 60), frioAcumHoras: leerLimite('ALERT_FRIO_ACUMULADO_HORAS', 24) ?? 24,
   },
   humedad: {
     unidad: '%', nombre: 'Humedad',
@@ -67,7 +77,7 @@ export const ALERTAS_AUTOMATICAS_ACTIVAS = (process.env.ALERTAS_AUTOMATICAS || '
 // Mientras la condición siga, no se repite la MISMA alerta (misma colmena y tipo) antes de este tiempo.
 // Evita un push por minuto (el ESP32 envía cada 60 s). Las extremas y los cambios bruscos se repiten cada 30 min.
 export const COOLDOWN_MINUTOS = Number(process.env.ALERT_COOLDOWN_MINUTES) || 60;
-export const COOLDOWN_POR_NIVEL = (critico = COOLDOWN_MINUTOS) => ({ extremo: 30, salto: 30, critico });
+export const COOLDOWN_POR_NIVEL = (critico = COOLDOWN_MINUTOS) => ({ extremo: 30, salto: 30, critico, acumulado: 180 });
 
 const TITULOS = {
   TEMPERATURA_ALTA: 'Crítico: temperatura alta',
@@ -77,6 +87,7 @@ const TITULOS = {
   HUMEDAD_BAJA: 'Crítico: humedad baja',
   HUMEDAD_EXTREMA: 'Crítico: humedad extrema',
   CAMBIO_BRUSCO_TEMPERATURA: 'Crítico: cambio brusco de temperatura',
+  BAJADAS_REPETIDAS_TEMPERATURA: 'Crítico: bajadas de temperatura repetidas',
 };
 
 const numero = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
@@ -121,6 +132,9 @@ const mensajeDe = (c, nombreColmena, umbrales = UMBRALES, extra = {}) => {
   if (c.nivel === 'salto') {
     return `${nombreColmena}: la ${nombre} cambió ${redondea(extra.diferencia)} ${c.unidad} en menos de ${u.saltoMinutos} min (de ${redondea(extra.referencia)} a ${v}). Revisa la colmena de inmediato: puede ser un evento anómalo (posible incendio) o un fallo del sensor.`;
   }
+  if (c.nivel === 'acumulado') {
+    return `${nombreColmena}: la ${nombre} estuvo por debajo de ${c.limite} ${c.unidad} un total de ${Math.round(extra.minutosAcumulados)} min en las últimas ${extra.horas} h (bajadas cortas repetidas; ahora ${v}). Revisa la colmena.`;
+  }
   if (c.nivel === 'extremo') {
     return `${nombreColmena}: ${nombre} EXTREMA de ${v} (límite: ${c.limite} ${c.unidad}). Posible incendio o fallo grave: revisa la colmena de inmediato.`;
   }
@@ -128,7 +142,8 @@ const mensajeDe = (c, nombreColmena, umbrales = UMBRALES, extra = {}) => {
     return `${nombreColmena}: ${nombre} crítica de ${v} (máximo seguro: ${c.limite} ${c.unidad}). Revisa la colmena.`;
   }
   const duracion = extra.minutos > 0 ? ` durante más de ${extra.minutos} min` : '';
-  return `${nombreColmena}: ${nombre} crítica de ${v} (mínimo seguro: ${c.limite} ${c.unidad})${duracion}.`;
+  const sinCria = extra.modo === 'sin_cria' ? ' (colmena sin cría)' : '';
+  return `${nombreColmena}: ${nombre} crítica de ${v} (mínimo seguro: ${c.limite} ${c.unidad})${sinCria}${duracion}.`;
 };
 
 // ---------------------------------------------------------------
@@ -144,6 +159,7 @@ export function describirAlerta(tipo, umbrales = UMBRALES) {
     TEMPERATURA_BAJA: { nivel: 'critico', significado: `Temperatura por debajo de ${t.criticoMin} °C (la cría no se desarrolla bien por debajo de ese valor). Se avisa si dura más de ${t.minutosBaja} min, para no alertar por una inspección breve.` },
     TEMPERATURA_EXTREMA: { nivel: 'extremo', significado: `Temperatura de ${t.extremoMax} °C o más: muy por encima de lo que tolera la cría. Posible incendio o fallo grave; revisar de inmediato.` },
     CAMBIO_BRUSCO_TEMPERATURA: { nivel: 'salto', significado: `La temperatura cambió ${t.saltoGrados} °C o más en menos de ${t.saltoMinutos} min. La colonia regula su temperatura con mucha precisión, así que indica un evento anómalo (colmena abierta, fuego, colonia ausente) o un sensor con fallo.` },
+    BAJADAS_REPETIDAS_TEMPERATURA: { nivel: 'acumulado', significado: `La temperatura estuvo por debajo de ${t.criticoMin} °C un total de ${t.frioAcumMinutos} min o más en las últimas ${t.frioAcumHoras} h, aunque cada bajada haya sido corta. En la cría más sensible, una hora o más de frío ya deja secuelas.` },
     HUMEDAD_BAJA: { nivel: 'critico', significado: `Humedad por debajo de ${h.criticoMin} %${minTxt(h.minutosBaja)}: por debajo del rango observado en colmenas sanas (40–95 %).` },
   };
   if (h.criticoMax !== null) catalogo.HUMEDAD_ALTA = { nivel: 'critico', significado: `Humedad por encima de ${h.criticoMax} %.` };
@@ -153,10 +169,11 @@ export function describirAlerta(tipo, umbrales = UMBRALES) {
 /** Texto para las instrucciones del chatbot: cómo funcionan las alertas automáticas y qué significa cada tipo. */
 export function glosarioDeAlertas(umbrales = UMBRALES) {
   const t = umbrales.temperatura;
-  const tipos = ['TEMPERATURA_ALTA', 'TEMPERATURA_BAJA', 'TEMPERATURA_EXTREMA', 'CAMBIO_BRUSCO_TEMPERATURA', 'HUMEDAD_BAJA'];
+  const tipos = ['TEMPERATURA_ALTA', 'TEMPERATURA_BAJA', 'TEMPERATURA_EXTREMA', 'CAMBIO_BRUSCO_TEMPERATURA', 'BAJADAS_REPETIDAS_TEMPERATURA', 'HUMEDAD_BAJA'];
   return [
     'ALERTAS AUTOMÁTICAS DE AbejaNet (datos reales del servidor):',
     `- Todas son de nivel CRÍTICO. El rango de temperatura en el que se desarrolla la cría es ${t.criticoMin}–${t.criticoMax} °C.`,
+    `- El sistema distingue colmenas CON cría (temperatura mediana de las últimas ${t.criaHoras} h ≥ ${t.criaTemp} °C) de colmenas SIN cría (p. ej. en invierno, ~21 °C es normal): sin cría el aviso de frío solo salta por debajo de ${t.criticoMinSinCria} °C.`,
     '- Llegan al celular como notificación push a todos los usuarios con acceso al apiario de la colmena.',
     ...tipos.map((tipo) => `- ${tipo}: ${describirAlerta(tipo, umbrales).significado}`),
     '- Los umbrales son una PRIMERA PROPUESTA basada en literatura científica y se ajustarán con datos reales de las colmenas; dilo si te preguntan por qué se alertó o si es correcto.',
@@ -227,6 +244,41 @@ const sostenido = (hist, metrica, u, direccion, minutos, tAhora) => {
 };
 
 /**
+ * ¿La colmena está criando? Mediana de la temperatura del sensor en las últimas criaHoras (método de Ulgezen 2025).
+ * @returns {Promise<'cria'|'sin_cria'|'desconocido'>} 'desconocido' = muy pocos datos (< ~2/3 de la ventana o < 30 lecturas).
+ */
+export async function detectarModoCria(db, sensorId, u) {
+  const { rows } = await db.query(
+    `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY temperatura) AS mediana,
+            COUNT(*) AS lecturas,
+            COALESCE(EXTRACT(EPOCH FROM (MAX(fecha_registro) - MIN(fecha_registro))) / 3600, 0) AS horas
+     FROM lecturas_ambientales
+     WHERE sensor_id = $1 AND temperatura IS NOT NULL AND fecha_registro >= NOW() - ($2 || ' hours')::interval`,
+    [sensorId, String(u.criaHoras)]
+  );
+  const r = rows[0];
+  const mediana = numero(r?.mediana);
+  if (!Number.isFinite(mediana) || Number(r.lecturas) < 30 || Number(r.horas) < u.criaHoras * 0.66) return 'desconocido';
+  return mediana >= u.criaTemp ? 'cria' : 'sin_cria';
+}
+
+/**
+ * Minutos que la temperatura estuvo por debajo de `limite` en las últimas `horas` h (suma de los intervalos entre
+ * lecturas consecutivas con lectura baja; cada intervalo cuenta como máximo 5 min para no contar huecos sin datos).
+ */
+export async function minutosBajoLimite(db, sensorId, limite, horas) {
+  const { rows } = await db.query(
+    `SELECT COALESCE(SUM(LEAST(EXTRACT(EPOCH FROM (siguiente - fecha_registro)) / 60, 5)), 0) AS minutos
+     FROM (SELECT fecha_registro, temperatura, LEAD(fecha_registro) OVER (ORDER BY fecha_registro) AS siguiente
+           FROM lecturas_ambientales
+           WHERE sensor_id = $1 AND temperatura IS NOT NULL AND fecha_registro >= NOW() - ($2 || ' hours')::interval) t
+     WHERE temperatura < $3 AND siguiente IS NOT NULL`,
+    [sensorId, String(horas), limite]
+  );
+  return Number(rows[0]?.minutos ?? 0);
+}
+
+/**
  * Se llama con cada lectura guardada. Genera alertas críticas y notifica por push.
  *  - extremo (≥ 43 °C): inmediato.
  *  - fuera del rango crítico: según el lado — calor inmediato; frío solo si dura más de ALERT_FRIO_MINUTOS.
@@ -271,6 +323,23 @@ export async function evaluarLectura(sensorId, lectura, {
 
     if (r?.nivel === 'extremo') {
       candidatas.push({ ...base, ...r, tipo_alerta: tipoDe(u, 'extremo', r.direccion), extra: {} });
+    } else if (r?.nivel === 'critico' && r.direccion === 'baja' && u.criaTemp != null) {
+      // FRÍO de la temperatura: depende de si la colmena está criando (modo cría).
+      const modo = await detectarModoCria(db, sensorId, u);
+      const uEf = modo === 'sin_cria' ? { ...u, criticoMin: u.criticoMinSinCria } : u;
+      const rEf = nivelDeValor(valor, uEf);
+      let sostenida = false;
+      if (rEf?.nivel === 'critico' && rEf.direccion === 'baja' && sostenido(hist, metrica, uEf, 'baja', u.minutosBaja, tAhora)) {
+        sostenida = true;
+        candidatas.push({ ...base, ...rEf, tipo_alerta: tipoDe(u, 'critico', 'baja'), extra: { minutos: u.minutosBaja, modo } });
+      }
+      // BAJADAS REPETIDAS (solo con cría): suma de minutos fríos en las últimas horas, aunque no sean seguidos.
+      if (!sostenida && modo !== 'sin_cria' && u.frioAcumMinutos !== null) {
+        const minutosAcumulados = await minutosBajoLimite(db, sensorId, u.criticoMin, u.frioAcumHoras);
+        if (minutosAcumulados >= u.frioAcumMinutos) {
+          candidatas.push({ ...base, nivel: 'acumulado', direccion: 'baja', limite: u.criticoMin, tipo_alerta: 'BAJADAS_REPETIDAS_TEMPERATURA', extra: { minutosAcumulados, horas: u.frioAcumHoras } });
+        }
+      }
     } else if (r?.nivel === 'critico') {
       const minutos = r.direccion === 'baja' ? u.minutosBaja : u.minutosAlta;
       if (sostenido(hist, metrica, u, r.direccion, minutos, tAhora)) {

@@ -99,6 +99,8 @@ const AlertsScreen = () => {
         return { name: 'flame-outline', color: '#D32F2F' };
       case 'CAMBIO_BRUSCO_TEMPERATURA':
         return { name: 'pulse-outline', color: '#FF8C00' };
+      case 'BAJADAS_REPETIDAS_TEMPERATURA':
+        return { name: 'repeat-outline', color: '#FF6347' };
       case 'HUMEDAD_ALTA':
       case 'HUMEDAD_BAJA':
       case 'HUMEDAD_EXTREMA':

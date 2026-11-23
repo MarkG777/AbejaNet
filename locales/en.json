@@ -156,6 +156,7 @@
     "HUMEDAD_BAJA": "Critical: Low Humidity",
     "HUMEDAD_EXTREMA": "Critical: Extreme Humidity",
     "CAMBIO_BRUSCO_TEMPERATURA": "Critical: Sudden Temperature Change",
+    "BAJADAS_REPETIDAS_TEMPERATURA": "Critical: Repeated Temperature Drops",
     "PESO_BAJO": "Low Weight",
     "BATERIA_BAJA": "Low Battery",
     "PERDIDA_CONEXION": "Connection Lost"

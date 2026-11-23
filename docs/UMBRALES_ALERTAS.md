@@ -16,12 +16,18 @@ Todo se cambia en Render → Environment sin tocar código (un número, o `off` 
 | Regla | Cuándo se alerta | Variables | Se repite cada |
 |---|---|---|---|
 | **Calor crítico** | temperatura **> 37 °C**, **de inmediato** | `ALERT_TEMP_MAX`, `ALERT_CALOR_MINUTOS` (0) | 60 min |
-| **Frío crítico** | temperatura **< 29 °C** durante **más de 15 min** | `ALERT_TEMP_MIN`, `ALERT_FRIO_MINUTOS` (15) | 60 min |
+| **Frío crítico (con cría)** | temperatura **< 29 °C** durante **más de 15 min** | `ALERT_TEMP_MIN`, `ALERT_FRIO_MINUTOS` (15) | 60 min |
+| **Frío crítico (sin cría)** | temperatura **< 10 °C** durante más de 15 min | `ALERT_TEMP_MIN_SIN_CRIA` (10) | 60 min |
+| **Bajadas repetidas** (con cría) | **≥ 60 min** por debajo de 29 °C sumados en las últimas **24 h**, aunque cada bajada sea corta | `ALERT_FRIO_ACUMULADO_MINUTOS` (60), `ALERT_FRIO_ACUMULADO_HORAS` (24) | 3 h |
 | **Temperatura extrema** | **≥ 43 °C**, inmediato (el mensaje advierte de un posible incendio) | `ALERT_TEMP_EXTREMA_MAX/MIN` | 30 min |
 | **Cambio brusco** | cambio **≥ 10 °C en ≤ 5 min**, sube o baja (p. ej. 30 → 50 °C en 2 min), inmediato | `ALERT_TEMP_SALTO_GRADOS/MINUTOS` | 30 min |
 | **Humedad baja crítica** | humedad **< 40 %** durante más de 5 min | `ALERT_HUM_MIN`, `ALERT_HUM_BAJA_MINUTOS` (5) | 60 min |
 | Apagado por defecto | humedad alta, humedad extrema, temperatura extrema baja | `ALERT_HUM_MAX`, `ALERT_HUM_EXTREMA_*`, `ALERT_TEMP_EXTREMA_MIN` | — |
 
+- **Modo cría (automático):** el sistema decide si la colmena está criando con la **temperatura mediana de las últimas
+  72 h**: **≥ 33 °C = hay cría** (rige 29–37 °C); **menor = sin cría** (p. ej. invierno: ~21 °C es normal, el frío solo
+  avisa por debajo de 10 °C). Con menos de ~48 h de datos se asume que hay cría (lo más prudente). Variables:
+  `ALERT_CRIA_TEMP` (33), `ALERT_CRIA_HORAS` (72). Método de Ulgezen 2025 y Nürnberger 2018 (ver §2.4).
 - **Por qué el frío espera y el calor no:** una colmena abierta para inspeccionarla baja de temperatura unos minutos
   y no es una emergencia; el calor (o un salto brusco hacia arriba) puede ser un incendio y no se espera.
 - Las reglas "sostenidas" exigen al menos 3 lecturas que cubran el 80 % de la ventana; el ESP32 envía cada 60 s.
@@ -146,17 +152,18 @@ medido es que, en la cría más sensible, **una hora o más de frío profundo ya
 una bajada breve sea inocua, ni que sea dañina: la mejor evidencia es de enfriamientos grandes. Lo razonable es que el
 daño crece con la profundidad y con el tiempo acumulado.
 
-**Qué cubre hoy la regla:** una bajada < 15 min no avisa; una caída ≥ 10 °C en ≤ 5 min avisa de inmediato; **varias
-bajadas cortas repetidas no se acumulan** (no hay alerta).
+**Qué cubre la regla (actualizado):** una bajada < 15 min no avisa por sí sola; una caída ≥ 10 °C en ≤ 5 min avisa de inmediato;
+y **varias bajadas cortas repetidas ahora se acumulan** y avisan al sumar 60 min en 24 h (los 60 min son una decisión de
+diseño apoyada en Wang 2016, que midió secuelas con 60–90 min de frío profundo a 20 °C).
 
-**Opciones propuestas (pendiente de decisión):**
-1. **"Modo cría" automático** (recomendada): si la temperatura mediana de los últimos 3 días es ≥ 33 °C se asume que hay
+**Opciones propuestas** (**la 1 y la 4 ya están implementadas**, 2026-11-22; la 2 y la 3 quedan como alternativas):
+1. ✅ **"Modo cría" automático** (implementada): si la temperatura mediana de los últimos 3 días es ≥ 33 °C se asume que hay
    cría y rige 29–37 °C; si no, el frío se evalúa con un límite mucho más bajo (o se apaga), manteniendo calor, extremo y
    cambio brusco, y se agrega "posible pérdida de colonia" si tras un periodo con cría la temperatura cae al ambiente
    (Cook 2022: una colonia ausente registró 5.5 °C menos). Se apoya en el método de Ulgezen 2025 y Nürnberger 2018.
 2. **Interruptor manual por colmena** ("invierno / sin cría") con su propio límite de frío.
 3. **Bajar el límite de frío** (p. ej. a 27–28 °C) con sensor de aire: necesita datos reales.
-4. **Acumular el frío**: alertar si suma ≥ 60 min por debajo de 29 °C en 24 h, aunque no sea continuo.
+4. ✅ **Acumular el frío** (implementada): alerta si suma ≥ 60 min por debajo de 29 °C en 24 h, aunque no sea continuo.
 Sea cual sea, hay que calibrar con las primeras semanas de datos del prototipo (mediana y MAD por colmena y época).
 
 ## 3. Correcciones a la versión anterior de este documento

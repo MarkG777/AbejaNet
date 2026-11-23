@@ -156,6 +156,7 @@
     "HUMEDAD_BAJA": "Crítico: Humedad Baja",
     "HUMEDAD_EXTREMA": "Crítico: Humedad Extrema",
     "CAMBIO_BRUSCO_TEMPERATURA": "Crítico: Cambio Brusco de Temperatura",
+    "BAJADAS_REPETIDAS_TEMPERATURA": "Crítico: Bajadas de Temperatura Repetidas",
     "PESO_BAJO": "Peso Bajo",
     "BATERIA_BAJA": "Batería Baja",
     "PERDIDA_CONEXION": "Pérdida de Conexión"
