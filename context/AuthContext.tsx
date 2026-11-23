@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import { jwtDecode } from 'jwt-decode';
 import React, { createContext, ReactNode, useContext, useEffect, useRef, useState } from 'react';
 import { AppState, AppStateStatus, View } from 'react-native';
-import { registerForPushNotificationsAsync, savePushToken } from '../services/notificationService';
+import { olvidarPushToken, registerForPushNotificationsAsync, savePushToken, sincronizarPushToken } from '../services/notificationService';
 import api, { setAuthToken, setupErrorInterceptor } from '../utils/api';
 import { getApiUrl } from '../utils/ip_config';
 
@@ -185,6 +185,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active' && authState.authenticated) {
+         // Reintenta guardar el token de notificaciones si no llegó a guardarse (sin pedir permisos y sin esperar).
+         void sincronizarPushToken();
          try {
            const decodedToken = jwtDecode<{ exp: number }>(authState.accessToken || '');
            if ((decodedToken.exp * 1000) <= Date.now()) {
@@ -242,6 +244,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ]);
       }
     } catch (e) {}
+
+    olvidarPushToken();
 
     try {
       await AsyncStorage.multiRemove(['userRole', 'user']);

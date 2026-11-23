@@ -38,7 +38,7 @@ https://dashboard.render.com
 Name:            abejanet_db_[mes][año]
                  Ejemplo: abejanet_db_feb2025
 
-Database:        Cualquier nombre (abeja_net_v6 recomendado)
+Database:        Cualquier nombre (abeja_net_v7 recomendado)
 
 User:            Cualquier usuario (abeja_user recomendado)
 
@@ -417,3 +417,33 @@ La próxima vez que expire tu BD, solo:
 2. Sigue los pasos
 3. Ejecuta el script
 4. ¡Listo en 15 minutos! 🚀
+
+---
+
+# 💾 RESPALDO DE LA BASE DE DATOS (.sql)
+
+Hay dos cosas distintas y conviene tener las dos:
+
+| Archivo | Qué es | Dónde está |
+|---|---|---|
+| `abeja_net_v7_postgres.sql` | La **estructura** de la base (versión 7) con datos de ejemplo. Sirve para crear una BD nueva. Las versiones anteriores (v5, v6) siguen en el repositorio como evidencia. | En el repositorio |
+| `abejanet_completo.sql` | Respaldo **con los datos reales** de ese momento (estructura + usuarios, lecturas, alertas…). | **Fuera** del repositorio (`AbejaNet_Backups/`): contiene correos, hashes de contraseñas y tokens |
+
+**Sacar un respaldo nuevo** (desde `backend/`, con el `.env` configurado):
+
+```bash
+node --env-file=.env respaldar_bd.js
+# -> ../../AbejaNet_Backups/bd_AAAA-MM-DD_HHMM/abejanet_completo.sql y abejanet_esquema.sql
+```
+
+Usa solo la conexión del backend (no necesita `pg_dump`; Render usa PostgreSQL 18 y un `pg_dump` más viejo se niega a
+respaldarlo). Probado: se restauró en un esquema temporal y los datos y la estructura salieron idénticos.
+
+**Restaurar** en una base **vacía** (por ejemplo, la nueva de Render cuando expira la gratuita):
+
+```bash
+psql "<DATABASE_URL de la BD nueva>" -f abejanet_completo.sql
+```
+
+⚠️ El script **falla a propósito si las tablas ya existen** (no pisa datos). Si el respaldo incluye funciones, disparadores o
+vistas, el script lo avisa en pantalla y en el archivo (hoy la base no tiene ninguno).

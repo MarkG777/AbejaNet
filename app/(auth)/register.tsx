@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { getApiUrl } from '../../utils/ip_config';
+import { guardarRegistroPendiente } from '../../utils/pendingRegistration';
 
 // --- Componente para mostrar un requisito de la contraseña ---
 const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
@@ -110,7 +111,11 @@ export default function RegisterScreen() {
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.requiereVerificacion) {
+        // El servidor mandó un código al correo: la cuenta no existe "de verdad" hasta confirmarlo (seguridad).
+        guardarRegistroPendiente(email, password);
+        router.push({ pathname: '/(auth)/verify-email', params: { email: data.correo_electronico || email.trim().toLowerCase() } } as any);
+      } else if (response.ok) {
         Toast.show({
           type: 'success',
           text1: t('register_success', 'Registro Exitoso'),

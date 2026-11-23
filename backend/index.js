@@ -15,6 +15,7 @@ import generarDatos from './generate_mock_data.js';
 import { secretosIguales, verificarApiKey, verificarSetupSecret, verificarToken } from './middleware/auth.js';
 import { evaluarLectura, registrarAlertaYNotificar } from './alertas.js';
 import enviarNotificacionPrueba from './test_notification.js';
+import { asegurarEsquemaVerificacion, confirmarCodigo, enviarCodigoNuevo, marcarCorreoVerificado } from './verificacion.js';
 
 // Almacenamiento temporal de códigos de reseteo de contraseña
 // Formato: { email: { code, expiresAt, intentos } }
@@ -276,21 +277,56 @@ app.post('/api/register', authLimiter, async (req, res) => {
   }
 
   try {
-    const { rows: existingUsers } = await pool.query('SELECT id FROM usuarios WHERE LOWER(correo_electronico) = $1', [correoNormalizado]);
+    const { rows: existingUsers } = await pool.query(
+      'SELECT id, correo_verificado FROM usuarios WHERE LOWER(correo_electronico) = $1', [correoNormalizado]
+    );
+
+    // Cuenta pendiente (el correo se registró pero nadie ha confirmado el código): se vuelve a mandar el código, sin
+    // tocar nada más. La contraseña que llega aquí NO se guarda (ver verificacion.js): se fija al confirmar el código.
+    if (existingUsers.length > 0 && existingUsers[0].correo_verificado === false) {
+      try {
+        const r = await enviarCodigoNuevo(pool, { id: existingUsers[0].id, correo: correoNormalizado });
+        return res.status(200).json({
+          success: true, requiereVerificacion: true, correo_electronico: correoNormalizado,
+          message: r.enviado
+            ? 'Te enviamos un código a tu correo para confirmarlo.'
+            : 'Ya te enviamos un código hace un momento. Revisa tu correo (también la carpeta de spam).',
+        });
+      } catch (envioError) {
+        console.error('Error al reenviar el código de verificación:', envioError.message);
+        return res.status(500).json({ success: false, message: 'No se pudo enviar el código a tu correo. Inténtalo de nuevo.' });
+      }
+    }
     if (existingUsers.length > 0) {
-      return res.status(409).json({ success: false, message: 'El correo ya está registrado.' });
+      return res.status(409).json({
+        success: false,
+        message: 'El correo ya está registrado. Si entraste con Google, usa el botón de Google o "¿Olvidaste tu contraseña?" para crear una contraseña.',
+      });
     }
 
-    const contrasenaHasheada = await bcrypt.hash(contrasena, 10);
+    // La cuenta nace PENDIENTE y SIN contraseña; el servidor no guarda nada que sirva para entrar hasta confirmar el correo.
     // En PostgreSQL, para obtener el ID del rol de forma segura, hacemos una subconsulta.
     const insertQuery = `
-      INSERT INTO usuarios (correo_electronico, contrasena, rol_id)
-      VALUES ($1, $2, (SELECT id FROM roles WHERE nombre = 'usuario'))
+      INSERT INTO usuarios (correo_electronico, rol_id, correo_verificado)
+      VALUES ($1, (SELECT id FROM roles WHERE nombre = 'usuario'), FALSE)
       RETURNING id;
     `;
-    const { rows } = await pool.query(insertQuery, [correoNormalizado, contrasenaHasheada]);
+    const { rows } = await pool.query(insertQuery, [correoNormalizado]);
+    const nuevoId = rows[0].id;
 
-    res.status(201).json({ success: true, message: 'Usuario registrado con éxito.', userId: rows[0].id });
+    try {
+      await enviarCodigoNuevo(pool, { id: nuevoId, correo: correoNormalizado });
+    } catch (envioError) {
+      // Si el correo no sale no queda una cuenta huérfana: se borra la que acabamos de crear.
+      console.error('Error al enviar el código de verificación:', envioError.message);
+      await pool.query('DELETE FROM usuarios WHERE id = $1 AND correo_verificado = FALSE', [nuevoId]);
+      return res.status(500).json({ success: false, message: 'No se pudo enviar el código a tu correo. Verifica que sea válido e inténtalo de nuevo.' });
+    }
+
+    res.status(201).json({
+      success: true, requiereVerificacion: true, correo_electronico: correoNormalizado, userId: nuevoId,
+      message: 'Te enviamos un código a tu correo para confirmarlo.',
+    });
   } catch (error) {
     console.error('Error en /api/register:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor.' });
@@ -305,7 +341,7 @@ app.post('/api/login', authLimiter, async (req, res) => {
   }
   try {
     const { rows } = await pool.query(
-       `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo
+       `SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.contrasena, r.nombre AS rol, u.esta_activo, u.correo_verificado
         FROM usuarios u JOIN roles r ON u.rol_id = r.id
        WHERE LOWER(u.correo_electronico) = $1`,
       [(email || '').trim().toLowerCase()]
@@ -318,6 +354,15 @@ app.post('/api/login', authLimiter, async (req, res) => {
     const user = rows[0];
     if (!user.esta_activo) {
       return res.status(403).json({ success: false, message: 'La cuenta de usuario está inactiva.' });
+    }
+
+    // Cuenta pendiente: el correo nunca se confirmó, así que todavía no hay contraseña válida. La app lleva al usuario a
+    // la pantalla del código (o puede entrar con Google, que sí prueba el correo).
+    if (user.correo_verificado === false) {
+      return res.status(403).json({
+        success: false, requiereVerificacion: true, correo_electronico: user.correo_electronico,
+        message: 'Debes confirmar tu correo con el código que te enviamos antes de iniciar sesión.',
+      });
     }
 
     // Verificación NUEVA: Asegurarse de que el usuario tenga una contraseña (no es un usuario de Google)
@@ -358,6 +403,62 @@ app.post('/api/login', authLimiter, async (req, res) => {
   } catch (err) {
     console.error('Error en /api/login:', err);
     res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+  }
+});
+
+// Confirma el correo con el código que llegó al buzón y FIJA la contraseña de la cuenta (ver verificacion.js: la
+// contraseña la manda quien tiene el código, nunca queda plantada por otra persona).
+app.post('/api/verify-email', authLimiter, async (req, res) => {
+  const { correo_electronico, codigo, contrasena } = req.body;
+  if (typeof correo_electronico !== 'string' || typeof codigo !== 'string' || typeof contrasena !== 'string'
+      || !correo_electronico || !codigo || !contrasena) {
+    return res.status(400).json({ success: false, message: 'Correo, código y contraseña son requeridos.' });
+  }
+  if (!/^\d{6}$/.test(codigo.trim())) {
+    return res.status(400).json({ success: false, message: 'El código debe tener 6 dígitos.' });
+  }
+  if (contrasena.length < 8 || contrasena.length > 128) {
+    return res.status(400).json({ success: false, message: 'La contraseña debe tener entre 8 y 128 caracteres.' });
+  }
+  try {
+    const contrasenaHasheada = await bcrypt.hash(contrasena, 10);
+    const r = await confirmarCodigo(pool, correo_electronico, codigo, contrasenaHasheada);
+    if (r.ok) return res.json({ success: true, message: 'Correo confirmado. Ya puedes iniciar sesión.' });
+
+    const mensajes = {
+      sin_cuenta: [400, 'No hay un registro pendiente para este correo.'],
+      sin_codigo: [400, 'No hay un código activo para este correo. Solicita uno nuevo.'],
+      ya_verificada: [409, 'Este correo ya está confirmado. Inicia sesión.'],
+      expirado: [400, 'El código expiró. Solicita uno nuevo.'],
+      bloqueado: [429, 'Demasiados intentos incorrectos. Solicita un código nuevo.'],
+      incorrecto: [400, 'El código es incorrecto.'],
+    };
+    const [estado, message] = mensajes[r.motivo] || [400, 'No se pudo confirmar el correo.'];
+    return res.status(estado).json({ success: false, message, motivo: r.motivo, ...(r.restantes !== undefined && { intentosRestantes: r.restantes }) });
+  } catch (error) {
+    console.error('Error en /api/verify-email:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+  }
+});
+
+// Reenvía el código a una cuenta pendiente. La respuesta es la misma exista o no la cuenta (no revela qué correos hay).
+app.post('/api/resend-verification', authLimiter, async (req, res) => {
+  const { correo_electronico } = req.body;
+  if (typeof correo_electronico !== 'string' || !correo_electronico) {
+    return res.status(400).json({ success: false, message: 'El correo es requerido.' });
+  }
+  const correoNormalizado = correo_electronico.trim().toLowerCase();
+  const generica = { success: true, message: 'Si hay un registro pendiente con ese correo, recibirás un código nuevo.' };
+  try {
+    const { rows } = await pool.query(
+      'SELECT id FROM usuarios WHERE LOWER(correo_electronico) = $1 AND correo_verificado = FALSE', [correoNormalizado]
+    );
+    if (rows.length === 0) return res.json(generica);
+    const r = await enviarCodigoNuevo(pool, { id: rows[0].id, correo: correoNormalizado });
+    return res.json(r.enviado ? generica : { ...generica, esperar: true, message: 'Ya te enviamos un código hace un momento. Espera un minuto para pedir otro.' });
+  } catch (error) {
+    console.error('Error en /api/resend-verification:', error.message);
+    res.status(500).json({ success: false, message: 'No se pudo enviar el código. Inténtalo de nuevo.' });
   }
 });
 
@@ -438,7 +539,7 @@ app.post('/api/auth/google', async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      let { rows: users } = await client.query('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.esta_activo, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE LOWER(u.correo_electronico) = $1', [emailNormalizado]);
+      let { rows: users } = await client.query('SELECT u.id, u.nombre, u.apellido_paterno, u.apellido_materno, u.correo_electronico, u.esta_activo, u.correo_verificado, r.nombre AS rol FROM usuarios u JOIN roles r ON u.rol_id = r.id WHERE LOWER(u.correo_electronico) = $1', [emailNormalizado]);
       let user = users[0];
 
       if (!user) {
@@ -454,6 +555,10 @@ app.post('/api/auth/google', async (req, res) => {
         // Igual que en el login normal: una cuenta desactivada por el administrador no puede entrar con Google.
         await client.query('ROLLBACK');
         return res.status(403).json({ success: false, message: 'La cuenta de usuario está inactiva.' });
+      } else if (user.correo_verificado === false) {
+        // La cuenta se registró con correo pero nunca se confirmó. Google acaba de probar que este correo es de quien
+        // entra, así que se confirma aquí. Una cuenta pendiente no tiene contraseña, por lo que nadie más queda con acceso.
+        await marcarCorreoVerificado(client, user.id);
       }
 
       await client.query('COMMIT');
@@ -969,8 +1074,10 @@ app.post('/api/forgot-password', authLimiter, async (req, res) => {
     const { rows } = await pool.query('SELECT id, contrasena FROM usuarios WHERE LOWER(correo_electronico) = $1', [email.trim().toLowerCase()]);
     console.log(`[forgot-password] Usuarios encontrados: ${rows.length}`);
 
-    if (rows.length === 0 || !rows[0].contrasena) {
-      console.log('[forgot-password] Usuario no encontrado o es cuenta Google. Respuesta silenciosa.');
+    // Solo se calla si no hay cuenta. Una cuenta de Google (sin contraseña) o pendiente también puede crear/restablecer su
+    // contraseña: el código llega a su correo, y quien lo tiene es el dueño del correo (igual que con Google).
+    if (rows.length === 0) {
+      console.log('[forgot-password] Usuario no encontrado. Respuesta silenciosa.');
       return res.json({ success: true, message: 'Si existe una cuenta con ese correo, recibirás un código de verificación.' });
     }
 
@@ -981,7 +1088,7 @@ app.post('/api/forgot-password', authLimiter, async (req, res) => {
     resetCodes.set(email.toLowerCase(), { code, expiresAt, intentos: 0 });
     console.log(`[forgot-password] Código generado para ${enmascararCorreo(email)}. Intentando enviar email...`);
 
-    const brevoResponse = await axios.post('https://api.brevo.com/v3/smtp/email', {
+    const brevoResponse = await axios.post(process.env.BREVO_API_URL || 'https://api.brevo.com/v3/smtp/email', {
       sender: { name: 'AbejaNet', email: process.env.BREVO_SENDER_EMAIL || 'noreply@abejanet.com' },
       to: [{ email }],
       subject: 'Código de recuperación - AbejaNet',
@@ -1056,7 +1163,11 @@ app.post('/api/reset-password', authLimiter, async (req, res) => {
     const { rowCount } = await pool.query(
       // refresh_token = NULL: al restablecer la contraseña se cierran las sesiones abiertas en otros dispositivos
       // (un refresh token robado dejaba de ser inútil solo a los 7 días).
-      'UPDATE usuarios SET contrasena = $1, refresh_token = NULL WHERE LOWER(correo_electronico) = $2',
+      // correo_verificado = TRUE: el código llegó al correo, así que también queda probado que es de quien lo usa (esto
+      // confirma una cuenta pendiente o permite a una cuenta de Google crear contraseña); se descarta el código de registro.
+      `UPDATE usuarios SET contrasena = $1, refresh_token = NULL, correo_verificado = TRUE,
+              codigo_verificacion = NULL, codigo_verificacion_expira = NULL, codigo_verificacion_intentos = 0
+        WHERE LOWER(correo_electronico) = $2`,
       [hashedPassword, email.trim().toLowerCase()]
     );
 
@@ -1441,8 +1552,9 @@ app.post('/debug/setup-database', verificarSetupSecret, async (req, res) => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     
-    // v6 = v5 + columna `presion` (BME280). Los datos se borran: el script empieza con DROP TABLE.
-    const sqlPath = path.join(__dirname, '..', 'abeja_net_v6_postgres.sql');
+    // v7 = v6 + verificación del correo (usuarios); v6 = v5 + columna `presion` (BME280).
+    // Los datos se borran: el script empieza con DROP TABLE.
+    const sqlPath = path.join(__dirname, '..', 'abeja_net_v7_postgres.sql');
     const sqlScript = fs.readFileSync(sqlPath, 'utf8');
     
     await pool.query(sqlScript);
@@ -1487,6 +1599,8 @@ app.use((err, req, res, next) => {
 
 // --- Arranque del Servidor ---
 const PORT = process.env.PORT || 3000;
+// Columnas de la verificación del correo (idempotente: si ya existen no hace nada). Las cuentas existentes quedan verificadas.
+asegurarEsquemaVerificacion(pool).catch((e) => console.error('No se pudo asegurar el esquema de verificación de correo:', e.message));
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`API de AbejaNet escuchando en http://0.0.0.0:${PORT}`);
 });

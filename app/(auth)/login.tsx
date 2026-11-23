@@ -22,6 +22,7 @@ import {
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../../context/AuthContext';
 import { getApiUrl } from '../../utils/ip_config';
+import { guardarRegistroPendiente } from '../../utils/pendingRegistration';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -134,6 +135,10 @@ export default function LoginScreen() {
       if (res.ok && data.success) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         await login(data.token, data.refreshToken, data.user.rol, data.user);
+      } else if (res.status === 403 && data.requiereVerificacion) {
+        // Cuenta registrada pero con el correo sin confirmar: se lleva a la pantalla del código (pidiendo uno nuevo).
+        guardarRegistroPendiente(email, password);
+        router.push({ pathname: '/(auth)/verify-email', params: { email: data.correo_electronico || email.trim().toLowerCase(), auto: '1' } } as any);
       } else {
         Toast.show({ type: 'error', text1: t('auth_error', 'Error de autenticación'), text2: data.message || t('invalid_credentials', 'Credenciales incorrectas'), visibilityTime: 4000 });
       }
